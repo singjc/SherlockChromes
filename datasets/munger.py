@@ -66,13 +66,13 @@ def parse_and_label_skyline_exported_chromatograms(
                         else:
                             label.append(0)
 
-                    labels.append(label)
+                    labels.append(np.array(label))
 
                     counter = 0
                 else:
                     counter+= 1
 
-    return chromatograms, labels
+    return np.array(chromatograms), np.array(labels)
                 
 
 if __name__ == "__main__":
@@ -81,3 +81,6 @@ if __name__ == "__main__":
         parse_skyline_exported_annotations(
             '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.csv')
     )
+
+    np.save('../../../data/working/skyline_exported_chromatograms', chromatograms)
+    np.save('../../../data/working/skyline_exported_labels', labels)
