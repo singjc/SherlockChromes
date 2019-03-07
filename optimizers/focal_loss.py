@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class FocalLossBinary(nn.Module):
-    def __init__(self, alpha=1, gamma=1, logits=False, reduce=True):
+    def __init__(self, alpha=0.25, gamma=2, logits=False, reduce=True):
         super(FocalLossBinary, self).__init__()
         self.alpha = alpha
         self.gamma = gamma
@@ -24,3 +24,6 @@ class FocalLossBinary(nn.Module):
             return torch.mean(F_loss)
         else:
             return F_loss
+
+if __name__ == "__main__":
+    pass
