@@ -15,22 +15,22 @@ if __name__ == "__main__":
         np.load('../../../data/working/skyline_exported_chromatograms.npy'),
         np.load('../../../data/working/skyline_exported_labels.npy'))
 
-    model = BaselineChromatogramPeakDetector(1, 6, 1)
+    model = BaselineChromatogramPeakDetector(6, 6, 1)
     loss_function = nn.BCELoss()
     optimizer = optim.SGD(model.parameters(), lr=0.1)
 
     with torch.no_grad():
-        inputs = torch.from_numpy(chromatograms[0]).float()
+        inputs = torch.from_numpy(chromatograms[18]).float()
         peak_scores = model(inputs)
 
         #Accuracy
-        peaks = torch.from_numpy(labels[0]).float()
+        peaks = torch.from_numpy(labels[18]).float()
         output = peak_scores
         output = (output > 0.5).float().view(len(peaks))
         correct = (output == peaks).float().sum()
         print("Accuracy: {:.3f}".format(correct/output.shape[0]))
 
-    epochs = 300
+    epochs = 50
     for epoch in range(epochs):  
         # for i in range(len(chromatograms)):
         for i in [18]:
@@ -57,11 +57,11 @@ if __name__ == "__main__":
                 epoch + 1, epochs, loss.data.item(), correct/output.shape[0]))
 
     with torch.no_grad():
-        inputs = torch.from_numpy(chromatograms[0]).float()
+        inputs = torch.from_numpy(chromatograms[18]).float()
         peak_scores = model(inputs)
 
         #Accuracy
-        peaks = torch.from_numpy(labels[0]).float()
+        peaks = torch.from_numpy(labels[18]).float()
         output = peak_scores
         output = (output > 0.5).float().view(len(peaks))
         correct = (output == peaks).float().sum()

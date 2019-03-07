@@ -35,10 +35,14 @@ def parse_and_label_skyline_exported_chromatograms(
 
     with open(chromatograms_filename) as infile:
         next(infile)
-        counter = 0
-        chromatogram = []
+        last_seq = None
+        trace_counter = 0
+        chromatogram = None
+        
+        line_counter = 0
 
         for line in infile:
+            line_counter+= 1
             line = line.rstrip('\r\n').split('\t')
 
             if line[1] != '#N/A':
@@ -47,30 +51,60 @@ def parse_and_label_skyline_exported_chromatograms(
                     line[1],
                     np.float_(line[9].split(',')))
 
-                if len(chromatogram) == 0:
+                if seq != last_seq or trace_counter == 6:
+                    last_seq = seq
+
+                    if chromatogram is not None:
+                        if trace_counter < 6:
+                            for i in range(6 - trace_counter):
+                                chromatogram = np.vstack(
+                                    (chromatogram,
+                                     np.zeros((1, np.max(chromatogram.shape)))))
+                        
+                        chromatograms.append(chromatogram.T)
+
+                        times = np.float_(line[8].split(','))
+                        anno = annotations[repl][seq]
+                        label = []
+
+                        for time in times:
+                            if anno['start'] <= time <= anno['end']:
+                                label.append(1)
+                            else:
+                                label.append(0)
+
+                        labels.append(np.array(label))
+
                     chromatogram = ints
+                    trace_counter = 1
                 else:
-                    np.concatenate((chromatogram, ints))
+                    if ints.shape[0] == np.max(chromatogram.shape):
+                        chromatogram = np.vstack((chromatogram, ints))
+                        trace_counter+= 1
+                    else:
+                        if trace_counter < 6:
+                            for i in range(6 - trace_counter):
+                                chromatogram = np.vstack(
+                                    (chromatogram,
+                                     np.zeros((1, np.max(chromatogram.shape)))))
+                        
+                            chromatograms.append(chromatogram.T)
 
-                if counter == 5:
-                    chromatograms.append(chromatogram.T)
-                    chromatogram = []
+                            times = np.float_(line[8].split(','))
+                            anno = annotations[repl][seq]
+                            label = []
 
-                    times = np.float_(line[8].split(','))
-                    annotation = annotations[repl][seq]
-                    label = []
+                            for time in times:
+                                if anno['start'] <= time <= anno['end']:
+                                    label.append(1)
+                                else:
+                                    label.append(0)
 
-                    for time in times:
-                        if annotation['start'] <= time <= annotation['end']:
-                            label.append(1)
-                        else:
-                            label.append(0)
+                            labels.append(np.array(label))
 
-                    labels.append(np.array(label))
-
-                    counter = 0
-                else:
-                    counter+= 1
+                        chromatogram = ints
+                        trace_counter = 1
+                print(line_counter, last_seq, seq, chromatogram.shape, ints.shape, trace_counter)
 
     return np.array(chromatograms), np.array(labels)
                 
