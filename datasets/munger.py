@@ -1,3 +1,4 @@
+import csv
 import numpy as np
 
 def parse_skyline_exported_annotations(annotations_filename):
@@ -31,11 +32,11 @@ def parse_skyline_exported_chromatogram_filenames(filename):
 
 def parse_and_label_skyline_exported_chromatograms(
     chromatograms_filename, annotations):
-    chromatograms, labels = [], []
+    chromatogram_info, chromatograms, labels = [], [], []
 
     with open(chromatograms_filename) as infile:
         next(infile)
-        last_seq = None
+        last_seq, last_repl, last_charge = '', '', ''
         trace_counter = 0
         chromatogram = None
         
@@ -47,19 +48,24 @@ def parse_and_label_skyline_exported_chromatograms(
 
             if line[1] != '#N/A':
                 repl = parse_skyline_exported_chromatogram_filenames(line[0])
-                seq, ints = (
+                seq, ints, charge = (
                     line[1],
-                    np.float_(line[9].split(',')))
+                    np.float_(line[9].split(',')),
+                    line[2])
 
-                if seq != last_seq or trace_counter == 6:
-                    last_seq = seq
-
+                if seq != last_seq \
+                    or charge != last_charge \
+                    or trace_counter == 6:
                     if chromatogram is not None:
+                        chromatogram_info.append(
+                            [last_seq, last_repl, last_charge])
+
                         if trace_counter < 6:
                             for i in range(6 - trace_counter):
                                 chromatogram = np.vstack(
                                     (chromatogram,
-                                     np.zeros((1, np.max(chromatogram.shape)))))
+                                     np.zeros(
+                                         (1, np.max(chromatogram.shape)))))
                         
                         chromatograms.append(chromatogram.T)
 
@@ -77,44 +83,35 @@ def parse_and_label_skyline_exported_chromatograms(
 
                     chromatogram = ints
                     trace_counter = 1
+
+                    last_seq, last_repl, last_charge = seq, repl, charge
                 else:
-                    if ints.shape[0] == np.max(chromatogram.shape):
-                        chromatogram = np.vstack((chromatogram, ints))
-                        trace_counter+= 1
-                    else:
-                        if trace_counter < 6:
-                            for i in range(6 - trace_counter):
-                                chromatogram = np.vstack(
-                                    (chromatogram,
-                                     np.zeros((1, np.max(chromatogram.shape)))))
-                        
-                            chromatograms.append(chromatogram.T)
+                    chromatogram = np.vstack((chromatogram, ints))
+                    trace_counter+= 1
+                    
+                print(
+                    line_counter,
+                    seq,
+                    charge,
+                    chromatogram.shape,
+                    ints.shape,
+                    trace_counter)
 
-                            times = np.float_(line[8].split(','))
-                            anno = annotations[repl][seq]
-                            label = []
-
-                            for time in times:
-                                if anno['start'] <= time <= anno['end']:
-                                    label.append(1)
-                                else:
-                                    label.append(0)
-
-                            labels.append(np.array(label))
-
-                        chromatogram = ints
-                        trace_counter = 1
-                print(line_counter, last_seq, seq, chromatogram.shape, ints.shape, trace_counter)
-
-    return np.array(chromatograms), np.array(labels)
+    return chromatogram_info, np.array(chromatograms), np.array(labels)
                 
 
 if __name__ == "__main__":
-    chromatograms, labels = parse_and_label_skyline_exported_chromatograms(
-        '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.tsv',
-        parse_skyline_exported_annotations(
-            '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.csv')
+    chromatogram_info, chromatograms, labels = \
+        parse_and_label_skyline_exported_chromatograms(
+            '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.tsv',
+            parse_skyline_exported_annotations(
+                '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.csv')
     )
+
+    with open('../../../data/working/chromatogram_info.csv', 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Modified Sequence', 'Replicate', 'Precursor Charge'])
+        writer.writerows(chromatogram_info)
 
     np.save('../../../data/working/skyline_exported_chromatograms', chromatograms)
     np.save('../../../data/working/skyline_exported_labels', labels)
