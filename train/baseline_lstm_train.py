@@ -17,9 +17,9 @@ if __name__ == "__main__":
         np.load('../../../data/working/skyline_exported_chromatograms.npy'),
         np.load('../../../data/working/skyline_exported_labels.npy'))
 
-    model = BaselineChromatogramPeakDetector(6, 32, 1)
+    model = BaselineChromatogramPeakDetector(6, 64, 1)
     loss_function = FocalLossBinary()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=0.01)
 
     with torch.no_grad():
         inputs = torch.from_numpy(chromatograms[18]).float()
@@ -32,8 +32,8 @@ if __name__ == "__main__":
         correct = (output == peaks).float().sum()
         print("Accuracy: {:.3f}".format(correct/output.shape[0]))
 
-    checkpoint_epoch, checkpoint_accuracy = 200, 0
-    epochs = 350
+    checkpoint_epoch, checkpoint_accuracy = 50, 0
+    epochs = 100
     for epoch in range(epochs):  
         # for i in range(len(chromatograms)):
         for i in [18]:
