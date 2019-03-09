@@ -70,7 +70,7 @@ def parse_and_label_skyline_exported_chromatograms(
                         chromatograms.append(chromatogram.T)
 
                         times = np.float_(line[8].split(','))
-                        anno = annotations[repl][seq]
+                        anno = annotations[last_repl][last_seq]
                         label = []
 
                         for time in times:

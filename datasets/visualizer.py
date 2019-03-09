@@ -1,7 +1,40 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 from sklearn.metrics import confusion_matrix
+
+def plot_chromatogram(chromatogram, labels):
+    # Convert from single multivariate time series
+    # back to separate single variate time series
+    chromatogram = chromatogram.T
+
+    traces, timepoints, intensities = [], [], []
+
+    for trace in range(len(chromatogram)):
+        for timepoint in range(len(chromatogram[trace])):
+            traces.append('chromatogram_' + str(trace))
+            timepoints.append(timepoint)
+            intensities.append(chromatogram[trace][timepoint])
+
+    df = pd.DataFrame(
+        {'trace': traces, 'timepoint': timepoints, 'intensity': intensities})
+
+    by_trace = df.groupby('trace')
+
+    for trace, group in by_trace:
+        plt.plot(group['timepoint'], group['intensity'], label=trace)
+
+    labels = list(labels)
+
+    peak_start, peak_end = (
+        labels.index(1) - 1, len(labels) - labels[::-1].index(1))
+
+    plt.axvline(peak_start)
+    plt.axvline(peak_end)
+
+    plt.legend()
+    plt.show()
 
 def plot_confusion_matrix(y_true, y_pred, classes,
                           normalize=False,
@@ -58,4 +91,8 @@ def plot_confusion_matrix(y_true, y_pred, classes,
     return ax
 
 if __name__ == "__main__":
-    pass
+    chromatograms, labels = (
+        np.load('../../../data/working/skyline_exported_chromatograms.npy'),
+        np.load('../../../data/working/skyline_exported_labels.npy'))
+    print(chromatograms.shape)
+    plot_chromatogram(chromatograms[0], labels[0])
