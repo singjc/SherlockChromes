@@ -24,5 +24,6 @@ class BaselineChromatogramPeakDetector(nn.Module):
 
         return peak_scores
 
+
 if __name__ == "__main__":
     pass

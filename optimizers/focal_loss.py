@@ -25,5 +25,6 @@ class FocalLossBinary(nn.Module):
         else:
             return F_loss
 
+
 if __name__ == "__main__":
     pass

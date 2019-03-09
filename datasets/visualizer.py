@@ -5,8 +5,14 @@ import pandas as pd
 from sklearn.metrics import confusion_matrix
 
 def plot_chromatogram(chromatogram, labels):
+    """
+    Args:
+        chromatogram: (len_of_chromatogram, num_dimensions)
+        labels: (len_of_chromatogram, )
+    """
     # Convert from single multivariate time series
     # back to separate single variate time series
+    # with shape (num_dimensions, len_of_chromatogram)
     chromatogram = chromatogram.T
 
     traces, timepoints, intensities = [], [], []
@@ -89,6 +95,7 @@ def plot_confusion_matrix(y_true, y_pred, classes,
     plt.show()
 
     return ax
+
 
 if __name__ == "__main__":
     chromatograms, labels = (
