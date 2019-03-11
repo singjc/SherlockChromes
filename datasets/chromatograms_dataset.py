@@ -19,7 +19,7 @@ class ChromatogramsDataset(Dataset):
         """
         self.root_dir = root_dir
         self.chromatograms = pd.read_csv(os.path.join(self.root_dir,
-                                         self.chromatograms))
+                                         chromatograms))
         self.labels = np.load(os.path.join(self.root_dir, labels))
         self.transform = transform
     
@@ -29,12 +29,11 @@ class ChromatogramsDataset(Dataset):
     def __getitem__(self, idx):
         chromatogram_name = os.path.join(
             self.root_dir,
-            self.chromatograms.iloc[idx, 0])
+            self.chromatograms.iloc[idx, 0]) + '.npy'
         chromatogram = torch.from_numpy(np.load(chromatogram_name)).float()
         labels = torch.from_numpy(self.labels[idx]).float()
-        sample = {'chromatogram': chromatogram, 'labels': labels}
 
         if self.transform:
-            sample = self.transform(sample)
+            chromatogram = self.transform(chromatogram)
 
-        return sample
+        return chromatogram, labels
