@@ -72,20 +72,22 @@ def parse_and_label_skyline_exported_chromatograms(
                         
                         np.save(os.path.join(root_dir, chromatogram_filename), chromatogram.T)
 
-                        times = np.float_(line[8].split(','))
-                        anno = annotations[last_repl][last_seq]
-                        label = []
-
-                        for time in times:
-                            if anno['start'] <= time <= anno['end']:
-                                label.append(1)
-                            else:
-                                label.append(0)
-
-                        labels.append(np.array(label))
+                        assert chromatogram.T.shape[0] == len(labels[-1])
 
                     chromatogram = ints
                     trace_counter = 1
+
+                    times = np.float_(line[8].split(','))
+                    anno = annotations[repl][seq]
+                    label = []
+
+                    for time in times:
+                        if anno['start'] <= time <= anno['end']:
+                            label.append(1)
+                        else:
+                            label.append(0)
+
+                    labels.append(np.array(label))
 
                     last_seq, last_repl, last_charge = seq, repl, charge
                 else:
