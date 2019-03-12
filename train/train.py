@@ -2,7 +2,7 @@ import random
 import torch
 
 from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
-from ignite.metrics import Accuracy, Loss
+from ignite.metrics import Accuracy, Loss, Precision, Recall
 from torch.utils.data import DataLoader, Subset
 
 from collate_fns import pad_chromatograms
@@ -60,6 +60,8 @@ def train(data, model, optimizer=None, loss=None, device='cpu', **kwargs):
     evaluator = create_supervised_evaluator(model,
                                             metrics={
                                                 'accuracy': Accuracy(),
+                                                'precision': Precision(),
+                                                'recall': Recall(),
                                                 'loss': Loss(loss)
                                             })
 
@@ -72,25 +74,36 @@ def train(data, model, optimizer=None, loss=None, device='cpu', **kwargs):
     def log_training_results(trainer):
         evaluator.run(train_loader)
         metrics = evaluator.state.metrics
-        print("Training Results - Epoch: {} \
-               Avg accuracy: {:.4f} Avg loss: {:.4f}"
+        print("Training Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
                .format(
-                   trainer.state.epoch, metrics['accuracy'], metrics['loss']))
+                   trainer.state.epoch,
+                   metrics['accuracy'],
+                   metrics['precision'],
+                   metrics['recall'],
+                   metrics['loss']))
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_validation_results(trainer):
         evaluator.run(val_loader)
         metrics = evaluator.state.metrics
-        print("Validation Results - Epoch: {} \
-               Avg accuracy: {:.4f} Avg loss: {:.4f}"
+        print("Validation Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
                .format(
-                   trainer.state.epoch, metrics['accuracy'], metrics['loss']))
+                   trainer.state.epoch,
+                   metrics['accuracy'],
+                   metrics['precision'],
+                   metrics['recall'],
+                   metrics['loss']))
 
     @trainer.on(Events.COMPLETED)
     def log_test_results(trainer):
         evaluator.run(test_loader)
         metrics = evaluator.state.metrics
-        print("Test Results - Avg accuracy: {:.4f} Avg loss: {:.4f}"
-            .format(metrics['accuracy'], metrics['loss']))
+        print("Test Results - Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
+               .format(
+                   trainer.state.epoch,
+                   metrics['accuracy'],
+                   metrics['precision'],
+                   metrics['recall'],
+                   metrics['loss']))
 
     trainer.run(train_loader, max_epochs=kwargs['max_epochs'])

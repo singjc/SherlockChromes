@@ -82,10 +82,10 @@ if __name__ == "__main__":
 
     data = ChromatogramsDataset(
         '../../../data/working/ManualValidation',
-        'chromatograms.csv',
+        'chromatograms_test.csv',
         'skyline_exported_labels.npy', transform=ToTensor())
 
-    model = BaselineChromatogramPeakDetector(6, 64, 1, 32)
+    model = BaselineChromatogramPeakDetector(6, 64, 1, 10)
     loss_function = FocalLossBinary()
     optimizer = optim.Adam(model.parameters(), lr=0.01)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -97,10 +97,10 @@ if __name__ == "__main__":
         optimizer,
         loss_function,
         device,
-        test_batch_proportion=0.15,
-        max_epochs=150,
-        train_batch_size=32,
-        val_batch_size=32)
+        test_batch_proportion=0.1,
+        max_epochs=100,
+        train_batch_size=10,
+        val_batch_size=10)
 
     with torch.no_grad():
         inputs = data[0][0]
