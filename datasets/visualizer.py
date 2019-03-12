@@ -13,7 +13,7 @@ def plot_chromatogram(chromatogram, labels):
     # Convert from single multivariate time series Tensor
     # back to separate single variate time series ndarray
     # with shape (num_dimensions, len_of_chromatogram)
-    chromatogram = chromatogram.numpy().T
+    chromatogram = chromatogram.T
 
     traces, timepoints, intensities = [], [], []
 

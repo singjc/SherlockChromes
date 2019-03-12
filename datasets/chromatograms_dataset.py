@@ -30,10 +30,11 @@ class ChromatogramsDataset(Dataset):
         chromatogram_name = os.path.join(
             self.root_dir,
             self.chromatograms.iloc[idx, 0]) + '.npy'
-        chromatogram = torch.from_numpy(np.load(chromatogram_name)).float()
-        labels = torch.from_numpy(self.labels[idx]).float()
+        chromatogram = np.load(chromatogram_name).astype(float)
+        label = self.labels[idx].astype(float)
 
         if self.transform:
             chromatogram = self.transform(chromatogram)
+            label = self.transform(label)
 
-        return chromatogram, labels
+        return chromatogram, label

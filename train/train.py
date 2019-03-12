@@ -2,9 +2,11 @@ import random
 import torch
 
 from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
+from ignite.metrics import Accuracy, Loss
 from torch.utils.data import DataLoader, Subset
 
-def get_data_loaders(data, test_batch_proportion):
+def get_data_loaders(
+    data, test_batch_proportion=0.1, train_batch_size=1, val_batch_size=1):
     n = len(data)
     n_test = int(n * test_batch_proportion)
     n_train = n - 2 * n_test
@@ -16,25 +18,27 @@ def get_data_loaders(data, test_batch_proportion):
     val_idx = idx[n_train:(n_train + n_test)]
     test_idx = idx[(n_train + n_test):]
 
-    train_set = data.Subset(data, train_idx)
-    val_set = data.Subset(data, val_idx)
-    test_set = data.Subset(data, test_idx)
+    train_set = Subset(data, train_idx)
+    val_set = Subset(data, val_idx)
+    test_set = Subset(data, test_idx)
 
-    train_loader = DataLoader(train_set)
-    val_loader = DataLoader(val_set)
-    test_loader = DataLoader(test_set)
+    train_loader = DataLoader(train_set, batch_size=train_batch_size)
+    val_loader = DataLoader(val_set, batch_size=val_batch_size)
+    test_loader = DataLoader(test_set, batch_size=val_batch_size)
 
     return train_loader, val_loader, test_loader
 
-def train(data, model, optimizer=None, loss=None, **kwargs):
+def train(data, model, optimizer=None, loss=None, device='cpu', **kwargs):
     train_loader, val_loader, test_loader = get_data_loaders(
-        data, kwargs['test_batch_proportion'])
+        data, kwargs['test_batch_proportion'],
+        kwargs['train_batch_size'],
+        kwargs['val_batch_size'])
 
     if not optimizer:
-        optimizer = torch.optim.Adam(model.parameters(), lr=kwargs['lr'])
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
     if not loss:
-        loss = torch.nn.NLLLoss()
+        loss = torch.nn.BCELoss()
 
     trainer = create_supervised_trainer(model, optimizer, loss)
     evaluator = create_supervised_evaluator(model,
