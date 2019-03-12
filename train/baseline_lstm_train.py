@@ -12,6 +12,7 @@ from baseline_lstm_model import BaselineChromatogramPeakDetector
 from chromatograms_dataset import ChromatogramsDataset
 from focal_loss import FocalLossBinary
 from train import train
+from transforms import ToTensor
 from visualizer import plot_chromatogram, plot_confusion_matrix
 
 if __name__ == "__main__":  
@@ -78,24 +79,17 @@ if __name__ == "__main__":
         
         # if accuracy > checkpoint_accuracy:
         #     torch.save(model.state_dict(), "../../../data/working/overfit_on_chromatogram_18_baseline_lstm.pt")
-    def to_tensor(nparray):
-        return torch.from_numpy(nparray).float()
 
     data = ChromatogramsDataset(
         '../../../data/working/ManualValidation',
-        'chromatograms_test.csv',
-        'skyline_exported_labels.npy', transform=to_tensor)
+        'chromatograms.csv',
+        'skyline_exported_labels.npy', transform=ToTensor())
 
-    for i in range(len(data)):
-        print((data[i][1].size()))
-        print(data[i][1])
-        print(((data[i][1]) == 1.).sum())
-
-    model = BaselineChromatogramPeakDetector(6, 64, 1, 4)
+    model = BaselineChromatogramPeakDetector(6, 64, 1, 32)
     loss_function = FocalLossBinary()
     optimizer = optim.Adam(model.parameters(), lr=0.01)
-    # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    device = 'cpu'
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    # device = 'cpu'
 
     train(
         data,
@@ -103,10 +97,10 @@ if __name__ == "__main__":
         optimizer,
         loss_function,
         device,
-        test_batch_proportion=0.1,
+        test_batch_proportion=0.15,
         max_epochs=150,
-        train_batch_size=4,
-        val_batch_size=1)
+        train_batch_size=32,
+        val_batch_size=32)
 
     with torch.no_grad():
         inputs = data[0][0]

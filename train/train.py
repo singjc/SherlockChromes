@@ -5,8 +5,10 @@ from ignite.engine import Events, create_supervised_trainer, create_supervised_e
 from ignite.metrics import Accuracy, Loss
 from torch.utils.data import DataLoader, Subset
 
+from collate_fns import pad_chromatograms
+
 def get_data_loaders(
-    data, test_batch_proportion=0.1, train_batch_size=1, val_batch_size=1):
+    data, test_batch_proportion=0.1, batch_size=1):
     n = len(data)
     n_test = int(n * test_batch_proportion)
     n_train = n - 2 * n_test
@@ -22,17 +24,31 @@ def get_data_loaders(
     val_set = Subset(data, val_idx)
     test_set = Subset(data, test_idx)
 
-    train_loader = DataLoader(train_set, batch_size=train_batch_size)
-    val_loader = DataLoader(val_set, batch_size=val_batch_size)
-    test_loader = DataLoader(test_set, batch_size=val_batch_size)
+    train_loader = DataLoader(
+        train_set,
+        batch_size=batch_size,
+        num_workers=4,
+        collate_fn=pad_chromatograms,
+        drop_last=True)
+    val_loader = DataLoader(
+        val_set,
+        batch_size=batch_size,
+        num_workers=4,
+        collate_fn=pad_chromatograms,
+        drop_last=True)
+    test_loader = DataLoader(
+        test_set,
+        batch_size=batch_size,
+        num_workers=4,
+        collate_fn=pad_chromatograms,
+        drop_last=True)
 
     return train_loader, val_loader, test_loader
 
 def train(data, model, optimizer=None, loss=None, device='cpu', **kwargs):
     train_loader, val_loader, test_loader = get_data_loaders(
         data, kwargs['test_batch_proportion'],
-        kwargs['train_batch_size'],
-        kwargs['val_batch_size'])
+        kwargs['train_batch_size'])
 
     if not optimizer:
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)

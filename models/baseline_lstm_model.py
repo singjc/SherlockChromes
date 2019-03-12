@@ -26,7 +26,8 @@ class BaselineChromatogramPeakDetector(nn.Module):
         num_timesteps = np.max(chromatogram.size())
 
         lstm_out, hidden_temp = self.lstm(
-            chromatogram.view(num_timesteps, 1, -1), (self.hidden, self.cell))
+            chromatogram.view(num_timesteps, self.batch_size, -1),
+            (self.hidden, self.cell))
         self.hidden = hidden_temp[0]
         self.cell = hidden_temp[1]
         self.hidden = self.hidden.detach()

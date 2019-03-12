@@ -10,8 +10,8 @@ def plot_chromatogram(chromatogram, labels):
         chromatogram: (len_of_chromatogram, num_dimensions)
         labels: (len_of_chromatogram, )
     """
-    # Convert from single multivariate time series Tensor
-    # back to separate single variate time series ndarray
+    # Convert from single multivariate time series
+    # back to separate single variate time series
     # with shape (num_dimensions, len_of_chromatogram)
     chromatogram = chromatogram.T
 

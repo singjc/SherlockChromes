@@ -34,7 +34,6 @@ class ChromatogramsDataset(Dataset):
         label = self.labels[idx].astype(float)
 
         if self.transform:
-            chromatogram = self.transform(chromatogram)
-            label = self.transform(label)
+            chromatogram, label = self.transform((chromatogram, label))
 
         return chromatogram, label
