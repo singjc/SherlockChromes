@@ -8,16 +8,16 @@ from torch.utils.data import Dataset
 class ChromatogramsDataset(Dataset):
     """Chromatograms stored in memory dataset."""
 
-    def __init__(self, root_dir, chromatograms, labels, transform=None):
+    def __init__(self, root_path, chromatograms, labels, transform=None):
         """
         Args:
-            root_dir (string): Path to the folder of chromatogram npy files.
+            root_path (string): Path to the root folder.
             chromatograms (string): Filename of CSV with chromatogram filenames.
             labels (string): Filename of the npy file with labels.
             transform (callable, optional): Optional transform to be applied
                 on a sample (e.g. padding).
         """
-        self.root_dir = root_dir
+        self.root_dir = root_path
         self.chromatograms = pd.read_csv(os.path.join(self.root_dir,
                                          chromatograms))
         self.labels = np.load(os.path.join(self.root_dir, labels))

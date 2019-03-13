@@ -2,10 +2,16 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-class BaselineChromatogramPeakDetector(nn.Module):
+class BaselineChromatogramPeakDetectorLSTM(nn.Module):
 
-    def __init__(self, input_dim, hidden_dim, output_size, batch_size):
-        super(BaselineChromatogramPeakDetector, self).__init__()
+    def __init__(
+        self,
+        input_dim,
+        hidden_dim,
+        output_size,
+        batch_size,
+        device='cpu'):
+        super(BaselineChromatogramPeakDetectorLSTM, self).__init__()
         self.hidden_dim = hidden_dim
 
         self.lstm = nn.LSTM(input_dim, hidden_dim, bidirectional=True)
@@ -16,11 +22,20 @@ class BaselineChromatogramPeakDetector(nn.Module):
             self.batch_size * hidden_dim * 2,
             self.batch_size * output_size)
 
+        self.device = device
+
         self.hidden, self.cell = self.init_hidden()
 
     def init_hidden(self):
-        return (torch.zeros(2, self.batch_size, self.hidden_dim),
-                torch.zeros(2, self.batch_size, self.hidden_dim))
+        hidden, cell = (
+            torch.zeros(2, self.batch_size, self.hidden_dim),
+            torch.zeros(2, self.batch_size, self.hidden_dim))
+
+        if self.device != 'cpu':
+            hidden = hidden.to(self.device)
+            cell = cell.to(self.device)
+
+        return hidden, cell
 
     def forward(self, chromatogram):
         num_timesteps = np.max(chromatogram.size())
@@ -37,7 +52,3 @@ class BaselineChromatogramPeakDetector(nn.Module):
         peak_scores = torch.sigmoid(peak_space).view(peak_space.size()[1], peak_space.size()[0])
 
         return peak_scores
-
-
-if __name__ == "__main__":
-    pass

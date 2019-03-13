@@ -45,10 +45,16 @@ def get_data_loaders(
 
     return train_loader, val_loader, test_loader
 
-def train(data, model, optimizer=None, loss=None, device='cpu', **kwargs):
+def train(
+    data,
+    model,
+    optimizer=None,
+    loss=None,
+    device='cpu',
+    **kwargs):
     train_loader, val_loader, test_loader = get_data_loaders(
         data, kwargs['test_batch_proportion'],
-        kwargs['train_batch_size'])
+        kwargs['batch_size'])
 
     if not optimizer:
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
@@ -56,14 +62,15 @@ def train(data, model, optimizer=None, loss=None, device='cpu', **kwargs):
     if not loss:
         loss = torch.nn.BCELoss()
 
-    trainer = create_supervised_trainer(model, optimizer, loss)
+    trainer = create_supervised_trainer(model, optimizer, loss, device=device)
     evaluator = create_supervised_evaluator(model,
                                             metrics={
                                                 'accuracy': Accuracy(),
                                                 'precision': Precision(),
                                                 'recall': Recall(),
                                                 'loss': Loss(loss)
-                                            })
+                                            },
+                                            device=device)
 
     @trainer.on(Events.ITERATION_COMPLETED)
     def log_training_loss(trainer):

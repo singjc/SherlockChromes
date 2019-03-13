@@ -1,4 +1,3 @@
-import importlib.machinery as imp
 import logging
 import os
 import pprint
@@ -6,6 +5,7 @@ import sys
 import yaml
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from importlib.util import spec_from_file_location, module_from_spec
 
 logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
                     level=logging.DEBUG,
@@ -19,11 +19,34 @@ def run_experiment(yaml_filepath):
     pp = pprint.PrettyPrinter(indent=4)
     pp.pprint(cfg)
 
-    # Here is an example how you load modules of which you put the path in the
-    # configuration. 
-    dpath = cfg['dataset']['script_path']
-    sys.path.insert(1, os.path.dirname(dpath))
-    data = imp.SourceFileLoader('data', cfg['dataset']['script_path']).load_module()
+    # TODO: Figure out how to configure more than just the training loop,
+    # currently still have to have a new train file per model/dataset/loss
+    # function/optimizer, can only config params of each of the formentioned
+
+    device = cfg['general']['device']
+
+    dataset_kwargs = cfg['dataset']['kwargs']
+
+    model_kwargs = cfg['model']['kwargs']
+
+    loss_kwargs = cfg['loss']['kwargs']
+
+    optimizer_kwargs = cfg['optimizer']['kwargs']
+
+    train_path = cfg['train']['script_path']
+    sys.path.insert(1, os.path.dirname(train_path))
+    train_spec = spec_from_file_location('train', train_path)
+    train_mod = module_from_spec(train_spec)
+    train_spec.loader.exec_module(train_mod)
+    train_kwargs = cfg['train']['kwargs']
+
+    train_mod.main(
+        dataset_kwargs,
+        model_kwargs,
+        loss_kwargs,
+        optimizer_kwargs,
+        train_kwargs,
+        device)
 
 def load_cfg(yaml_filepath):
     """
