@@ -6,8 +6,6 @@ from ignite.engine import Events, create_supervised_trainer, create_supervised_e
 from ignite.metrics import Accuracy, Loss, Precision, Recall
 from torch.utils.data import DataLoader, Subset
 
-from collate_fns import pad_chromatograms, pad_chromatograms_subsection
-
 def get_data_loaders(
     data, test_batch_proportion=0.1, batch_size=1, collate_fn=None):
     n = len(data)

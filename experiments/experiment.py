@@ -27,6 +27,7 @@ def run_experiment(yaml_filepath):
 
     dataset_kwargs = cfg['dataset']['kwargs']
     data_path = cfg['dataset']['script_path']
+    sys.path.insert(0, data_path)
     data_mod_name = cfg['dataset']['module_name']
     data_spec = spec_from_file_location(data_mod_name, data_path)
     data_mod = module_from_spec(data_spec)
