@@ -5,10 +5,10 @@ from ignite.engine import Events, create_supervised_trainer, create_supervised_e
 from ignite.metrics import Accuracy, Loss, Precision, Recall
 from torch.utils.data import DataLoader, Subset
 
-from collate_fns import pad_chromatograms
+from collate_fns import pad_chromatograms, pad_chromatograms_subsection
 
 def get_data_loaders(
-    data, test_batch_proportion=0.1, batch_size=1):
+    data, test_batch_proportion=0.1, batch_size=1, collate_fn=None):
     n = len(data)
     n_test = int(n * test_batch_proportion)
     n_train = n - 2 * n_test
@@ -24,24 +24,46 @@ def get_data_loaders(
     val_set = Subset(data, val_idx)
     test_set = Subset(data, test_idx)
 
-    train_loader = DataLoader(
-        train_set,
-        batch_size=batch_size,
-        num_workers=4,
-        collate_fn=pad_chromatograms,
-        drop_last=True)
-    val_loader = DataLoader(
-        val_set,
-        batch_size=batch_size,
-        num_workers=4,
-        collate_fn=pad_chromatograms,
-        drop_last=True)
-    test_loader = DataLoader(
-        test_set,
-        batch_size=batch_size,
-        num_workers=4,
-        collate_fn=pad_chromatograms,
-        drop_last=True)
+    if collate_fn:
+        if collate_fn == 'cnn':
+            collate_fn = pad_chromatograms_subsection
+        elif collate_fn == 'rnn':
+            collate_fn = pad_chromatograms
+
+        train_loader = DataLoader(
+            train_set,
+            batch_size=batch_size,
+            num_workers=4,
+            collate_fn=collate_fn,
+            drop_last=True)
+        val_loader = DataLoader(
+            val_set,
+            batch_size=batch_size,
+            num_workers=4,
+            collate_fn=collate_fn,
+            drop_last=True)
+        test_loader = DataLoader(
+            test_set,
+            batch_size=batch_size,
+            num_workers=4,
+            collate_fn=collate_fn,
+            drop_last=True)
+    else:
+        train_loader = DataLoader(
+            train_set,
+            batch_size=batch_size,
+            num_workers=4,
+            drop_last=True)
+        val_loader = DataLoader(
+            val_set,
+            batch_size=batch_size,
+            num_workers=4,
+            drop_last=True)
+        test_loader = DataLoader(
+            test_set,
+            batch_size=batch_size,
+            num_workers=4,
+            drop_last=True)
 
     return train_loader, val_loader, test_loader
 
@@ -51,10 +73,12 @@ def train(
     optimizer=None,
     loss=None,
     device='cpu',
+    mode='train only',
     **kwargs):
     train_loader, val_loader, test_loader = get_data_loaders(
         data, kwargs['test_batch_proportion'],
-        kwargs['batch_size'])
+        kwargs['batch_size'],
+        kwargs['collate_fn'])
 
     if not optimizer:
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
@@ -91,26 +115,28 @@ def train(
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_validation_results(trainer):
-        evaluator.run(val_loader)
-        metrics = evaluator.state.metrics
-        print("Validation Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
-               .format(
-                   trainer.state.epoch,
-                   metrics['accuracy'],
-                   metrics['precision'],
-                   metrics['recall'],
-                   metrics['loss']))
+        if mode != 'train only':
+            evaluator.run(val_loader)
+            metrics = evaluator.state.metrics
+            print("Validation Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
+                .format(
+                    trainer.state.epoch,
+                    metrics['accuracy'],
+                    metrics['precision'],
+                    metrics['recall'],
+                    metrics['loss']))
 
     @trainer.on(Events.COMPLETED)
     def log_test_results(trainer):
-        evaluator.run(test_loader)
-        metrics = evaluator.state.metrics
-        print("Test Results - Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
-               .format(
-                   trainer.state.epoch,
-                   metrics['accuracy'],
-                   metrics['precision'],
-                   metrics['recall'],
-                   metrics['loss']))
+        if mode != 'train only':
+            evaluator.run(test_loader)
+            metrics = evaluator.state.metrics
+            print("Test Results - Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
+                .format(
+                    trainer.state.epoch,
+                    metrics['accuracy'],
+                    metrics['precision'],
+                    metrics['recall'],
+                    metrics['loss']))
 
     trainer.run(train_loader, max_epochs=kwargs['max_epochs'])

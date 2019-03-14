@@ -4,6 +4,8 @@ import pandas as pd
 
 from sklearn.metrics import confusion_matrix
 
+from chromatograms_dataset import ChromatogramsDataset
+
 def plot_chromatogram(chromatogram, labels):
     """
     Args:
@@ -13,7 +15,8 @@ def plot_chromatogram(chromatogram, labels):
     # Convert from single multivariate time series
     # back to separate single variate time series
     # with shape (num_dimensions, len_of_chromatogram)
-    chromatogram = chromatogram.T
+    if chromatogram.shape[0] == max(chromatogram.shape):
+        chromatogram = chromatogram.T
 
     traces, timepoints, intensities = [], [], []
 
@@ -36,8 +39,11 @@ def plot_chromatogram(chromatogram, labels):
     peak_start, peak_end = (
         labels.index(1) - 1, len(labels) - labels[::-1].index(1))
 
-    plt.axvline(peak_start)
-    plt.axvline(peak_end)
+    plt.axvline(peak_start, color='r')
+    plt.axvline(peak_end, color='r')
+
+    for i in range(0, len(chromatogram[0]), 20):
+        plt.axvline(i, color='b')
 
     plt.legend()
     plt.show()
@@ -98,8 +104,8 @@ def plot_confusion_matrix(y_true, y_pred, classes,
 
 
 if __name__ == "__main__":
-    chromatograms, labels = (
-        np.load('../../../data/working/skyline_exported_chromatograms.npy'),
-        np.load('../../../data/working/skyline_exported_labels.npy'))
-    print(chromatograms.shape)
-    plot_chromatogram(chromatograms[0], labels[0])
+    chromatograms = ChromatogramsDataset(
+        '../../../data/working/ManualValidation',
+        'chromatograms.csv',
+        'skyline_exported_labels.npy')
+    plot_chromatogram(chromatograms[0][0], chromatograms[0][1])

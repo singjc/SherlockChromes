@@ -23,7 +23,7 @@ def get_peak_width_dist(annotations_filename):
 
             if start != '#N/A' and end != '#N/A':
                 peak_widths.append(
-                    float(end) - float(start))
+                    (float(end) - float(start)) / 0.0569)
 
     return peak_widths
 
