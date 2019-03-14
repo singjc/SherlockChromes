@@ -26,12 +26,57 @@ def run_experiment(yaml_filepath):
     device = cfg['general']['device']
 
     dataset_kwargs = cfg['dataset']['kwargs']
+    data_path = cfg['dataset']['script_path']
+    data_mod_name = cfg['dataset']['module_name']
+    data_spec = spec_from_file_location(data_mod_name, data_path)
+    data_mod = module_from_spec(data_spec)
+    data_spec.loader.exec_module(data_mod)
+    sys.modules[data_mod_name] = data_mod
+
+    transforms_path = cfg['transform']['script_path']
+    transforms_mod_name = cfg['transform']['module_name']
+    transforms_spec = spec_from_file_location(
+        transforms_mod_name, transforms_path)
+    transforms_mod = module_from_spec(transforms_spec)
+    transforms_spec.loader.exec_module(transforms_mod)
+    sys.modules[transforms_mod_name] = transforms_mod
+    transform = getattr(
+        transforms_mod, cfg['transform']['transform_name'])()
+    dataset = getattr(
+        data_mod, cfg['dataset']['dataset_name'])(
+            **dataset_kwargs, transform=transform)
 
     model_kwargs = cfg['model']['kwargs']
+    model_path = cfg['model']['script_path']
+    model_mod_name = cfg['model']['module_name']
+    model_spec = spec_from_file_location(model_mod_name, model_path)
+    model_mod = module_from_spec(model_spec)
+    model_spec.loader.exec_module(model_mod)
+    sys.modules[model_mod_name] = model_mod
+    model = getattr(
+        model_mod, cfg['model']['model_name'])(**model_kwargs)
 
     loss_kwargs = cfg['loss']['kwargs']
+    loss_path = cfg['loss']['script_path']
+    loss_mod_name = cfg['loss']['module_name']
+    loss_spec = spec_from_file_location(loss_mod_name, loss_path)
+    loss_mod = module_from_spec(loss_spec)
+    loss_spec.loader.exec_module(loss_mod)
+    sys.modules[loss_mod_name] = loss_mod
+    loss = getattr(
+        loss_mod, cfg['loss']['loss_name'])(**loss_kwargs)
 
     optimizer_kwargs = cfg['optimizer']['kwargs']
+
+    collate_fns_path = cfg['collate_fn']['script_path']
+    collate_fns_mod_name = cfg['collate_fn']['module_name']
+    collate_fns_spec = spec_from_file_location(
+        collate_fns_mod_name, collate_fns_path)
+    collate_fns_mod = module_from_spec(collate_fns_spec)
+    collate_fns_spec.loader.exec_module(collate_fns_mod)
+    sys.modules[collate_fns_mod_name] = collate_fns_mod
+    collate_fn = getattr(
+        collate_fns_mod, cfg['collate_fn']['collate_fn_name'])
 
     train_path = cfg['train']['script_path']
     sys.path.insert(1, os.path.dirname(train_path))
@@ -41,29 +86,13 @@ def run_experiment(yaml_filepath):
     train_kwargs = cfg['train']['kwargs']
 
     train_mod.main(
-        dataset_kwargs,
-        model_kwargs,
-        loss_kwargs,
+        dataset,
+        model,
+        loss,
+        collate_fn,
         optimizer_kwargs,
         train_kwargs,
         device)
-
-def load_cfg(yaml_filepath):
-    """
-    Load a YAML configuration file.
-
-    Args:
-        yaml_filepath (str): Path to yaml config file.
-
-    Output:
-        cfg (dict): Dictionary of config params.
-    """
-    # Read YAML experiment definition file
-    with open(yaml_filepath, 'r') as stream:
-        cfg = yaml.load(stream)
-    cfg = make_paths_absolute(os.path.dirname(yaml_filepath), cfg)
-
-    return cfg
 
 def make_paths_absolute(dir_, cfg):
     """
@@ -84,6 +113,46 @@ def make_paths_absolute(dir_, cfg):
                 logging.error("%s does not exist.", cfg[key])
         if type(cfg[key]) is dict:
             cfg[key] = make_paths_absolute(dir_, cfg[key])
+
+    return cfg
+    
+def extract_module_names(cfg):
+    """
+    Extract all module names based on filename from script paths.
+
+    Args:
+        cfg (dict): Dictionary of config params. 
+
+    Output:
+        cfg (dict): Dictionary of config params with added module names.
+    """
+    paths = []
+    for key1 in cfg.keys():
+        for key2 in cfg[key1]:
+            if key2.endswith("_path"):
+                paths.append((key1, key2))
+
+    for path in paths:
+        cfg[path[0]]['module_name'] = os.path.splitext(
+            os.path.basename(cfg[path[0]][path[1]]))[0]
+
+    return cfg
+
+def load_cfg(yaml_filepath):
+    """
+    Load a YAML configuration file.
+
+    Args:
+        yaml_filepath (str): Path to yaml config file.
+
+    Output:
+        cfg (dict): Dictionary of config params.
+    """
+    # Read YAML experiment definition file
+    with open(yaml_filepath, 'r') as stream:
+        cfg = yaml.load(stream)
+    cfg = make_paths_absolute(os.path.dirname(yaml_filepath), cfg)
+    cfg = extract_module_names(cfg)
 
     return cfg
 

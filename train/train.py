@@ -1,4 +1,5 @@
 import random
+import sys
 import torch
 
 from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
@@ -25,11 +26,6 @@ def get_data_loaders(
     test_set = Subset(data, test_idx)
 
     if collate_fn:
-        if collate_fn == 'cnn':
-            collate_fn = pad_chromatograms_subsection
-        elif collate_fn == 'rnn':
-            collate_fn = pad_chromatograms
-
         train_loader = DataLoader(
             train_set,
             batch_size=batch_size,
@@ -73,12 +69,12 @@ def train(
     optimizer=None,
     loss=None,
     device='cpu',
-    mode='train only',
+    collate_fn=None,
     **kwargs):
     train_loader, val_loader, test_loader = get_data_loaders(
         data, kwargs['test_batch_proportion'],
         kwargs['batch_size'],
-        kwargs['collate_fn'])
+        collate_fn)
 
     if not optimizer:
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
