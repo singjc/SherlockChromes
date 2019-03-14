@@ -102,6 +102,20 @@ def parse_and_label_skyline_exported_chromatograms(
                     ints.shape,
                     trace_counter)
 
+        chromatogram_filename = \
+            '_'.join([last_seq, last_repl, last_charge])
+
+        chromatograms.append([chromatogram_filename])
+
+        if trace_counter < 6:
+            for i in range(6 - trace_counter):
+                chromatogram = np.vstack(
+                    (chromatogram,
+                        np.zeros(
+                            (1, np.max(chromatogram.shape)))))
+        
+        np.save(os.path.join(root_dir, chromatogram_filename), chromatogram.T)
+
     return chromatograms, np.array(labels)
 
 def parse_and_label_skyline_exported_chromatogram_subsections(
@@ -112,6 +126,7 @@ def parse_and_label_skyline_exported_chromatogram_subsections(
     step_size,
     positive_percentage):
     chromatograms, labels = [], []
+    x_count, y_count = 0, 0
 
     with open(chromatograms_filename) as infile:
         next(infile)
@@ -167,6 +182,7 @@ def parse_and_label_skyline_exported_chromatogram_subsections(
                             np.save(
                                 os.path.join(root_dir, chromatogram_filename),
                                 chromatogram[:, i:i + subsection_width])
+                            x_count+= 1
 
                     chromatogram = ints
                     trace_counter = 1
@@ -194,6 +210,7 @@ def parse_and_label_skyline_exported_chromatogram_subsections(
                         else:
                             labels.append(0)
                         i+= step_size
+                        y_count+= 1
 
                     last_seq, last_repl, last_charge = seq, repl, charge
                 else:
@@ -207,6 +224,40 @@ def parse_and_label_skyline_exported_chromatogram_subsections(
                     chromatogram.shape,
                     ints.shape,
                     trace_counter)
+
+        chromatogram_filename_root = \
+            '_'.join([last_seq, last_repl, last_charge])
+
+        if trace_counter < 6:
+            for i in range(6 - trace_counter):
+                chromatogram = np.vstack(
+                    (chromatogram,
+                        np.zeros(
+                            (1, np.max(chromatogram.shape)))))
+
+        i = 0
+        while i + subsection_width < chromatogram.shape[1]:
+            chromatogram_filename = '_'.join(
+                [
+                    chromatogram_filename_root,
+                    str(i),
+                    'to',
+                    str(i + subsection_width - 1)])
+
+            chromatograms.append(
+                [chromatogram_filename_root \
+                    + '_' \
+                    + str(i) \
+                    + '_to_' \
+                    + str(i + subsection_width - 1)])
+
+            i+= step_size
+
+            np.save(
+                os.path.join(root_dir, chromatogram_filename),
+                chromatogram[:, i:i + subsection_width])
+            x_count+= 1
+        print(x_count, y_count)
 
     return chromatograms, np.array(labels)
                 
@@ -223,10 +274,10 @@ if __name__ == "__main__":
             0.75
     )
 
-    with open('../../../data/working/ManualValidationSliced/chromatograms.csv', 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(['Filename'])
-        writer.writerows(chromatograms)
+    # with open('../../../data/working/ManualValidationSliced/chromatograms.csv', 'w', newline='') as f:
+    #     writer = csv.writer(f)
+    #     writer.writerow(['Filename'])
+    #     writer.writerows(chromatograms)
 
-    np.save('../../../data/working/ManualValidationSliced/skyline_exported_labels', labels)
+    # np.save('../../../data/working/ManualValidationSliced/skyline_exported_labels', labels)
     
