@@ -274,10 +274,10 @@ if __name__ == "__main__":
             0.75
     )
 
-    # with open('../../../data/working/ManualValidationSliced/chromatograms.csv', 'w', newline='') as f:
-    #     writer = csv.writer(f)
-    #     writer.writerow(['Filename'])
-    #     writer.writerows(chromatograms)
+    with open('../../../data/working/ManualValidationSliced/chromatograms.csv', 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Filename'])
+        writer.writerows(chromatograms)
 
-    # np.save('../../../data/working/ManualValidationSliced/skyline_exported_labels', labels)
+    np.save('../../../data/working/ManualValidationSliced/skyline_exported_labels', labels)
     
