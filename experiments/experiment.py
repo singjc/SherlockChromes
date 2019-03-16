@@ -11,6 +11,27 @@ from importlib.util import spec_from_file_location, module_from_spec
 #                     level=logging.DEBUG,
 #                     stream=sys.stdout)
 
+def create_item_from_cfg_section(cfg, section_name):
+    if section_name in cfg:
+        path = cfg[section_name]['script_path']
+        mod_name = cfg[section_name]['module_name']
+        spec = spec_from_file_location(mod_name, path)
+        mod = module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        sys.modules[mod_name] = mod
+
+        kwargs = None
+        if 'kwargs' in cfg[section_name]:
+            kwargs = cfg[section_name]['kwargs']
+        
+        item = getattr(mod, cfg[section_name]['name'])
+
+        return item, kwargs
+    
+    print('section not found!')
+
+    return None, None
+
 def run_experiment(yaml_filepath):
     """Example."""
     cfg = load_cfg(yaml_filepath)
@@ -28,82 +49,24 @@ def run_experiment(yaml_filepath):
     else:
         device = 'cpu'
 
-    if 'transform' in cfg:
-        transforms_path = cfg['transform']['script_path']
-        transforms_mod_name = cfg['transform']['module_name']
-        transforms_spec = spec_from_file_location(
-            transforms_mod_name, transforms_path)
-        transforms_mod = module_from_spec(transforms_spec)
-        transforms_spec.loader.exec_module(transforms_mod)
-        sys.modules[transforms_mod_name] = transforms_mod
-        transform = getattr(
-            transforms_mod, cfg['transform']['transform_name'])()
-    else:
-        transfrom = None
+    transform, _ = create_item_from_cfg_section(cfg, 'transform')
+    transform = transform()
 
+    dataset, dataset_kwargs = create_item_from_cfg_section(cfg, 'dataset')
+    dataset = dataset(**dataset_kwargs)
+    dataset.transform = transform
 
-    dataset_kwargs = cfg['dataset']['kwargs']
-    data_path = cfg['dataset']['script_path']
-    sys.path.insert(0, data_path)
-    data_mod_name = cfg['dataset']['module_name']
-    data_spec = spec_from_file_location(data_mod_name, data_path)
-    data_mod = module_from_spec(data_spec)
-    data_spec.loader.exec_module(data_mod)
-    sys.modules[data_mod_name] = data_mod
-    dataset = getattr(
-        data_mod, cfg['dataset']['dataset_name'])(
-            **dataset_kwargs, transform=transform)
+    model, model_kwargs = create_item_from_cfg_section(cfg, 'model')
+    model = model(**model_kwargs)
 
-    model_kwargs = cfg['model']['kwargs']
-    model_path = cfg['model']['script_path']
-    model_mod_name = cfg['model']['module_name']
-    model_spec = spec_from_file_location(model_mod_name, model_path)
-    model_mod = module_from_spec(model_spec)
-    model_spec.loader.exec_module(model_mod)
-    sys.modules[model_mod_name] = model_mod
-    model = getattr(
-        model_mod, cfg['model']['model_name'])(**model_kwargs)
-
-    if 'loss' in cfg:
-        loss_kwargs = cfg['loss']['kwargs']
-        loss_path = cfg['loss']['script_path']
-        loss_mod_name = cfg['loss']['module_name']
-        loss_spec = spec_from_file_location(loss_mod_name, loss_path)
-        loss_mod = module_from_spec(loss_spec)
-        loss_spec.loader.exec_module(loss_mod)
-        sys.modules[loss_mod_name] = loss_mod
-        loss = getattr(
-            loss_mod, cfg['loss']['loss_name'])(**loss_kwargs)
-    else:
-        loss = None
+    loss, loss_kwargs = create_item_from_cfg_section(cfg, 'loss')
+    loss = loss(**loss_kwargs)
 
     optimizer_kwargs = cfg['optimizer']['kwargs']
 
-    if 'sampling_fn' in cfg:
-        sampling_fns_path = cfg['sampling_fn']['script_path']
-        sampling_fns_mod_name = cfg['sampling_fn']['module_name']
-        sampling_fns_spec = spec_from_file_location(
-            sampling_fns_mod_name, sampling_fns_path)
-        sampling_fns_mod = module_from_spec(sampling_fns_spec)
-        sampling_fns_spec.loader.exec_module(sampling_fns_mod)
-        sys.modules[sampling_fns_mod_name] = sampling_fns_mod
-        sampling_fn = getattr(
-            sampling_fns_mod, cfg['sampling_fn']['sampling_fn_name'])
-    else:
-        sampling_fn = None
+    sampling_fn, _ = create_item_from_cfg_section(cfg, 'sampling_fn')
 
-    if 'collate_fn' in cfg:
-        collate_fns_path = cfg['collate_fn']['script_path']
-        collate_fns_mod_name = cfg['collate_fn']['module_name']
-        collate_fns_spec = spec_from_file_location(
-            collate_fns_mod_name, collate_fns_path)
-        collate_fns_mod = module_from_spec(collate_fns_spec)
-        collate_fns_spec.loader.exec_module(collate_fns_mod)
-        sys.modules[collate_fns_mod_name] = collate_fns_mod
-        collate_fn = getattr(
-            collate_fns_mod, cfg['collate_fn']['collate_fn_name'])
-    else:
-        collate_fn = None
+    collate_fn, _ = create_item_from_cfg_section(cfg, 'collate_fn')
 
     train_path = cfg['train']['script_path']
     sys.path.insert(1, os.path.dirname(train_path))
