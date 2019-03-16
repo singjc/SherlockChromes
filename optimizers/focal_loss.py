@@ -19,7 +19,9 @@ class FocalLossBinary(nn.Module):
                 inputs, targets, reduction='none')
 
         pt = torch.exp(-BCE_loss)
-        F_loss = self.alpha * (1 - pt)**self.gamma * BCE_loss
+        at = self.alpha*targets + (1 - self.alpha)*(1 - targets)
+
+        F_loss = at * (1 - pt)**self.gamma * BCE_loss
 
         if self.reduction == 'mean':
             return torch.mean(F_loss)
