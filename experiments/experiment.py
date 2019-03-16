@@ -11,7 +11,7 @@ from importlib.util import spec_from_file_location, module_from_spec
 #                     level=logging.DEBUG,
 #                     stream=sys.stdout)
 
-def create_item_from_cfg_section(cfg, section_name):
+def create_obj_from_cfg_section(cfg, section_name):
     if section_name in cfg:
         path = cfg[section_name]['script_path']
         mod_name = cfg[section_name]['module_name']
@@ -20,17 +20,14 @@ def create_item_from_cfg_section(cfg, section_name):
         spec.loader.exec_module(mod)
         sys.modules[mod_name] = mod
 
-        kwargs = None
         if 'kwargs' in cfg[section_name]:
-            kwargs = cfg[section_name]['kwargs']
-        
-        item = getattr(mod, cfg[section_name]['name'])
+            obj_kwargs = cfg[section_name]['kwargs']
+            obj = getattr(mod, cfg[section_name]['name'])(**obj_kwargs)
+        else:
+            obj = getattr(mod, cfg[section_name]['name'])()
 
-        return item, kwargs
-    
-    print('section not found!')
-
-    return None, None
+        return obj
+    return None
 
 def run_experiment(yaml_filepath):
     """Example."""
@@ -49,24 +46,20 @@ def run_experiment(yaml_filepath):
     else:
         device = 'cpu'
 
-    transform, _ = create_item_from_cfg_section(cfg, 'transform')
-    transform = transform()
+    transform = create_obj_from_cfg_section(cfg, 'transform')
 
-    dataset, dataset_kwargs = create_item_from_cfg_section(cfg, 'dataset')
-    dataset = dataset(**dataset_kwargs)
+    dataset = create_obj_from_cfg_section(cfg, 'dataset')
     dataset.transform = transform
 
-    model, model_kwargs = create_item_from_cfg_section(cfg, 'model')
-    model = model(**model_kwargs)
+    model = create_obj_from_cfg_section(cfg, 'model')
 
-    loss, loss_kwargs = create_item_from_cfg_section(cfg, 'loss')
-    loss = loss(**loss_kwargs)
+    loss = create_obj_from_cfg_section(cfg, 'loss')
 
     optimizer_kwargs = cfg['optimizer']['kwargs']
 
-    sampling_fn, _ = create_item_from_cfg_section(cfg, 'sampling_fn')
+    sampling_fn = create_obj_from_cfg_section(cfg, 'sampling_fn')
 
-    collate_fn, _ = create_item_from_cfg_section(cfg, 'collate_fn')
+    collate_fn = create_obj_from_cfg_section(cfg, 'collate_fn')
 
     train_path = cfg['train']['script_path']
     sys.path.insert(1, os.path.dirname(train_path))

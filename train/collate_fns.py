@@ -1,56 +1,69 @@
 import numpy as np
 import torch
 
-def pad_chromatograms(batch):
-    batch_size = len(batch)
-    chromatograms = [item[0] for item in batch]
-    labels = [item[1] for item in batch]
+class PadChromatograms(object):
+    """Pad chromatograms in batch to same length.
+    Chromatograms shaped (N, D), where N is the length of the chromatogram,
+    and D is the number of traces.
+    Labels shaped (N, 1).
+    """
 
-    lengths = [len(chromatogram) for chromatogram in chromatograms]
+    def __call__(self, batch):
+        batch_size = len(batch)
+        chromatograms = [item[0] for item in batch]
+        labels = [item[1] for item in batch]
 
-    max_len = max(lengths)
+        lengths = [len(chromatogram) for chromatogram in chromatograms]
 
-    trailing_dims = chromatograms[0].size()[1:]
+        max_len = max(lengths)
 
-    out_dims = (max_len, batch_size) + trailing_dims
+        trailing_dims = chromatograms[0].size()[1:]
 
-    padded_chromatograms = torch.zeros(*out_dims)
+        out_dims = (max_len, batch_size) + trailing_dims
 
-    padded_labels = torch.zeros(batch_size, max_len)
+        padded_chromatograms = torch.zeros(*out_dims)
 
-    for i, chromatogram in enumerate(chromatograms):
-        length = chromatogram.size(0)
-        padded_chromatograms[max_len - length:, i, ...] = chromatogram
+        padded_labels = torch.zeros(batch_size, max_len)
 
-    for i, label in enumerate(labels):
-        length = label.size(0)
-        padded_labels[i, max_len - length:] = label
+        for i, chromatogram in enumerate(chromatograms):
+            length = chromatogram.size(0)
+            padded_chromatograms[max_len - length:, i, ...] = chromatogram
 
-    return [padded_chromatograms, padded_labels]
+        for i, label in enumerate(labels):
+            length = label.size(0)
+            padded_labels[i, max_len - length:] = label
 
-def pad_chromatograms_subsection(batch):
-    batch_size = len(batch)
-    chromatograms = [item[0] for item in batch]
-    labels = [item[1] for item in batch]
+        return [padded_chromatograms, padded_labels]
 
-    lengths = [chromatogram.size()[1] for chromatogram in chromatograms]
+class PadChromatogramSubsections(object):
+    """Pad chromatogram subsections in batch to same size.
+    Subsections shaped (D, N).
+    Labels shaped (N, )
+    """
 
-    max_len = max(lengths)
+    def __call__(self, batch):
+        batch_size = len(batch)
+        chromatograms = [item[0] for item in batch]
+        labels = [item[1] for item in batch]
 
-    channel_dim = chromatograms[0].size()[0]
+        lengths = [chromatogram.size()[1] for chromatogram in chromatograms]
 
-    out_dims = (batch_size, channel_dim, max_len)
+        max_len = max(lengths)
 
-    padded_chromatograms = torch.zeros(*out_dims)
+        channel_dim = chromatograms[0].size()[0]
 
-    torch_labels = torch.zeros(batch_size)
+        out_dims = (batch_size, channel_dim, max_len)
 
-    for i, chromatogram in enumerate(chromatograms):
-        length = chromatogram.size(1)
-        padded_chromatograms[i, 0:channel_dim, 0:length] = chromatogram
+        padded_chromatograms = torch.zeros(*out_dims)
 
-    for i, label in enumerate(labels):
-        torch_labels[i] = label
+        torch_labels = torch.zeros(batch_size)
 
-    return [padded_chromatograms, torch_labels]
+        for i, chromatogram in enumerate(chromatograms):
+            length = chromatogram.size(1)
+            padded_chromatograms[i, 0:channel_dim, 0:length] = chromatogram
+
+        for i, label in enumerate(labels):
+            torch_labels[i] = label
+
+        return [padded_chromatograms, torch_labels]
     
