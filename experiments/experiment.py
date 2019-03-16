@@ -7,9 +7,9 @@ import yaml
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from importlib.util import spec_from_file_location, module_from_spec
 
-logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
-                    level=logging.DEBUG,
-                    stream=sys.stdout)
+# logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
+#                     level=logging.DEBUG,
+#                     stream=sys.stdout)
 
 def run_experiment(yaml_filepath):
     """Example."""

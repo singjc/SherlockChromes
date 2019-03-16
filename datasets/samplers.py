@@ -3,7 +3,7 @@ import random
 
 def stratified_sampler(data, test_batch_proportion=0.1):
     labels = data.labels
-    
+
     train_idx, val_idx, test_idx = [], [], []
 
     for i in np.unique(labels):
