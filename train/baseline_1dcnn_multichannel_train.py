@@ -11,11 +11,11 @@ def main(
         data,
         model,
         loss,
+        sampling_fn,
         collate_fn,
         optimizer_kwargs,
         train_kwargs,
         device):
-    device = device
     optimizer = optim.Adam(model.parameters(), **optimizer_kwargs)
 
     train(
@@ -23,6 +23,7 @@ def main(
         model,
         optimizer,
         loss,
-        device,
+        sampling_fn,
         collate_fn,
+        device,
         **train_kwargs)

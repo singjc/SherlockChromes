@@ -42,6 +42,7 @@ def parse_and_label_skyline_exported_chromatograms(
         chromatogram = None
         
         line_counter = 0
+        chromatogram_id = 0
 
         for line in infile:
             line_counter+= 1
@@ -61,7 +62,10 @@ def parse_and_label_skyline_exported_chromatograms(
                         chromatogram_filename = \
                             '_'.join([last_seq, last_repl, last_charge])
 
-                        chromatograms.append([chromatogram_filename])
+                        chromatograms.append(
+                            [chromatogram_id,
+                            chromatogram_filename])
+                        chromatogram_id+= 1
 
                         if trace_counter < 6:
                             for i in range(6 - trace_counter):
@@ -105,7 +109,8 @@ def parse_and_label_skyline_exported_chromatograms(
         chromatogram_filename = \
             '_'.join([last_seq, last_repl, last_charge])
 
-        chromatograms.append([chromatogram_filename])
+        chromatograms.append([chromatogram_id, chromatogram_filename])
+        chromatogram_id+= 1
 
         if trace_counter < 6:
             for i in range(6 - trace_counter):
@@ -133,8 +138,10 @@ def parse_and_label_skyline_exported_chromatogram_subsections(
         last_seq, last_repl, last_charge = '', '', ''
         trace_counter = 0
         chromatogram = None
+        chromatogram_labels = []
         
         line_counter = 0
+        chromatogram_id = 0
 
         for line in infile:
             line_counter+= 1
@@ -162,6 +169,7 @@ def parse_and_label_skyline_exported_chromatogram_subsections(
                                          (1, np.max(chromatogram.shape)))))
 
                         i = 0
+                        j = 0
                         while i + subsection_width < chromatogram.shape[1]:
                             chromatogram_filename = '_'.join(
                                 [
@@ -171,18 +179,23 @@ def parse_and_label_skyline_exported_chromatogram_subsections(
                                     str(i + subsection_width - 1)])
 
                             chromatograms.append(
-                                [chromatogram_filename_root \
+                                [chromatogram_id,
+                                 chromatogram_filename_root \
                                  + '_' \
                                  + str(i) \
                                  + '_to_' \
-                                 + str(i + subsection_width - 1)])
+                                 + str(i + subsection_width - 1),
+                                 chromatogram_labels[j]])
 
                             i+= step_size
+                            j+= 1
 
-                            np.save(
-                                os.path.join(root_dir, chromatogram_filename),
-                                chromatogram[:, i:i + subsection_width])
+                            # np.save(
+                            #     os.path.join(root_dir, chromatogram_filename),
+                            #     chromatogram[:, i:i + subsection_width])
                             x_count+= 1
+                        chromatogram_id+= 1
+                        chromatogram_labels = []
 
                     chromatogram = ints
                     trace_counter = 1
@@ -206,9 +219,9 @@ def parse_and_label_skyline_exported_chromatogram_subsections(
                     while i + subsection_width < times.shape[0]:
                         if (row_labels[i:i + subsection_width] == 1).sum() \
                             >= (positive_percentage * num_positive):
-                            labels.append(1)
+                            chromatogram_labels.append(1)
                         else:
-                            labels.append(0)
+                            chromatogram_labels.append(0)
                         i+= step_size
                         y_count+= 1
 
@@ -236,6 +249,7 @@ def parse_and_label_skyline_exported_chromatogram_subsections(
                             (1, np.max(chromatogram.shape)))))
 
         i = 0
+        j = 0
         while i + subsection_width < chromatogram.shape[1]:
             chromatogram_filename = '_'.join(
                 [
@@ -245,25 +259,29 @@ def parse_and_label_skyline_exported_chromatogram_subsections(
                     str(i + subsection_width - 1)])
 
             chromatograms.append(
-                [chromatogram_filename_root \
+                [chromatogram_id, chromatogram_filename_root \
                     + '_' \
                     + str(i) \
                     + '_to_' \
-                    + str(i + subsection_width - 1)])
+                    + str(i + subsection_width - 1),
+                    chromatogram_labels[j]])
 
             i+= step_size
+            j+= 1
 
-            np.save(
-                os.path.join(root_dir, chromatogram_filename),
-                chromatogram[:, i:i + subsection_width])
+            # np.save(
+            #     os.path.join(root_dir, chromatogram_filename),
+            #     chromatogram[:, i:i + subsection_width])
             x_count+= 1
+        chromatogram_id+= 1
+
         print(x_count, y_count)
 
-    return chromatograms, np.array(labels)
+    return chromatograms
                 
 
 if __name__ == "__main__":
-    chromatograms, labels = \
+    chromatograms = \
         parse_and_label_skyline_exported_chromatogram_subsections(
             '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.tsv',
             parse_skyline_exported_annotations(
@@ -276,8 +294,8 @@ if __name__ == "__main__":
 
     with open('../../../data/working/ManualValidationSliced/chromatograms.csv', 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['Filename'])
+        writer.writerow(['ID', 'Filename', 'Label'])
         writer.writerows(chromatograms)
 
-    np.save('../../../data/working/ManualValidationSliced/skyline_exported_labels', labels)
+    # np.save('../../../data/working/ManualValidationSliced/skyline_exported_labels', labels)
     

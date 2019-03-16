@@ -19,10 +19,6 @@ def run_experiment(yaml_filepath):
     pp = pprint.PrettyPrinter(indent=4)
     pp.pprint(cfg)
 
-    # TODO: Figure out how to configure more than just the training loop,
-    # currently still have to have a new train file per model/dataset/loss
-    # function/optimizer, can only config params of each of the formentioned
-
     device = cfg['general']['device']
 
     dataset_kwargs = cfg['dataset']['kwargs']
@@ -69,6 +65,16 @@ def run_experiment(yaml_filepath):
 
     optimizer_kwargs = cfg['optimizer']['kwargs']
 
+    sampling_fns_path = cfg['sampling_fn']['script_path']
+    sampling_fns_mod_name = cfg['sampling_fn']['module_name']
+    sampling_fns_spec = spec_from_file_location(
+        sampling_fns_mod_name, sampling_fns_path)
+    sampling_fns_mod = module_from_spec(sampling_fns_spec)
+    sampling_fns_spec.loader.exec_module(sampling_fns_mod)
+    sys.modules[sampling_fns_mod_name] = sampling_fns_mod
+    sampling_fn = getattr(
+        sampling_fns_mod, cfg['sampling_fn']['sampling_fn_name'])
+
     collate_fns_path = cfg['collate_fn']['script_path']
     collate_fns_mod_name = cfg['collate_fn']['module_name']
     collate_fns_spec = spec_from_file_location(
@@ -90,6 +96,7 @@ def run_experiment(yaml_filepath):
         dataset,
         model,
         loss,
+        sampling_fn,
         collate_fn,
         optimizer_kwargs,
         train_kwargs,

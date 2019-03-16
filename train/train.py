@@ -7,17 +7,26 @@ from ignite.metrics import Accuracy, Loss, Precision, Recall
 from torch.utils.data import DataLoader, Subset
 
 def get_data_loaders(
-    data, test_batch_proportion=0.1, batch_size=1, collate_fn=None):
-    n = len(data)
-    n_test = int(n * test_batch_proportion)
-    n_train = n - 2 * n_test
+    data,
+    test_batch_proportion=0.1,
+    batch_size=1,
+    sampling_fn=None,
+    collate_fn=None):
 
-    idx = list(range(n))
-    random.shuffle(idx)
+    if sampling_fn:
+        train_idx, val_idx, test_idx = sampling_fn(
+            data, test_batch_proportion)
+    else:
+        n = len(data)
+        n_test = int(n * test_batch_proportion)
+        n_train = n - 2 * n_test
 
-    train_idx = idx[:n_train]
-    val_idx = idx[n_train:(n_train + n_test)]
-    test_idx = idx[(n_train + n_test):]
+        idx = list(range(n))
+        random.shuffle(idx)
+
+        train_idx = idx[:n_train]
+        val_idx = idx[n_train:(n_train + n_test)]
+        test_idx = idx[(n_train + n_test):]
 
     train_set = Subset(data, train_idx)
     val_set = Subset(data, val_idx)
@@ -66,12 +75,14 @@ def train(
     model,
     optimizer=None,
     loss=None,
-    device='cpu',
+    sampling_fn=None,
     collate_fn=None,
+    device='cpu',
     **kwargs):
     train_loader, val_loader, test_loader = get_data_loaders(
         data, kwargs['test_batch_proportion'],
         kwargs['batch_size'],
+        sampling_fn,
         collate_fn)
 
     if not optimizer:
@@ -109,7 +120,7 @@ def train(
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_validation_results(trainer):
-        if mode != 'train only':
+        if kwargs['mode'] != 'train only':
             evaluator.run(val_loader)
             metrics = evaluator.state.metrics
             print("Validation Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
@@ -122,7 +133,7 @@ def train(
 
     @trainer.on(Events.COMPLETED)
     def log_test_results(trainer):
-        if mode != 'train only':
+        if kwargs['mode'] != 'train only':
             evaluator.run(test_loader)
             metrics = evaluator.state.metrics
             print("Test Results - Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
