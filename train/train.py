@@ -3,7 +3,9 @@ import sys
 import torch
 
 from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
+from ignite.handlers import EarlyStopping, ModelCheckpoint
 from ignite.metrics import Accuracy, Loss, Precision, Recall
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, Subset
 
 def get_data_loaders(
@@ -101,6 +103,15 @@ def train(
                                             },
                                             device=device)
 
+    scheduler = CosineAnnealingLR(
+        optimizer, kwargs['lr_cycle_len'], kwargs['lr_min'])
+    
+    def cosine_annealing_scheduler(engine, scheduler):
+        scheduler.step()
+
+    trainer.add_event_handler(
+        Events.EPOCH_STARTED, cosine_annealing_scheduler, scheduler)
+
     @trainer.on(Events.ITERATION_COMPLETED)
     def log_training_loss(trainer):
         print("Epoch[{}] Loss: {:.4f}".format(
@@ -131,12 +142,39 @@ def train(
                     metrics['recall'],
                     metrics['loss']))
 
+    def f1(engine):
+        metrics = engine.state.metrics
+        precision = metrics['precision']
+        recall = metrics['recall']
+        f1 = 2 * (precision * recall) / (precision + recall + 1)
+
+        return f1
+
+    checkpoint = ModelCheckpoint(
+        kwargs['model_savedir'],
+        kwargs['model_savename'],
+        score_function=f1,
+        score_name='f1')
+
+    evaluator.add_event_handler(Events.COMPLETED, checkpoint, {'model': model})
+
+    # TODO: Uncomment once early stopping plateau fixed released
+    # def val_loss(engine):
+    #     val_loss = float('{:.4f}'.format(engine.state.metrics['loss']))
+
+    #     return val_loss
+
+    # early_stopping = EarlyStopping(
+    #     patience=2, score_function=val_loss, trainer=trainer)
+
+    # evaluator.add_event_handler(Events.COMPLETED, early_stopping)
+
     @trainer.on(Events.COMPLETED)
     def log_test_results(trainer):
         if kwargs['mode'] != 'train only':
             evaluator.run(test_loader)
             metrics = evaluator.state.metrics
-            print("Test Results - Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
+            print("Test Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
                 .format(
                     trainer.state.epoch,
                     metrics['accuracy'],
