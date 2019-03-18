@@ -146,7 +146,7 @@ def train(
         metrics = engine.state.metrics
         precision = metrics['precision']
         recall = metrics['recall']
-        f1 = 2 * (precision * recall) / (precision + recall + 1)
+        f1 = 2 * (precision * recall) / (precision + recall)
 
         return f1
 
