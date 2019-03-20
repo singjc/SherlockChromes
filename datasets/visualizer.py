@@ -4,9 +4,9 @@ import pandas as pd
 
 from sklearn.metrics import confusion_matrix
 
-from chromatograms_dataset import ChromatogramsDataset
+from chromatograms_dataset import ChromatogramsDataset, ChromatogramSubsectionsDataset
 
-def plot_chromatogram(chromatogram, labels):
+def plot_chromatogram(chromatogram, labels=None):
     """
     Args:
         chromatogram: (len_of_chromatogram, num_dimensions)
@@ -34,15 +34,16 @@ def plot_chromatogram(chromatogram, labels):
     for trace, group in by_trace:
         plt.plot(group['timepoint'], group['intensity'], label=trace)
 
-    labels = list(labels)
+    if labels:
+        labels = list(labels)
 
-    peak_start, peak_end = (
-        labels.index(1) - 1, len(labels) - labels[::-1].index(1))
+        peak_start, peak_end = (
+            labels.index(1) - 1, len(labels) - labels[::-1].index(1))
 
-    plt.axvline(peak_start, color='r')
-    plt.axvline(peak_end, color='r')
+        plt.axvline(peak_start, color='r')
+        plt.axvline(peak_end, color='r')
 
-    for i in range(0, len(chromatogram[0]), 20):
+    for i in range(0, len(chromatogram[0]), 10):
         plt.axvline(i, color='b')
 
     plt.legend()
@@ -104,8 +105,19 @@ def plot_confusion_matrix(y_true, y_pred, classes,
 
 
 if __name__ == "__main__":
-    chromatograms = ChromatogramsDataset(
-        '../../../data/working/ManualValidation',
-        'chromatograms.csv',
-        'skyline_exported_labels.npy')
-    plot_chromatogram(chromatograms[0][0], chromatograms[0][1])
+    # chromatograms = ChromatogramsDataset(
+    #     '../../../data/working/ManualValidation',
+    #     'chromatograms.csv',
+    #     'skyline_exported_labels.npy')
+    # plot_chromatogram(chromatograms[0][0], chromatograms[0][1])
+
+    chromatograms = ChromatogramSubsectionsDataset(
+        '../../../data/working/ManualValidationSliced_20_1',
+        'chromatograms.csv')
+
+    for i in range(len(chromatograms)):
+        print(i)
+        chromatogram, label = chromatograms[i]
+
+        if label == 1:
+            plot_chromatogram(chromatogram)
