@@ -3,10 +3,12 @@ import numpy as np
 
 from matplotlib import pyplot as plt
 
-def create_histo(data, bins='auto', title="Example data"):
-    plt.hist(data, bins=20, alpha=0.5)
+def create_histo(data, bins='auto', title="Example data", percentile=10):
+    print(np.percentile(data, percentile))
+    plt.hist(data, bins=bins, alpha=0.5)
     plt.title(title)
     plt.xlabel(title)
+    plt.xticks(range(1, bins + 1))
     plt.ylabel('count')
 
     plt.show()
@@ -33,6 +35,6 @@ if __name__ == "__main__":
         get_peak_width_dist(
             '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.csv'
         ),
-        30,
+        60,
         'Peak Widths'
     )
