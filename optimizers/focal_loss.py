@@ -11,6 +11,12 @@ class FocalLossBinary(nn.Module):
         self.reduction = reduction
 
     def forward(self, inputs, targets):
+        if inputs.dim() > 1:
+            inputs = inputs.reshape(1, -1)
+            inputs = inputs.squeeze()
+            targets = targets.reshape(1, -1)
+            targets = targets.squeeze()
+
         if self.logits:
             BCE_loss = F.binary_cross_entropy_with_logits(
                 inputs, targets, reduction='none')
