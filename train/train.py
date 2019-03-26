@@ -38,36 +38,30 @@ def get_data_loaders(
         train_loader = DataLoader(
             train_set,
             batch_size=batch_size,
-            num_workers=4,
             collate_fn=collate_fn,
             drop_last=True)
         val_loader = DataLoader(
             val_set,
             batch_size=batch_size,
-            num_workers=4,
             collate_fn=collate_fn,
             drop_last=True)
         test_loader = DataLoader(
             test_set,
             batch_size=batch_size,
-            num_workers=4,
             collate_fn=collate_fn,
             drop_last=True)
     else:
         train_loader = DataLoader(
             train_set,
             batch_size=batch_size,
-            num_workers=4,
             drop_last=True)
         val_loader = DataLoader(
             val_set,
             batch_size=batch_size,
-            num_workers=4,
             drop_last=True)
         test_loader = DataLoader(
             test_set,
             batch_size=batch_size,
-            num_workers=4,
             drop_last=True)
 
     return train_loader, val_loader, test_loader
