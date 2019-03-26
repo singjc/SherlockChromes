@@ -138,7 +138,7 @@ def parse_and_label_skyline_exported_chromatograms_cnn(
         last_seq, last_repl, last_charge = '', '', ''
         trace_counter = 0
         chromatogram = None
-        chromatogram_labels = []
+        subsection_labels = []
         label_matrix = []
         
         line_counter = 0
@@ -177,7 +177,7 @@ def parse_and_label_skyline_exported_chromatograms_cnn(
                             chromatogram)
                         x_count+= 1
                         chromatogram_id+= 1
-                        chromatogram_labels = []
+                        subsection_labels = []
 
                     chromatogram = ints
                     trace_counter = 1
@@ -205,11 +205,11 @@ def parse_and_label_skyline_exported_chromatograms_cnn(
                         if ((num_positive_in_subsection >= (
                                 positive_percentage * num_positive)) or
                             (num_positive_in_subsection == subsection_width)):
-                            chromatogram_labels.append(1)
+                            subsection_labels.append(1)
                         else:
-                            chromatogram_labels.append(0)
+                            subsection_labels.append(0)
                         i+= step_size
-                    label_matrix.append(np.array(chromatogram_labels))
+                    label_matrix.append(np.array(subsection_labels))
                     y_count+= 1
                     last_seq, last_repl, last_charge = seq, repl, charge
                 else:
@@ -252,7 +252,7 @@ def parse_and_label_skyline_exported_chromatogram_subsections_cnn(
     subsection_width,
     step_size,
     positive_percentage):
-    chromatograms, labels = [], []
+    chromatograms = []
     x_count, y_count = 0, 0
 
     with open(chromatograms_filename) as infile:
@@ -260,10 +260,12 @@ def parse_and_label_skyline_exported_chromatogram_subsections_cnn(
         last_seq, last_repl, last_charge = '', '', ''
         trace_counter = 0
         chromatogram = None
-        chromatogram_labels = []
+        subsection_labels = []
         
         line_counter = 0
         chromatogram_id = 0
+
+        chromatograms = []
 
         for line in infile:
             line_counter+= 1
@@ -301,12 +303,8 @@ def parse_and_label_skyline_exported_chromatogram_subsections_cnn(
 
                             chromatograms.append(
                                 [chromatogram_id,
-                                 chromatogram_filename_root \
-                                 + '_' \
-                                 + str(i) \
-                                 + '_to_' \
-                                 + str(i + subsection_width - 1),
-                                 chromatogram_labels[j]])
+                                 chromatogram_filename,
+                                 subsection_labels[j]])
 
                             i+= step_size
                             j+= 1
@@ -316,7 +314,7 @@ def parse_and_label_skyline_exported_chromatogram_subsections_cnn(
                                 chromatogram[:, i:i + subsection_width])
                             x_count+= 1
                         chromatogram_id+= 1
-                        chromatogram_labels = []
+                        subsection_labels = []
 
                     chromatogram = ints
                     trace_counter = 1
@@ -344,9 +342,9 @@ def parse_and_label_skyline_exported_chromatogram_subsections_cnn(
                         if ((num_positive_in_subsection >= (
                                 positive_percentage * num_positive)) or
                             (num_positive_in_subsection == subsection_width)):
-                            chromatogram_labels.append(1)
+                            subsection_labels.append(1)
                         else:
-                            chromatogram_labels.append(0)
+                            subsection_labels.append(0)
                         i+= step_size
                         y_count+= 1
 
@@ -375,7 +373,7 @@ def parse_and_label_skyline_exported_chromatogram_subsections_cnn(
 
         i = 0
         j = 0
-        while i + subsection_width < chromatogram.shape[1]:
+        while i + subsection_width <= chromatogram.shape[1]:
             chromatogram_filename = '_'.join(
                 [chromatogram_filename_root,
                  str(i),
@@ -383,12 +381,9 @@ def parse_and_label_skyline_exported_chromatogram_subsections_cnn(
                  str(i + subsection_width - 1)])
 
             chromatograms.append(
-                [chromatogram_id, chromatogram_filename_root \
-                 + '_' \
-                 + str(i) \
-                 + '_to_' \
-                 + str(i + subsection_width - 1),
-                 chromatogram_labels[j]])
+                [chromatogram_id,
+                 chromatogram_filename,
+                 subsection_labels[j]])
 
             i+= step_size
             j+= 1
@@ -401,6 +396,151 @@ def parse_and_label_skyline_exported_chromatogram_subsections_cnn(
         print(x_count, y_count)
 
     return chromatograms
+
+def parse_and_label_skyline_exported_chromatogram_subsections_in_memory_cnn(
+    chromatograms_filename,
+    annotations,
+    root_dir,
+    subsection_width,
+    step_size,
+    positive_percentage):
+    chromatograms, full_chromatograms = [], []
+    x_count, y_count = 0, 0
+
+    with open(chromatograms_filename) as infile:
+        next(infile)
+        last_seq, last_repl, last_charge = '', '', ''
+        trace_counter = 0
+        chromatogram = None
+        subsection_labels = []
+        
+        line_counter = 0
+        chromatogram_id = 0
+        subsection_counter = 0
+
+        for line in infile:
+            line_counter+= 1
+            line = line.rstrip('\r\n').split('\t')
+
+            if line[1] != '#N/A':
+                repl = parse_skyline_exported_chromatogram_filenames(line[0])
+                seq, ints, charge = (
+                    line[1],
+                    np.float_(line[9].split(',')),
+                    line[2])
+
+                if seq != last_seq \
+                    or charge != last_charge \
+                    or trace_counter == 6:
+                    if chromatogram is not None:
+                        chromatogram_filename = \
+                            '_'.join([last_seq, last_repl, last_charge])
+
+                        if trace_counter < 6:
+                            for i in range(6 - trace_counter):
+                                chromatogram = np.vstack(
+                                    (chromatogram,
+                                     np.zeros(
+                                         (1, np.max(chromatogram.shape)))))
+
+                        full_chromatograms.append(chromatogram)
+
+                        i = 0
+                        j = 0
+                        while i + subsection_width <= chromatogram.shape[1]:
+                            chromatograms.append(
+                                [subsection_counter,
+                                 chromatogram_id,
+                                 i,
+                                 i + subsection_width,
+                                 subsection_labels[j]])
+
+                            i+= step_size
+                            j+= 1
+                            x_count+= 1
+                            subsection_counter+= 1
+                        chromatogram_id+= 1
+                        subsection_labels = []
+
+                    chromatogram = ints
+                    trace_counter = 1
+
+                    times = np.float_(line[8].split(','))
+                    anno = annotations[repl][seq]
+
+                    row_labels = []
+
+                    for time in times:
+                        if anno['start'] <= time <= anno['end']:
+                            row_labels.append(1)
+                        else:
+                            row_labels.append(0)
+                    
+                    row_labels = np.array(row_labels)
+
+                    num_positive = (row_labels == 1).sum()
+
+                    i = 0
+                    while i + subsection_width <= times.shape[0]:
+                        num_positive_in_subsection = (
+                            row_labels[i:i + subsection_width] == 1).sum()
+
+                        if ((num_positive_in_subsection >= (
+                                positive_percentage * num_positive)) or
+                            (num_positive_in_subsection == subsection_width)):
+                            subsection_labels.append(1)
+                        else:
+                            subsection_labels.append(0)
+                        i+= step_size
+                        y_count+= 1
+
+                    last_seq, last_repl, last_charge = seq, repl, charge
+                else:
+                    chromatogram = np.vstack((chromatogram, ints))
+                    trace_counter+= 1
+                    
+                print(
+                    line_counter,
+                    seq,
+                    charge,
+                    chromatogram.shape,
+                    ints.shape,
+                    trace_counter)
+
+        chromatogram_filename = \
+            '_'.join([last_seq, last_repl, last_charge])
+
+        if trace_counter < 6:
+            for i in range(6 - trace_counter):
+                chromatogram = np.vstack(
+                    (chromatogram,
+                        np.zeros(
+                            (1, np.max(chromatogram.shape)))))
+
+        full_chromatograms.append(chromatogram)
+
+        i = 0
+        j = 0
+        while i + subsection_width <= chromatogram.shape[1]:
+            chromatograms.append(
+                [subsection_counter,
+                 chromatogram_id,
+                 i,
+                 i + subsection_width,
+                 subsection_labels[j]])
+
+            i+= step_size
+            j+= 1
+            x_count+= 1
+            subsection_counter+= 1
+
+        print(x_count, y_count)
+
+    chromatograms_ndarray = np.empty(len(full_chromatograms), dtype=np.ndarray)
+    for i in range(len(full_chromatograms)):
+        chromatograms_ndarray[i] = full_chromatograms[i]
+
+    return chromatograms, chromatograms_ndarray
                 
 
 if __name__ == "__main__":
@@ -416,21 +556,44 @@ if __name__ == "__main__":
     #         1.0
     # )
 
+    # with open('../../../data/working/ManualValidationSliced_20_1/chromatograms.csv', 'w', newline='') as f:
+    #     writer = csv.writer(f)
+    #     writer.writerow(['ID', 'Filename', 'Label'])
+    #     writer.writerows(chromatograms)
+
     # For 1DCNN Whole Chromatograms
-    chromatograms, labels = \
-        parse_and_label_skyline_exported_chromatograms_cnn(
+    # chromatograms, labels = \
+    #     parse_and_label_skyline_exported_chromatograms_cnn(
+    #         '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.tsv',
+    #         parse_skyline_exported_annotations(
+    #             '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.csv'),
+    #         '../../../data/working/ManualValidation',
+    #         20,
+    #         1,
+    #         1.0)
+
+    # with open('../../../data/working/ManualValidation/chromatograms.csv', 'w', newline='') as f:
+    #     writer = csv.writer(f)
+    #     writer.writerow(['ID', 'Filename'])
+    #     writer.writerows(chromatograms)
+
+    # np.save('../../../data/working/ManualValidation/skyline_exported_labels', labels)
+
+    # For 1DCNN Chromatogram Subsections In Memory
+    chromatograms, chromatograms_ndarray = \
+        parse_and_label_skyline_exported_chromatogram_subsections_in_memory_cnn(
             '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.tsv',
             parse_skyline_exported_annotations(
                 '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.csv'),
-            '../../../data/working/ManualValidation',
+            '../../../data/working/ManualValidationSliced_20_1_InMemory',
             20,
             1,
-            1.0)
-
-    with open('../../../data/working/ManualValidation/chromatograms.csv', 'w', newline='') as f:
+            1.0
+    )
+    
+    with open('../../../data/working/ManualValidationSliced_20_1_InMemory/chromatograms.csv', 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['ID', 'Filename'])
+        writer.writerow(['Subsection ID', 'ID', 'Start', 'End', 'Label'])
         writer.writerows(chromatograms)
 
-    np.save('../../../data/working/ManualValidation/skyline_exported_labels', labels)
-    
+    np.save('../../../data/working/ManualValidationSliced_20_1_InMemory/chromatograms', chromatograms_ndarray)
