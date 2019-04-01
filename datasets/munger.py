@@ -144,6 +144,8 @@ def parse_and_label_skyline_exported_chromatograms_cnn(
         line_counter = 0
         chromatogram_id = 0
 
+        bb_start, bb_end = None, None
+
         for line in infile:
             line_counter+= 1
             line = line.rstrip('\r\n').split('\t')
@@ -170,7 +172,10 @@ def parse_and_label_skyline_exported_chromatograms_cnn(
                                          (1, np.max(chromatogram.shape)))))
 
                         chromatograms.append(
-                            [chromatogram_id, chromatogram_filename])
+                            [chromatogram_id,
+                             chromatogram_filename,
+                             bb_start,
+                             bb_end])
 
                         np.save(
                             os.path.join(root_dir, chromatogram_filename),
@@ -178,6 +183,7 @@ def parse_and_label_skyline_exported_chromatograms_cnn(
                         x_count+= 1
                         chromatogram_id+= 1
                         subsection_labels = []
+                        bb_start, bb_end = None, None
 
                     chromatogram = ints
                     trace_counter = 1
@@ -194,6 +200,11 @@ def parse_and_label_skyline_exported_chromatograms_cnn(
                             row_labels.append(0)
                     
                     row_labels = np.array(row_labels)
+
+                    label_idxs = np.where(row_labels == 1)[0]
+
+                    if len(label_idxs) > 0:
+                        bb_start, bb_end = label_idxs[0], label_idxs[-1]
 
                     num_positive = (row_labels == 1).sum()
 
@@ -233,7 +244,8 @@ def parse_and_label_skyline_exported_chromatograms_cnn(
                         np.zeros(
                             (1, np.max(chromatogram.shape)))))
 
-        chromatograms.append([chromatogram_id, chromatogram_filename])
+        chromatograms.append(
+            [chromatogram_id, chromatogram_filename, bb_start, bb_end])
 
         np.save(os.path.join(root_dir, chromatogram_filename), chromatogram)
         x_count+= 1
@@ -339,9 +351,8 @@ def parse_and_label_skyline_exported_chromatogram_subsections_cnn(
                         num_positive_in_subsection = (
                             row_labels[i:i + subsection_width] == 1).sum()
 
-                        if ((num_positive_in_subsection >= (
-                                positive_percentage * num_positive)) or
-                            (num_positive_in_subsection == subsection_width)):
+                        if (num_positive_in_subsection >= \
+                            positive_percentage * num_positive):
                             subsection_labels.append(1)
                         else:
                             subsection_labels.append(0)
@@ -405,6 +416,7 @@ def parse_and_label_skyline_exported_chromatogram_subsections_in_memory_cnn(
     step_size,
     positive_percentage):
     chromatograms, full_chromatograms = [], []
+    bb_start, bb_end = None, None
     x_count, y_count = 0, 0
 
     with open(chromatograms_filename) as infile:
@@ -453,7 +465,9 @@ def parse_and_label_skyline_exported_chromatogram_subsections_in_memory_cnn(
                                  chromatogram_id,
                                  i,
                                  i + subsection_width,
-                                 subsection_labels[j]])
+                                 subsection_labels[j],
+                                 bb_start,
+                                 bb_end])
 
                             i+= step_size
                             j+= 1
@@ -461,6 +475,7 @@ def parse_and_label_skyline_exported_chromatogram_subsections_in_memory_cnn(
                             subsection_counter+= 1
                         chromatogram_id+= 1
                         subsection_labels = []
+                        bb_start, bb_end = None, None
 
                     chromatogram = ints
                     trace_counter = 1
@@ -478,6 +493,11 @@ def parse_and_label_skyline_exported_chromatogram_subsections_in_memory_cnn(
                     
                     row_labels = np.array(row_labels)
 
+                    label_idxs = np.where(row_labels == 1)[0]
+                    
+                    if len(label_idxs) > 0:
+                        bb_start, bb_end = label_idxs[0], label_idxs[-1]
+
                     num_positive = (row_labels == 1).sum()
 
                     i = 0
@@ -485,9 +505,8 @@ def parse_and_label_skyline_exported_chromatogram_subsections_in_memory_cnn(
                         num_positive_in_subsection = (
                             row_labels[i:i + subsection_width] == 1).sum()
 
-                        if ((num_positive_in_subsection >= (
-                                positive_percentage * num_positive)) or
-                            (num_positive_in_subsection == subsection_width)):
+                        if (num_positive_in_subsection >= \
+                            positive_percentage * num_positive):
                             subsection_labels.append(1)
                         else:
                             subsection_labels.append(0)
@@ -527,7 +546,9 @@ def parse_and_label_skyline_exported_chromatogram_subsections_in_memory_cnn(
                  chromatogram_id,
                  i,
                  i + subsection_width,
-                 subsection_labels[j]])
+                 subsection_labels[j],
+                 bb_start,
+                 bb_end])
 
             i+= step_size
             j+= 1
@@ -562,38 +583,38 @@ if __name__ == "__main__":
     #     writer.writerows(chromatograms)
 
     # For 1DCNN Whole Chromatograms
-    # chromatograms, labels = \
-    #     parse_and_label_skyline_exported_chromatograms_cnn(
-    #         '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.tsv',
-    #         parse_skyline_exported_annotations(
-    #             '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.csv'),
-    #         '../../../data/working/ManualValidation',
-    #         20,
-    #         1,
-    #         1.0)
-
-    # with open('../../../data/working/ManualValidation/chromatograms.csv', 'w', newline='') as f:
-    #     writer = csv.writer(f)
-    #     writer.writerow(['ID', 'Filename'])
-    #     writer.writerows(chromatograms)
-
-    # np.save('../../../data/working/ManualValidation/skyline_exported_labels', labels)
-
-    # For 1DCNN Chromatogram Subsections In Memory
-    chromatograms, chromatograms_ndarray = \
-        parse_and_label_skyline_exported_chromatogram_subsections_in_memory_cnn(
+    chromatograms, labels = \
+        parse_and_label_skyline_exported_chromatograms_cnn(
             '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.tsv',
             parse_skyline_exported_annotations(
                 '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.csv'),
-            '../../../data/working/ManualValidationSliced_20_1_InMemory',
-            20,
+            '../../../data/working/ManualValidation',
+            30,
             1,
-            1.0
-    )
-    
-    with open('../../../data/working/ManualValidationSliced_20_1_InMemory/chromatograms.csv', 'w', newline='') as f:
+            0.7)
+
+    with open('../../../data/working/ManualValidation/chromatograms.csv', 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['Subsection ID', 'ID', 'Start', 'End', 'Label'])
+        writer.writerow(['ID', 'Filename', 'BB Start', 'BB End'])
         writer.writerows(chromatograms)
 
-    np.save('../../../data/working/ManualValidationSliced_20_1_InMemory/chromatograms', chromatograms_ndarray)
+    np.save('../../../data/working/ManualValidation/skyline_exported_labels', labels)
+
+    # For 1DCNN Chromatogram Subsections In Memory
+    # chromatograms, chromatograms_ndarray = \
+    #     parse_and_label_skyline_exported_chromatogram_subsections_in_memory_cnn(
+    #         '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.tsv',
+    #         parse_skyline_exported_annotations(
+    #             '../../../data/raw/SherlockChromes/ManualValidation/SkylineResult500Peptides.csv'),
+    #         '../../../data/working/ManualValidationSliced_30_1',
+    #         30,
+    #         1,
+    #         0.7
+    # )
+    
+    # with open('../../../data/working/ManualValidationSliced_30_1/chromatograms.csv', 'w', newline='') as f:
+    #     writer = csv.writer(f)
+    #     writer.writerow(['Subsection ID', 'ID', 'Start', 'End', 'Label', 'BB Start', 'BB End'])
+    #     writer.writerows(chromatograms)
+
+    # np.save('../../../data/working/ManualValidationSliced_20_1_InMemory/chromatograms', chromatograms_ndarray)
