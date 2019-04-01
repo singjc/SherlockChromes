@@ -177,9 +177,9 @@ def analyze_model(dataset, model, root_dir, idx_filename, mode='val'):
             more_boxes.append(idx)
 
     np.savetxt(os.path.join(root_dir, mode + '_no_boxes.txt'), np.array(no_boxes))
-    np.savetxt(os.path.join(root_dir, mode + '_less_boxes.txt', np.array(less_boxes))
-    np.savetxt(os.path.join(root_dir, mode + '_equal_boxes.txt', np.array(equal_boxes))
-    np.savetxt(os.path.join(root_dir, mode + '_more_boxes.txt', np.array(more_boxes))
+    np.savetxt(os.path.join(root_dir, mode + '_less_boxes.txt'), np.array(less_boxes))
+    np.savetxt(os.path.join(root_dir, mode + '_equal_boxes.txt'), np.array(equal_boxes))
+    np.savetxt(os.path.join(root_dir, mode + '_more_boxes.txt'), np.array(more_boxes))
 
     print(counter1, counter2, counter3, counter4)
 
