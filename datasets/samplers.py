@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import random
 
 class StratifiedSampler(object):
@@ -59,5 +60,23 @@ class StratifiedSubSampler(object):
         random.shuffle(train_idx)
         random.shuffle(val_idx)
         random.shuffle(test_idx)
+
+        return train_idx, val_idx, test_idx
+
+class LoadingSampler(object):
+    """Load pre-existing idx numpy txt files."""
+
+    def __init__(self, **kwargs):
+        self.train_idx_filename = os.path.join(
+            kwargs['root_path'], kwargs['train_idx_filename'])
+        self.val_idx_filename = os.path.join(
+            kwargs['root_path'], kwargs['val_idx_filename'])
+        self.test_idx_filename = os.path.join(
+            kwargs['root_path'], kwargs['test_idx_filename'])
+
+    def __call__(self, data=None, test_batch_proportion=None):
+        train_idx = [int(i) for i in np.loadtxt(self.train_idx_filename)]
+        val_idx = [int(i) for i in np.loadtxt(self.val_idx_filename)]
+        test_idx = [int(i) for i in np.loadtxt(self.test_idx_filename)]
 
         return train_idx, val_idx, test_idx
