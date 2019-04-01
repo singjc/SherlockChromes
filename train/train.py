@@ -1,3 +1,5 @@
+import numpy as np
+import os
 import random
 import sys
 import torch
@@ -13,7 +15,8 @@ def get_data_loaders(
     test_batch_proportion=0.1,
     batch_size=1,
     sampling_fn=None,
-    collate_fn=None):
+    collate_fn=None,
+    outdir_path=None):
 
     if sampling_fn:
         train_idx, val_idx, test_idx = sampling_fn(
@@ -29,6 +32,17 @@ def get_data_loaders(
         train_idx = idx[:n_train]
         val_idx = idx[n_train:(n_train + n_test)]
         test_idx = idx[(n_train + n_test):]
+
+    if outdir_path:
+        if not os.path.isdir(outdir_path):
+            os.mkdir(outdir_path)
+
+        np.savetxt(os.path.join(outdir_path, 'train_idx.txt'), np.array(
+            train_idx))
+        np.savetxt(os.path.join(outdir_path, 'val_idx.txt'), np.array(
+            val_idx))
+        np.savetxt(os.path.join(outdir_path, 'test_idx.txt'), np.array(
+            test_idx))
 
     train_set = Subset(data, train_idx)
     val_set = Subset(data, val_idx)
@@ -79,7 +93,8 @@ def train(
         data, kwargs['test_batch_proportion'],
         kwargs['batch_size'],
         sampling_fn,
-        collate_fn)
+        collate_fn,
+        kwargs['outdir_path'])
 
     if not optimizer:
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
@@ -136,30 +151,25 @@ def train(
                     metrics['recall'],
                     metrics['loss']))
 
-    def f1(engine):
-        metrics = engine.state.metrics
-        precision = metrics['precision']
-        recall = metrics['recall']
-        f1 = 2 * (precision * recall) / (precision + recall)
+    def neg_loss(engine):
+        loss = engine.state.metrics['loss']
 
-        return f1
+        return -loss
 
     checkpoint = ModelCheckpoint(
-        kwargs['model_savedir'],
+        kwargs['outdir_path'],
         kwargs['model_savename'],
-        score_function=f1,
-        score_name='f1')
+        score_function=neg_loss,
+        score_name='loss',
+        n_saved=5)
 
     evaluator.add_event_handler(Events.COMPLETED, checkpoint, {'model': model})
 
     # TODO: Uncomment once early stopping plateau fixed released
-    # def val_loss(engine):
-    #     val_loss = float('{:.4f}'.format(engine.state.metrics['loss']))
-
-    #     return val_loss
-
     # early_stopping = EarlyStopping(
-    #     patience=2, score_function=val_loss, trainer=trainer)
+    #     patience=kwargs['lr_cycle_len'],
+    #     score_function=neg_loss,
+    #     trainer=trainer)
 
     # evaluator.add_event_handler(Events.COMPLETED, early_stopping)
 
