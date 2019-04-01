@@ -39,6 +39,12 @@ class ChromatogramsDataset(Dataset):
 
         return chromatogram, label
 
+    def get_bb(self, idx):
+        bb_start, bb_end = \
+            self.chromatograms.iloc[idx, 2], self.chromatograms.iloc[idx, 3]
+        
+        return bb_start, bb_end
+
 class ChromatogramSubsectionsDataset(Dataset):
     """Chromatogram Subsections dataset."""
 
