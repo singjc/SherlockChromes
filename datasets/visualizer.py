@@ -9,10 +9,6 @@ from sklearn.metrics import confusion_matrix
 
 from chromatograms_dataset import ChromatogramsDataset, ChromatogramSubsectionsDataset, ChromatogramSubsectionsInMemoryDataset
 
-sys.path.insert(0, '../models')
-
-from depthwise_1dcnn_model import ChromatogramPeakDetectorHybrid1DCNN
-
 def plot_whole_chromatogram(chromatogram, labels=None, bb_start=None, bb_end=None):
     """
     Args:
@@ -248,13 +244,14 @@ if __name__ == "__main__":
     model.batch_size = 1
     model.eval()
 
-    # e.g. ../../../data/output/1dcnn_hybrid_whole
-    output_root_dir = input('Output root dir: ')
-    # e.g. val_idx.txt
-    idx_filename = input('Val Idx filename: ')
-    analyze_model(dataset, model, output_root_dir, idx_filename)
-    # e.g. test_idx.txt
-    idx_filename = input('Test Idx filename: ')
-    analyze_model(dataset, model, output_root_dir, idx_filename, mode='test')
+    if input('Analyze? [yes, no]: ') == 'yes':
+        # e.g. ../../../data/output/1dcnn_hybrid_whole
+        output_root_dir = input('Output root dir: ')
+        # e.g. val_idx.txt
+        idx_filename = input('Val Idx filename: ')
+        analyze_model(dataset, model, output_root_dir, idx_filename)
+        # e.g. test_idx.txt
+        idx_filename = input('Test Idx filename: ')
+        analyze_model(dataset, model, output_root_dir, idx_filename, mode='test')
 
     test_model(dataset, model)
