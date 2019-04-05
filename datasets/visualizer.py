@@ -177,8 +177,6 @@ def plot_binary_precision_recall_curve(y_true, y_pred):
     average_precision = average_precision_score(y_true, y_pred)
     precision, recall, thresholds = precision_recall_curve(y_true, y_pred)
 
-    print(thresholds)
-
     plt.step(recall, precision, color='b', alpha=0.5,
             where='post')
 
@@ -191,7 +189,15 @@ def plot_binary_precision_recall_curve(y_true, y_pred):
 
     plt.show()
 
-def count_outcomes(dataset, model, root_dir, idx_filename, mode='val'):
+    return precision, recall, thresholds
+
+def count_outcomes(
+    dataset,
+    model,
+    root_dir,
+    idx_filename,
+    threshold=0.5,
+    mode='val'):
     """
     This function counts the number of instances of each possible outcome.
     """
@@ -207,7 +213,7 @@ def count_outcomes(dataset, model, root_dir, idx_filename, mode='val'):
                     np.asarray(chromatogram)).view(1, *dims).float())[0]
 
         num_boxes = (labels == 1).sum()
-        num_boxes_predicted = (output > 0.5).sum()
+        num_boxes_predicted = (output >= threshold).sum()
         if num_boxes_predicted == 0:
             counter1+= 1
             no_boxes.append(idx)
@@ -228,7 +234,12 @@ def count_outcomes(dataset, model, root_dir, idx_filename, mode='val'):
 
     print(counter1, counter2, counter3, counter4)
 
-def pseudo_binary_precision_recall(dataset, model, root_dir, idx_filename):
+def pseudo_binary_precision_recall(
+    dataset,
+    model,
+    root_dir,
+    idx_filename,
+    mode='val'):
     """
     This function calculates a pseudo binary precision recall curve by taking
     the score and label of the highest value from each chromatogram.
@@ -245,10 +256,33 @@ def pseudo_binary_precision_recall(dataset, model, root_dir, idx_filename):
                         chromatogram)).view(1, *dims).float())[0]
         output = output.detach().numpy()
 
-        y_true.append(labels[np.argmax(output)])
-        y_pred.append(np.amax(output))
+        positive_idxs = np.where(labels == 1)[0]
 
-    plot_binary_precision_recall_curve(y_true, y_pred)
+        if len(positive_idxs) > 0:
+            largest_positive_idx = positive_idxs[np.argmax(
+                output[positive_idxs])]
+
+            largest_positive_y_true = labels[largest_positive_idx]
+            largest_positive_y_pred = output[largest_positive_idx]
+
+            y_true.append(largest_positive_y_true)
+            y_pred.append(largest_positive_y_pred)
+
+            largest_idx = np.argmax(output)
+
+            if largest_idx != largest_positive_idx:
+                y_true.append(labels[largest_idx])
+                y_pred.append(np.amax(output))
+        else:
+            y_true.append(labels[np.argmax(output)])
+            y_pred.append(np.amax(output))
+
+    precision, recall, thresholds = plot_binary_precision_recall_curve(
+        y_true, y_pred)
+
+    np.savetxt(os.path.join(root_dir, mode + '_precision.txt'), precision)
+    np.savetxt(os.path.join(root_dir, mode + '_recall.txt'), recall)
+    np.savetxt(os.path.join(root_dir, mode + '_thresholds.txt'), thresholds)
 
 def test_model(dataset, model, mode='whole'):
     """
@@ -297,8 +331,15 @@ def test_model(dataset, model, mode='whole'):
             if mode != 'whole':
                 plot_chromatogram_subsection(chromatogram, output)
             else:
+                threshold = float(input('Threshold val: '))
+                width = int(input('Eval window width: '))
                 plot_whole_chromatogram(
-                    str(idx), chromatogram, output, *dataset.get_bb(idx))
+                    str(idx),
+                    chromatogram,
+                    output,
+                    *dataset.get_bb(idx),
+                    threshold,
+                    width)
 
 
 if __name__ == "__main__":
@@ -323,12 +364,14 @@ if __name__ == "__main__":
     if input('Count outcomes? [yes, no]: ') == 'yes':
         # e.g. ../../../data/output/xcept_whole
         root_dir = input('Root dir: ')
+        threshold = float(input('Threshold val: '))
         # e.g. val_idx.txt
         idx_filename = input('Val Idx filename: ')
-        count_outcomes(dataset, model, root_dir, idx_filename)
+        count_outcomes(dataset, model, root_dir, idx_filename, threshold)
         # e.g. test_idx.txt
         idx_filename = input('Test Idx filename: ')
-        count_outcomes(dataset, model, root_dir, idx_filename, mode='test')
+        count_outcomes(
+            dataset, model, root_dir, idx_filename, threshold, mode='test')
 
     if input('Calculate pseudo binary precision recall? [yes, no]: ') == 'yes':
         # e.g. ../../../data/output/xcept_whole
@@ -338,6 +381,7 @@ if __name__ == "__main__":
         pseudo_binary_precision_recall(dataset, model, root_dir, idx_filename)
         # e.g. test_idx.txt
         idx_filename = input('Test Idx filename: ')
-        pseudo_binary_precision_recall(dataset, model, root_dir, idx_filename)
+        pseudo_binary_precision_recall(
+            dataset, model, root_dir, idx_filename, mode='test')
 
     test_model(dataset, model)
