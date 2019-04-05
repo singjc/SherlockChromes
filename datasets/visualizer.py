@@ -5,15 +5,29 @@ import pandas as pd
 import sys
 import torch
 
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import average_precision_score, confusion_matrix, precision_recall_curve
 
 from chromatograms_dataset import ChromatogramsDataset, ChromatogramSubsectionsDataset, ChromatogramSubsectionsInMemoryDataset
 
-def plot_whole_chromatogram(chromatogram, labels=None, bb_start=None, bb_end=None):
+sys.path.insert(0, '../models')
+
+def plot_whole_chromatogram(
+    chromatogram_id,
+    chromatogram,
+    labels=None,
+    bb_start=None,
+    bb_end=None,
+    threshold=0.5,
+    width=30):
     """
     Args:
+        chromatogram_id (str): chromatogram id in dataset
         chromatogram: (len_of_chromatogram, num_dimensions)
         labels: (len_of_chromatogram, )
+        bb_start (int): idx of label bounding box start
+        bb_end (int): idx of label bounding box end
+        threshold (float): value to threshold label probabilities
+        width (int): width of evaluation window of model
     """
     # Convert from single multivariate time series
     # back to separate single variate time series
@@ -34,21 +48,32 @@ def plot_whole_chromatogram(chromatogram, labels=None, bb_start=None, bb_end=Non
 
     by_trace = df.groupby('trace')
 
+    plt.subplot(211)
+
+    plt.title('chromatogram_id=' + chromatogram_id)
+
     for trace, group in by_trace:
         plt.plot(group['timepoint'], group['intensity'], label=trace)
 
-    labels = list((labels >= 0.5))
+    if labels is not None:
+        thresholded_labels = list((labels >= threshold))
 
-    for i in range(len(labels)):
-        if labels[i] == 1:
-            plt.axvline(i, color='r')
-            plt.axvline(i + 30, color='r')
+        for i in range(len(labels)):
+            if thresholded_labels[i] == 1:
+                plt.axvline(i, color='r')
+                plt.axvline(i + width, color='r')
 
-    if bb_start and bb_end:
-        plt.axvline(bb_start, color='b')
-        plt.axvline(bb_end, color='b')
+        if bb_start and bb_end:
+            plt.axvline(bb_start, color='b')
+            plt.axvline(bb_end, color='b')
 
     plt.legend()
+
+    plt.subplot(212)
+    plt.plot(labels, label='raw network output')
+
+    plt.legend()
+
     plt.show()
 
 def plot_chromatogram_subsection(chromatogram, labels=None):
@@ -145,7 +170,31 @@ def plot_confusion_matrix(y_true, y_pred, classes,
 
     return ax
 
-def analyze_model(dataset, model, root_dir, idx_filename, mode='val'):
+def plot_binary_precision_recall_curve(y_true, y_pred):
+    """
+    This function plots a binary precision recall curve.
+    """
+    average_precision = average_precision_score(y_true, y_pred)
+    precision, recall, thresholds = precision_recall_curve(y_true, y_pred)
+
+    print(thresholds)
+
+    plt.step(recall, precision, color='b', alpha=0.5,
+            where='post')
+
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.ylim([0.0, 1.05])
+    plt.xlim([0.0, 1.0])
+    plt.title('2-class Precision-Recall curve: AP={0:0.2f}'.format(
+            average_precision))
+
+    plt.show()
+
+def count_outcomes(dataset, model, root_dir, idx_filename, mode='val'):
+    """
+    This function counts the number of instances of each possible outcome.
+    """
     counter1, counter2, counter3, counter4 = 0, 0, 0, 0
     no_boxes, less_boxes, equal_boxes, more_boxes = [], [], [], []
 
@@ -179,7 +228,33 @@ def analyze_model(dataset, model, root_dir, idx_filename, mode='val'):
 
     print(counter1, counter2, counter3, counter4)
 
+def pseudo_binary_precision_recall(dataset, model, root_dir, idx_filename):
+    """
+    This function calculates a pseudo binary precision recall curve by taking
+    the score and label of the highest value from each chromatogram.
+    """
+    y_true, y_pred = [], []
+
+    idxs = np.loadtxt(os.path.join(root_dir, idx_filename))
+    for idx in idxs:
+        idx = int(idx)
+        chromatogram, labels = dataset[idx]
+        dims = chromatogram.shape
+        output = model(torch.from_numpy(
+                    np.asarray(
+                        chromatogram)).view(1, *dims).float())[0]
+        output = output.detach().numpy()
+
+        y_true.append(labels[np.argmax(output)])
+        y_pred.append(np.amax(output))
+
+    plot_binary_precision_recall_curve(y_true, y_pred)
+
 def test_model(dataset, model, mode='whole'):
+    """
+    This function provides an interactive command line interface for
+    visualizing model testing and evaluation.
+    """
     loop = True
     labels = dataset.labels
 
@@ -222,7 +297,8 @@ def test_model(dataset, model, mode='whole'):
             if mode != 'whole':
                 plot_chromatogram_subsection(chromatogram, output)
             else:
-                plot_whole_chromatogram(chromatogram, output, *dataset.get_bb(idx))
+                plot_whole_chromatogram(
+                    str(idx), chromatogram, output, *dataset.get_bb(idx))
 
 
 if __name__ == "__main__":
@@ -237,21 +313,31 @@ if __name__ == "__main__":
         chromatograms_filename,
         labels_filename)
 
-    # e.g. ../../../data/output/1dcnn_xcept_whole/1dcnn_model_80_loss=0.01623706.pth
+    # e.g. ../../../data/output/xcept_whole/1dcnn_model_84_loss=0.01585771.pth
     model_filename = input('Model pth: ')
     model = torch.load(model_filename)
     model.to('cpu')
     model.batch_size = 1
     model.eval()
 
-    if input('Analyze? [yes, no]: ') == 'yes':
-        # e.g. ../../../data/output/1dcnn_hybrid_whole
-        output_root_dir = input('Output root dir: ')
+    if input('Count outcomes? [yes, no]: ') == 'yes':
+        # e.g. ../../../data/output/xcept_whole
+        root_dir = input('Root dir: ')
         # e.g. val_idx.txt
         idx_filename = input('Val Idx filename: ')
-        analyze_model(dataset, model, output_root_dir, idx_filename)
+        count_outcomes(dataset, model, root_dir, idx_filename)
         # e.g. test_idx.txt
         idx_filename = input('Test Idx filename: ')
-        analyze_model(dataset, model, output_root_dir, idx_filename, mode='test')
+        count_outcomes(dataset, model, root_dir, idx_filename, mode='test')
+
+    if input('Calculate pseudo binary precision recall? [yes, no]: ') == 'yes':
+        # e.g. ../../../data/output/xcept_whole
+        root_dir = input('Root dir: ')
+        # e.g. val_idx.txt
+        idx_filename = input('Val Idx filename: ')
+        pseudo_binary_precision_recall(dataset, model, root_dir, idx_filename)
+        # e.g. test_idx.txt
+        idx_filename = input('Test Idx filename: ')
+        pseudo_binary_precision_recall(dataset, model, root_dir, idx_filename)
 
     test_model(dataset, model)
