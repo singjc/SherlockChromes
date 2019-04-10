@@ -1,3 +1,4 @@
+import importlib
 import numpy as np
 import os
 import random
@@ -96,6 +97,16 @@ def train(
         collate_fn,
         kwargs['outdir_path'])
 
+    visdom_spec = importlib.util.find_spec('visdom')
+    visdom_available = visdom_spec is not None
+
+    if visdom_available:
+        print('Visdom detected!')
+        import visdom
+        from visualizations import Visualizations
+
+        vis = Visualizations()
+
     if not optimizer:
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
@@ -137,19 +148,11 @@ def train(
                    metrics['precision'],
                    metrics['recall'],
                    metrics['loss']))
-
-    @trainer.on(Events.EPOCH_COMPLETED)
-    def log_validation_results(trainer):
-        if kwargs['mode'] != 'train only':
-            evaluator.run(val_loader)
-            metrics = evaluator.state.metrics
-            print("Validation Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
-                .format(
-                    trainer.state.epoch,
-                    metrics['accuracy'],
-                    metrics['precision'],
-                    metrics['recall'],
-                    metrics['loss']))
+        if visdom_available:
+            vis.plot_train_acc(metrics['accuracy'], trainer.state.epoch)
+            vis.plot_train_prec(metrics['precision'].item(), trainer.state.epoch)
+            vis.plot_train_recall(metrics['recall'].item(), trainer.state.epoch)
+            vis.plot_train_loss(metrics['loss'], trainer.state.epoch)
 
     def neg_loss(engine):
         loss = engine.state.metrics['loss']
@@ -163,7 +166,24 @@ def train(
         score_name='loss',
         n_saved=5)
 
-    evaluator.add_event_handler(Events.COMPLETED, checkpoint, {'model': model})
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def log_validation_results(trainer):
+        if kwargs['mode'] != 'train only':
+            evaluator.run(val_loader)
+            metrics = evaluator.state.metrics
+            print("Validation Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
+                .format(
+                    trainer.state.epoch,
+                    metrics['accuracy'],
+                    metrics['precision'],
+                    metrics['recall'],
+                    metrics['loss']))
+            if visdom_available:
+                vis.plot_val_acc(metrics['accuracy'], trainer.state.epoch)
+                vis.plot_val_prec(metrics['precision'].item(), trainer.state.epoch)
+                vis.plot_val_recall(metrics['recall'].item(), trainer.state.epoch)
+                vis.plot_val_loss(metrics['loss'], trainer.state.epoch)
+            checkpoint(evaluator, {'model': model})
 
     # TODO: Uncomment once early stopping plateau fixed released
     # early_stopping = EarlyStopping(
