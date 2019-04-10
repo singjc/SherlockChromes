@@ -28,8 +28,7 @@ class DepthSeparableConv1d(nn.Module):
         self.intermediate_nonlinearity = intermediate_nonlinearity
 
         if self.intermediate_nonlinearity:
-            self.nonlinear_activation = nn.ReLU(
-                in_channels * depth_multiplier)
+            self.nonlinear_activation = nn.ReLU()
 
         self.pointwise = nn.Conv1d(
             in_channels * depth_multiplier,
@@ -44,6 +43,25 @@ class DepthSeparableConv1d(nn.Module):
             out = self.nonlinear_activation(out)
 
         out = self.pointwise(out)
+
+        return out
+
+class SqueezeExcitation1d(nn.Module):
+    def __init__(self, in_channels, reduction_ratio=16):
+        super(SqueezeExcitation1d, self).__init__()
+        self.squeeze = nn.AdaptiveAvgPool1d(1)
+        self.excitation = nn.Sequential(
+            nn.Linear(in_channels, in_channels // reduction_ratio, bias=False),
+            nn.ReLU(),
+            nn.Linear(in_channels // reduction_ratio, in_channels, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        b, c, _ = x.size()
+        y = self.squeeze(x).view(b, c)
+        y = self.excitation(y).view(b, c, 1)
+        out = x * y.expand_as(x)
 
         return out
 
@@ -63,7 +81,7 @@ class XceptionConv1dBlock(nn.Module):
                         in_channels,
                         in_channels
                     ),
-                    nn.ReLU(in_channels),
+                    nn.ReLU(),
                     nn.BatchNorm1d(in_channels)
                 )
             )
@@ -97,7 +115,7 @@ class ResNextConv1dBlock(nn.Module):
                 1,
                 bias=False
             ),
-            nn.ReLU(group_width),
+            nn.ReLU(),
             nn.BatchNorm1d(group_width)
         )
 
@@ -111,7 +129,7 @@ class ResNextConv1dBlock(nn.Module):
                 groups=cardinality,
                 bias=False
             ),
-            nn.ReLU(group_width),
+            nn.ReLU(),
             nn.BatchNorm1d(group_width)
         )
 
@@ -122,7 +140,7 @@ class ResNextConv1dBlock(nn.Module):
                 1,
                 bias=False
             ),
-            nn.ReLU(in_channels * expansion_factor),
+            nn.ReLU(),
             nn.BatchNorm1d(in_channels * expansion_factor)
         )
 
@@ -144,6 +162,74 @@ class ResNextConv1dBlock(nn.Module):
         out = self.compressor(x)
         out = self.bottleneck(out)
         out = self.expander(out)
+        out+= self.residual(x)
+
+        return out
+
+class SqueezeExcitationDepthSeparableResNextConv1dBlock(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        kernel_size=3,
+        bottleneck_width=128,
+        stride=1,
+        expansion_factor=1):
+        super(SqueezeExcitationDepthSeparableResNextConv1dBlock, self).__init__()
+
+        self.compressor = nn.Sequential(
+            DepthSeparableConv1d(
+                in_channels,
+                bottleneck_width,
+                1,
+                padding=0
+            ),
+            nn.ReLU(),
+            nn.BatchNorm1d(bottleneck_width)
+        )
+
+        self.bottleneck = nn.Sequential(
+            DepthSeparableConv1d(
+                bottleneck_width,
+                bottleneck_width,
+                kernel_size=kernel_size,
+                stride=stride
+            ),
+            nn.ReLU(),
+            nn.BatchNorm1d(bottleneck_width)
+        )
+
+        self.expander = nn.Sequential(
+            DepthSeparableConv1d(
+                bottleneck_width,
+                in_channels * expansion_factor,
+                1,
+                padding=0
+            ),
+            nn.ReLU(),
+            nn.BatchNorm1d(in_channels * expansion_factor)
+        )
+
+        self.se = SqueezeExcitation1d(in_channels * expansion_factor)
+
+        self.residual = nn.Sequential()
+        
+        if expansion_factor > 1:
+            self.residual = nn.Sequential(
+                nn.Conv1d(
+                    in_channels,
+                    in_channels * expansion_factor,
+                    1,
+                    stride=stride,
+                    bias=False
+                ),
+                nn.BatchNorm1d(in_channels * expansion_factor)
+            )
+
+    def forward(self, x):
+        out = self.compressor(x)
+        out = self.bottleneck(out)
+        out = self.expander(out)
+        out = self.se(out)
         out+= self.residual(x)
 
         return out
