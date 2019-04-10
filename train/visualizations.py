@@ -62,7 +62,7 @@ class Visualizations:
         )
     
     def plot_val_prec(self, prec, epoch):
-        self.val_acc_win = self.plot_vis_line(
+        self.val_prec_win = self.plot_vis_line(
             prec,
             epoch,
             self.val_prec_win,
@@ -82,7 +82,7 @@ class Visualizations:
         )
     
     def plot_val_recall(self, recall, epoch):
-        self.val_acc_win = self.plot_vis_line(
+        self.val_recall_win = self.plot_vis_line(
             recall,
             epoch,
             self.val_recall_win,
