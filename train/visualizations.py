@@ -8,15 +8,17 @@ class Visualizations:
             env_name = str(datetime.now().strftime('%d-%m %Hh%M'))
         
         self.env_name = env_name
-        self.vis = visdom.Visdom(env=self.env_name)
-        self.train_acc_win = None
-        self.val_acc_win = None
-        self.train_prec_win = None
-        self.val_prec_win = None
-        self.train_recall_win = None
-        self.val_recall_win = None
-        self.train_loss_win = None
-        self.val_loss_win = None
+        self.vis = visdom.Visdom(
+            env=self.env_name,
+            log_to_filename='../../../data/logs/' + self.env_name + '.log')
+        self.train_acc_win = 'train_acc'
+        self.val_acc_win = 'val_acc'
+        self.train_prec_win = 'train_prec'
+        self.val_prec_win = 'val_prec'
+        self.train_recall_win = 'train_recall'
+        self.val_recall_win = 'val_recall'
+        self.train_loss_win = 'train_loss'
+        self.val_loss_win = 'val_loss'
 
     def plot_vis_line(self, value, step, win, xlabel, ylabel, title):
         return self.vis.line(
