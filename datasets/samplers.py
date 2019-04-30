@@ -71,6 +71,7 @@ class LoadingSampler(object):
     """Load pre-existing idx numpy txt files."""
 
     def __init__(self, **kwargs):
+        self.shuffle = kwargs['shuffle']
         self.train_idx_filename = os.path.join(
             kwargs['root_path'], kwargs['train_idx_filename'])
         self.val_idx_filename = os.path.join(
@@ -82,6 +83,11 @@ class LoadingSampler(object):
         train_idx = [int(i) for i in np.loadtxt(self.train_idx_filename)]
         val_idx = [int(i) for i in np.loadtxt(self.val_idx_filename)]
         test_idx = [int(i) for i in np.loadtxt(self.test_idx_filename)]
+
+        if self.shuffle:
+            random.shuffle(train_idx)
+            random.shuffle(val_idx)
+            random.shuffle(test_idx)
 
         return train_idx, val_idx, test_idx
 
