@@ -150,7 +150,7 @@ def parse_and_label_skyline_exported_chromatograms_cnn(
             line_counter+= 1
             line = line.rstrip('\r\n').split('\t')
 
-            if line[1] != '#N/A':
+            if line[1] != '#N/A' and line[4] != 'precursor':
                 repl = parse_skyline_exported_chromatogram_filenames(line[0])
                 seq, ints, charge = (
                     line[1],
@@ -253,6 +253,7 @@ def parse_and_label_skyline_exported_chromatograms_cnn(
         print(x_count, y_count)
 
         label_matrix = np.array(label_matrix)
+        print(len(chromatograms))
         print(label_matrix.shape)
 
     return chromatograms, label_matrix
