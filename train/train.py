@@ -53,31 +53,25 @@ def get_data_loaders(
         train_loader = DataLoader(
             train_set,
             batch_size=batch_size,
-            collate_fn=collate_fn,
-            drop_last=True)
+            collate_fn=collate_fn)
         val_loader = DataLoader(
             val_set,
             batch_size=batch_size,
-            collate_fn=collate_fn,
-            drop_last=True)
+            collate_fn=collate_fn)
         test_loader = DataLoader(
             test_set,
             batch_size=batch_size,
-            collate_fn=collate_fn,
-            drop_last=True)
+            collate_fn=collate_fn)
     else:
         train_loader = DataLoader(
             train_set,
-            batch_size=batch_size,
-            drop_last=True)
+            batch_size=batch_size)
         val_loader = DataLoader(
             val_set,
-            batch_size=batch_size,
-            drop_last=True)
+            batch_size=batch_size)
         test_loader = DataLoader(
             test_set,
-            batch_size=batch_size,
-            drop_last=True)
+            batch_size=batch_size)
 
     return train_loader, val_loader, test_loader
 
@@ -105,13 +99,19 @@ def train(
         import visdom
         from visualizations import Visualizations
 
-        vis = Visualizations()
+        vis = Visualizations(env_name=kwargs['model_savename'])
 
     if not optimizer:
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
     if not loss:
         loss = torch.nn.BCELoss()
+
+    if 'transfer_model_path' in kwargs:
+        model.load_state_dict(
+            torch.load(kwargs['transfer_model_path']).state_dict(),
+            strict=False
+        )
 
     trainer = create_supervised_trainer(model, optimizer, loss, device=device)
     evaluator = create_supervised_evaluator(model,
@@ -124,7 +124,7 @@ def train(
                                             device=device)
 
     scheduler = CosineAnnealingLR(
-        optimizer, kwargs['lr_cycle_len'], kwargs['lr_min'])
+        optimizer, kwargs['T_max'])
     
     def cosine_annealing_scheduler(engine, scheduler):
         scheduler.step()
@@ -159,11 +159,17 @@ def train(
 
         return -loss
 
-    checkpoint = ModelCheckpoint(
+    checkpoint_score = ModelCheckpoint(
         kwargs['outdir_path'],
         kwargs['model_savename'],
         score_function=neg_loss,
         score_name='loss',
+        n_saved=5)
+
+    checkpoint_interval = ModelCheckpoint(
+        kwargs['outdir_path'],
+        kwargs['model_savename'],
+        save_interval=5,
         n_saved=5)
 
     @trainer.on(Events.EPOCH_COMPLETED)
@@ -183,7 +189,8 @@ def train(
                 vis.plot_val_prec(metrics['precision'].item(), trainer.state.epoch)
                 vis.plot_val_recall(metrics['recall'].item(), trainer.state.epoch)
                 vis.plot_val_loss(metrics['loss'], trainer.state.epoch)
-            checkpoint(evaluator, {'model': model})
+            checkpoint_score(evaluator, {'model': model})
+            checkpoint_interval(evaluator, {'model': model})
 
     # TODO: Uncomment once early stopping plateau fixed released
     # early_stopping = EarlyStopping(
