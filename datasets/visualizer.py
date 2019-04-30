@@ -70,7 +70,7 @@ def plot_whole_chromatogram(
     plt.legend()
 
     plt.subplot(212)
-    plt.plot(labels, label='raw network output')
+    plt.plot(np.pad(labels, (15, 0), 'constant'), label='raw network output')
 
     plt.legend()
 
@@ -284,6 +284,23 @@ def pseudo_binary_precision_recall(
     np.savetxt(os.path.join(root_dir, mode + '_recall.txt'), recall)
     np.savetxt(os.path.join(root_dir, mode + '_thresholds.txt'), thresholds)
 
+def plot_layer_output(x, layer):
+    dims = x.shape
+    output = layer(
+        torch.from_numpy(
+            np.asarray(x)).view(*dims).float())[0]
+    channels, length = output.shape
+
+    plt.figure()
+
+    for channel in range(channels):
+        plt.subplot(channels, 1, channel + 1)
+        plt.plot(output.numpy()[channel, :], label='channel_' + str(channel))
+
+        plt.legend()
+
+    plt.show()
+
 def test_model(dataset, model, mode='whole'):
     """
     This function provides an interactive command line interface for
@@ -320,6 +337,18 @@ def test_model(dataset, model, mode='whole'):
 
         with torch.no_grad():
             dims = chromatogram.shape
+
+            plot_layer_output(
+                torch.from_numpy(
+                    np.asarray(
+                        chromatogram)).view(1, *dims).float(), model.smoother)
+
+            plot_layer_output(
+                torch.from_numpy(
+                    np.asarray(
+                        chromatogram)).view(1, *dims).float(),
+                model.feature_detector)
+
             output = model(
                 torch.from_numpy(
                     np.asarray(chromatogram)).view(1, *dims).float())[0]
@@ -340,6 +369,90 @@ def test_model(dataset, model, mode='whole'):
                     *dataset.get_bb(idx),
                     threshold,
                     width)
+            else:
+                print('Empty chromatogram found!')
+
+        break_loop = input("Enter 'break' to exit: ")
+        if break_loop == 'break':
+            break
+
+def create_results_file(
+    root_dir,
+    chromatograms_filename,
+    dataset,
+    model,
+    save_dir,
+    skyline_filename,
+    results_filename,
+    threshold=0.5):
+    chromatograms = pd.read_csv(os.path.join(
+        root_dir, chromatograms_filename))
+
+    skyline = pd.read_csv(os.path.join(
+        save_dir, skyline_filename))
+
+    model_bounding_boxes = \
+        [
+            [
+                'Replicate Name',
+                'Peptide Modified Sequence',
+                'Precursor Charge',
+                'Min Start Time',
+                'Max End Time'
+            ]
+        ]
+
+    for i in range(len(skyline)):
+        row = skyline.iloc[i]
+
+        if type(row['Replicate Name']) == str:
+            key = '_'.join(
+                [
+                    row['Peptide Modified Sequence'],
+                    row['Replicate Name'],
+                    str(row['Precursor Charge'])
+                ])
+
+            idx = chromatograms.loc[chromatograms['Filename'] == key]['ID']
+            if len(idx) > 1:
+                idx = int(idx.iloc[0])
+            else:
+                idx = int(idx)
+
+            chromatogram, labels = dataset[idx]
+            dims = chromatogram.shape
+
+            if dims[1] > 1:
+                output = model(torch.from_numpy(
+                            np.asarray(
+                                chromatogram)).view(1, *dims).float())[0]
+                output = output.detach().numpy()
+
+                largest = np.amax(output)
+
+                if largest >= threshold:
+                    idx_of_largest = np.argmax(output)
+
+                    left_width = idx_of_largest * 0.0569
+                    right_width = (idx_of_largest + 30) * 0.0569
+                else:
+                    left_width, right_width = None, None
+            else:
+                left_width, right_width = None, None
+
+            model_bounding_boxes.append([
+                    row['Replicate Name'],
+                    row['Peptide Modified Sequence'],
+                    str(row['Precursor Charge']),
+                    left_width,
+                    right_width])
+
+    model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
+
+    model_bounding_boxes.to_csv(
+        os.path.join(save_dir, results_filename),
+        index=False,
+        header=False)
 
 
 if __name__ == "__main__":
@@ -358,7 +471,6 @@ if __name__ == "__main__":
     model_filename = input('Model pth: ')
     model = torch.load(model_filename)
     model.to('cpu')
-    model.batch_size = 1
     model.eval()
 
     if input('Count outcomes? [yes, no]: ') == 'yes':
@@ -385,3 +497,17 @@ if __name__ == "__main__":
             dataset, model, root_dir, idx_filename, mode='test')
 
     test_model(dataset, model)
+
+    if input('Create results file? [yes, no]: ') == 'yes':
+        threshold = float(input('Input threshold value: '))
+        modelname = input('Model designation: ')
+
+        create_results_file(
+            '../../../data/working/ManualValidationOpenSWATH',
+            'chromatograms.csv',
+            dataset,
+            model,
+            'D:/Workspace/SherlockChromes/data/working/',
+            'SkylineResult500PeptidesProcessed.csv',
+            'Model' + modelname + 'Result500PeptidesProcessedThresholded.csv',
+            threshold=threshold)
