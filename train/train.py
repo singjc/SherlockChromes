@@ -8,7 +8,7 @@ import torch
 from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
 from ignite.handlers import EarlyStopping, ModelCheckpoint
 from ignite.metrics import Accuracy, Loss, Precision, Recall
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader, Subset
 
 def get_data_loaders(
@@ -123,14 +123,14 @@ def train(
                                             },
                                             device=device)
 
-    scheduler = CosineAnnealingLR(
-        optimizer, kwargs['T_max'])
+    scheduler = CosineAnnealingWarmRestarts(
+        optimizer, kwargs['T_0'], T_mult=kwargs['T_mult'])
     
-    def cosine_annealing_scheduler(engine, scheduler):
+    def step_scheduler(engine, scheduler):
         scheduler.step()
 
     trainer.add_event_handler(
-        Events.EPOCH_STARTED, cosine_annealing_scheduler, scheduler)
+        Events.EPOCH_STARTED, step_scheduler, scheduler)
 
     @trainer.on(Events.ITERATION_COMPLETED)
     def log_training_loss(trainer):
@@ -191,14 +191,6 @@ def train(
                 vis.plot_val_loss(metrics['loss'], trainer.state.epoch)
             checkpoint_score(evaluator, {'model': model})
             checkpoint_interval(evaluator, {'model': model})
-
-    # TODO: Uncomment once early stopping plateau fixed released
-    # early_stopping = EarlyStopping(
-    #     patience=kwargs['lr_cycle_len'],
-    #     score_function=neg_loss,
-    #     trainer=trainer)
-
-    # evaluator.add_event_handler(Events.COMPLETED, early_stopping)
 
     @trainer.on(Events.COMPLETED)
     def log_test_results(trainer):
