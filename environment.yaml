@@ -23,8 +23,8 @@ dependencies:
   - mkl_fft=1.0.12=py37h14836fe_0
   - mkl_random=1.0.2=py37h343c172_0
   - ninja=1.9.0=py37h74a9793_0
-  - numpy=1.16.3=py37h19fb1c0_0
-  - numpy-base=1.16.3=py37hc3f5095_0
+  - numpy=1.16.1=py37h19fb1c0_1
+  - numpy-base=1.16.1=py37hc3f5095_1
   - olefile=0.46=py37_0
   - openssl=1.1.1b=he774522_1
   - pandas=0.24.2=py37ha925a31_0
