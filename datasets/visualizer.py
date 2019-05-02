@@ -369,8 +369,6 @@ def test_model(dataset, model, mode='whole'):
                     *dataset.get_bb(idx),
                     threshold,
                     width)
-            else:
-                print('Empty chromatogram found!')
 
         break_loop = input("Enter 'break' to exit: ")
         if break_loop == 'break':
