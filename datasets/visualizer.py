@@ -18,6 +18,7 @@ def plot_whole_chromatogram(
     bb_start=None,
     bb_end=None,
     threshold=0.5,
+    mode='subsection',
     width=30):
     """
     Args:
@@ -56,21 +57,36 @@ def plot_whole_chromatogram(
         plt.plot(group['timepoint'], group['intensity'], label=trace)
 
     if labels is not None:
-        thresholded_labels = list((labels >= threshold))
+        max_idx = np.argmax(labels)
 
-        for i in range(len(labels)):
-            if thresholded_labels[i] == 1:
-                plt.axvline(i, color='r')
-                plt.axvline(i + width, color='r')
+        if labels[max_idx] >= threshold:
+            if mode == 'subsection':
+                plt.axvline(max_idx, color='r')
+                plt.axvline(max_idx + width, color='r')
+            elif mode == 'point':
+                start_idx, end_idx = max_idx, max_idx
 
-        if bb_start and bb_end:
-            plt.axvline(bb_start, color='b')
-            plt.axvline(bb_end, color='b')
+                while labels[start_idx - 1] >= threshold:
+                    start_idx-= 1
+                
+                while labels[end_idx + 1] >= threshold:
+                    end_idx+= 1
+
+                plt.axvline(start_idx, color='r')
+                plt.axvline(end_idx, color='r')
+
+    if bb_start and bb_end:
+        plt.axvline(bb_start, color='b')
+        plt.axvline(bb_end, color='b')
 
     plt.legend()
 
     plt.subplot(212)
-    plt.plot(np.pad(labels, (15, 0), 'constant'), label='raw network output')
+
+    if mode == 'subsection':
+        plt.plot(np.pad(labels, (15, 0), 'constant'), label='raw network output')
+    elif mode == 'point':
+        plt.plot(labels, label='raw network output')
 
     plt.legend()
 
@@ -284,7 +300,7 @@ def pseudo_binary_precision_recall(
     np.savetxt(os.path.join(root_dir, mode + '_recall.txt'), recall)
     np.savetxt(os.path.join(root_dir, mode + '_thresholds.txt'), thresholds)
 
-def plot_layer_output(x, layer):
+def plot_layer_output(x, layer, extra=[], extra_labels=[]):
     dims = x.shape
     output = layer(
         torch.from_numpy(
@@ -294,10 +310,15 @@ def plot_layer_output(x, layer):
     plt.figure()
 
     for channel in range(channels):
-        plt.subplot(channels, 1, channel + 1)
-        plt.plot(output.numpy()[channel, :], label='channel_' + str(channel))
+        plt.subplot(channels + len(extra), 1, channel + 1)
+        plt.plot(output.numpy()[channel, :], label='transition_' + str(channel))
 
-        plt.legend()
+    if extra:
+        for i in range(len(extra)):
+            plt.subplot(channels + i + 1, 1, channels + i + 1)
+            plt.plot(extra[i], label=extra_labels[i])
+
+    plt.legend()
 
     plt.show()
 
@@ -308,6 +329,7 @@ def test_model(dataset, model, mode='whole'):
     """
     loop = True
     labels = dataset.labels
+    label_mode = input('Mode [subsection, point]: ')
 
     if mode != 'whole':
         positives = np.where(labels == np.int64(1))[0]
@@ -341,7 +363,8 @@ def test_model(dataset, model, mode='whole'):
             plot_layer_output(
                 torch.from_numpy(
                     np.asarray(
-                        chromatogram)).view(1, *dims).float(), model.smoother)
+                        chromatogram)).view(1, *dims).float(),
+                model.smoother)
 
             plot_layer_output(
                 torch.from_numpy(
@@ -353,22 +376,30 @@ def test_model(dataset, model, mode='whole'):
                 torch.from_numpy(
                     np.asarray(chromatogram)).view(1, *dims).float())[0]
 
-            print(output)
-
             output = output.numpy()
 
             if mode != 'whole':
                 plot_chromatogram_subsection(chromatogram, output)
             else:
                 threshold = float(input('Threshold val: '))
-                width = int(input('Eval window width: '))
-                plot_whole_chromatogram(
-                    str(idx),
-                    chromatogram,
-                    output,
-                    *dataset.get_bb(idx),
-                    threshold,
-                    width)
+
+                if label_mode == 'subsection':
+                    width = int(input('Eval window width: '))
+                    plot_whole_chromatogram(
+                        str(idx),
+                        chromatogram,
+                        output,
+                        *dataset.get_bb(idx),
+                        threshold=threshold,
+                        width=width)
+                elif label_mode == 'point':
+                    plot_whole_chromatogram(
+                        str(idx),
+                        chromatogram,
+                        output,
+                        *dataset.get_bb(idx),
+                        threshold=threshold,
+                        mode=label_mode)
 
         break_loop = input("Enter 'break' to exit: ")
         if break_loop == 'break':
@@ -382,7 +413,8 @@ def create_results_file(
     save_dir,
     skyline_filename,
     results_filename,
-    threshold=0.5):
+    threshold=0.5,
+    mode='subsection'):
     chromatograms = pd.read_csv(os.path.join(
         root_dir, chromatograms_filename))
 
@@ -420,21 +452,28 @@ def create_results_file(
             chromatogram, labels = dataset[idx]
             dims = chromatogram.shape
 
-            if dims[1] > 1:
-                output = model(torch.from_numpy(
-                            np.asarray(
-                                chromatogram)).view(1, *dims).float())[0]
-                output = output.detach().numpy()
+            output = model(torch.from_numpy(
+                        np.asarray(
+                            chromatogram)).view(1, *dims).float())[0]
+            output = output.detach().numpy()
 
-                largest = np.amax(output)
+            largest_idx = np.argmax(output)
 
-                if largest >= threshold:
-                    idx_of_largest = np.argmax(output)
+            if output[largest_idx] >= threshold:
+                if mode == 'subsection':
+                    left_width = largest_idx * 0.0569
+                    right_width = (largest_idx + 30) * 0.0569
+                elif mode == 'point':
+                    start_idx, end_idx = largest_idx, largest_idx
 
-                    left_width = idx_of_largest * 0.0569
-                    right_width = (idx_of_largest + 30) * 0.0569
-                else:
-                    left_width, right_width = None, None
+                    while output[start_idx - 1] >= threshold:
+                        start_idx-= 1
+                    
+                    while output[end_idx + 1] >= threshold:
+                        end_idx+= 1
+
+                    left_width = start_idx * 0.0569
+                    right_width = end_idx * 0.0569
             else:
                 left_width, right_width = None, None
 
@@ -454,25 +493,25 @@ def create_results_file(
 
 
 if __name__ == "__main__":
-    # e.g. ../../../data/working/ManualValidation
+    # e.g. ../../../data/working/ManualValidationOpenSWATHWithExpRT
     root_dir = input('Dataset root dir: ')
     # e.g. chromatograms.csv
     chromatograms_filename = input('Dataset chromatograms csv: ')
-    # e.g. skyline_exported_labels.npy
+    # e.g. osw_point_labels.npy
     labels_filename = input('Dataset labels npy: ')
     dataset = ChromatogramsDataset(
         root_dir,
         chromatograms_filename,
         labels_filename)
 
-    # e.g. ../../../data/output/xcept_whole/1dcnn_model_84_loss=0.01585771.pth
+    # e.g. ../../../data/output/custom_3_layer_21_kernel_osw_points_wrt/custom_3_layer_21_kernel_osw_points_wrt_model_150.pth
     model_filename = input('Model pth: ')
     model = torch.load(model_filename)
     model.to('cpu')
     model.eval()
 
     if input('Count outcomes? [yes, no]: ') == 'yes':
-        # e.g. ../../../data/output/xcept_whole
+        # e.g. ../../../data/output/custom_3_layer_21_kernel_osw_points_wrt
         root_dir = input('Root dir: ')
         threshold = float(input('Threshold val: '))
         # e.g. val_idx.txt
@@ -484,7 +523,7 @@ if __name__ == "__main__":
             dataset, model, root_dir, idx_filename, threshold, mode='test')
 
     if input('Calculate pseudo binary precision recall? [yes, no]: ') == 'yes':
-        # e.g. ../../../data/output/xcept_whole
+        # e.g. ../../../data/output/custom_3_layer_21_kernel_osw_points_wrt
         root_dir = input('Root dir: ')
         # e.g. val_idx.txt
         idx_filename = input('Val Idx filename: ')
@@ -499,6 +538,7 @@ if __name__ == "__main__":
     if input('Create results file? [yes, no]: ') == 'yes':
         threshold = float(input('Input threshold value: '))
         modelname = input('Model designation: ')
+        mode = input('Mode [subsection, point]: ')
 
         create_results_file(
             '../../../data/working/ManualValidationOpenSWATH',
@@ -507,5 +547,6 @@ if __name__ == "__main__":
             model,
             'D:/Workspace/SherlockChromes/data/working/',
             'SkylineResult500PeptidesProcessed.csv',
-            'Model' + modelname + 'Result500PeptidesProcessedThresholded.csv',
-            threshold=threshold)
+            modelname + 'Result500PeptidesProcessedThresholded.csv',
+            threshold=threshold,
+            mode=mode)
