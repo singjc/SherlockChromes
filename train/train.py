@@ -91,18 +91,22 @@ def train(
         collate_fn,
         kwargs['outdir_path'])
 
-    visdom_spec = importlib.util.find_spec('visdom')
-    visdom_available = visdom_spec is not None
+    use_visdom = False
 
-    if visdom_available:
-        print('Visdom detected!')
-        import visdom
-        from visualizations import Visualizations
+    if 'visualize' in kwargs and kwargs['visualize']:
+        visdom_spec = importlib.util.find_spec('visdom')
+        visdom_available = visdom_spec is not None
 
-        vis = Visualizations(env_name=kwargs['model_savename'])
+        if visdom_available:
+            print('Visdom detected!')
+            import visdom
+            from visualizations import Visualizations
+
+            vis = Visualizations(env_name=kwargs['model_savename'])
+            use_visdom = True
 
     if not optimizer:
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+        optimizer = torch.optim.Adam(model.parameters())
 
     if not loss:
         loss = torch.nn.BCELoss()
@@ -148,7 +152,7 @@ def train(
                    metrics['precision'],
                    metrics['recall'],
                    metrics['loss']))
-        if visdom_available:
+        if use_visdom:
             vis.plot_train_acc(metrics['accuracy'], trainer.state.epoch)
             vis.plot_train_prec(metrics['precision'].item(), trainer.state.epoch)
             vis.plot_train_recall(metrics['recall'].item(), trainer.state.epoch)
@@ -174,35 +178,33 @@ def train(
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_validation_results(trainer):
-        if kwargs['mode'] != 'train only':
-            evaluator.run(val_loader)
-            metrics = evaluator.state.metrics
-            print("Validation Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
-                .format(
-                    trainer.state.epoch,
-                    metrics['accuracy'],
-                    metrics['precision'],
-                    metrics['recall'],
-                    metrics['loss']))
-            if visdom_available:
-                vis.plot_val_acc(metrics['accuracy'], trainer.state.epoch)
-                vis.plot_val_prec(metrics['precision'].item(), trainer.state.epoch)
-                vis.plot_val_recall(metrics['recall'].item(), trainer.state.epoch)
-                vis.plot_val_loss(metrics['loss'], trainer.state.epoch)
-            checkpoint_score(evaluator, {'model': model})
-            checkpoint_interval(evaluator, {'model': model})
+        evaluator.run(val_loader)
+        metrics = evaluator.state.metrics
+        print("Validation Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
+            .format(
+                trainer.state.epoch,
+                metrics['accuracy'],
+                metrics['precision'],
+                metrics['recall'],
+                metrics['loss']))
+        if use_visdom:
+            vis.plot_val_acc(metrics['accuracy'], trainer.state.epoch)
+            vis.plot_val_prec(metrics['precision'].item(), trainer.state.epoch)
+            vis.plot_val_recall(metrics['recall'].item(), trainer.state.epoch)
+            vis.plot_val_loss(metrics['loss'], trainer.state.epoch)
+        checkpoint_score(evaluator, {'model': model})
+        checkpoint_interval(evaluator, {'model': model})
 
     @trainer.on(Events.COMPLETED)
     def log_test_results(trainer):
-        if kwargs['mode'] != 'train only':
-            evaluator.run(test_loader)
-            metrics = evaluator.state.metrics
-            print("Test Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
-                .format(
-                    trainer.state.epoch,
-                    metrics['accuracy'],
-                    metrics['precision'],
-                    metrics['recall'],
-                    metrics['loss']))
+        evaluator.run(test_loader)
+        metrics = evaluator.state.metrics
+        print("Test Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
+            .format(
+                trainer.state.epoch,
+                metrics['accuracy'],
+                metrics['precision'],
+                metrics['recall'],
+                metrics['loss']))
 
     trainer.run(train_loader, max_epochs=kwargs['max_epochs'])
