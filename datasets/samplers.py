@@ -96,7 +96,6 @@ class GroupBySequenceSampler(object):
     Naked sequences are sequences without modifications."""
 
     def __init__(self, **kwargs):
-        self.group_size = kwargs['group_size']
         self.naked = kwargs['naked']
 
     def __call__(self, data, test_batch_proportion=0.1):
@@ -118,7 +117,7 @@ class GroupBySequenceSampler(object):
 
         random.shuffle(grouped_idx)
 
-        n = int(len(data) / self.group_size)
+        n = len(grouped_idx)
         n_test = int(n * test_batch_proportion)
         n_train = n - 2 * n_test
 
