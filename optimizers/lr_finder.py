@@ -18,7 +18,7 @@ from chromatograms_dataset import ChromatogramsDataset
 from collate_fns import PadChromatogramsFor1DCNN
 from focal_loss import FocalLossBinary
 from res_1dcnn_model import ChromatogramPeakDetectorCustom1d
-from samplers import LoadingSampler
+from samplers import GroupBySequenceSampler
 from transforms import ToTensor
 
 class LRFinder(object):
@@ -340,24 +340,17 @@ if __name__ == "__main__":
     transform = ToTensor()
 
     data = ChromatogramsDataset(
-        root_path='../../../data/working/ManualValidationSkyline',
+        root_path='../../../data/working/ManualValidationOpenSWATHWithExpRT',
         chromatograms='chromatograms.csv',
-        labels='skyline_exported_labels.npy',
+        labels='osw_point_labels.npy',
         transform=transform
     )
 
-    loading_sampler = LoadingSampler(
-        root_path='../../../data/output/sedsrn_6_1_2_32_1_16_16',
-        shuffle=True,
-        train_idx_filename='train_idx.txt',
-        val_idx_filename='val_idx.txt',
-        test_idx_filename='test_idx.txt'
-    )
+    sampler = GroupBySequenceSampler(naked=True)
 
     collate_fn = PadChromatogramsFor1DCNN()
 
-    train_idx, val_idx, test_idx = loading_sampler(
-        data, 0.1)
+    train_idx, val_idx, test_idx = sampler(data, 0.1)
 
     train_set = Subset(data, test_idx)
 
@@ -365,19 +358,19 @@ if __name__ == "__main__":
         train_set, batch_size=32, collate_fn=collate_fn)
 
     model = ChromatogramPeakDetectorCustom1d(
-        in_channels=6,
+        in_channels=7,
         num_smoothing_blocks=0,
         trace_weighter_reduction_ratio=0,
-        num_custom_blocks=3,
+        num_custom_blocks=2,
         feature_detector_out_channels=16,
         attn='gc',
         bottleneck_channels=1,
         reduction_ratio=16,
         classifier_out_channels=[32, 32, 16, 1],
-        classifier_kernel_sizes=[30, 1, 1, 1])
+        classifier_kernel_sizes=[21, 1, 1, 1])
 
     criterion = FocalLossBinary()
-    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=0)
+    optimizer = optim.Adam(model.parameters(), lr=1e-7, weight_decay=0)
     lr_finder = LRFinder(model, optimizer, criterion, device='cuda')
-    lr_finder.range_test(train_loader, end_lr=1, num_iter=1000, step_mode='linear')
+    lr_finder.range_test(train_loader, end_lr=1e3, num_iter=100)
     lr_finder.plot()
