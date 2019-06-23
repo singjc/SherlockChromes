@@ -178,6 +178,9 @@ def train(
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_validation_results(trainer):
+        if kwargs['test_batch_proportion'] == 0.0:
+            return
+
         evaluator.run(val_loader)
         metrics = evaluator.state.metrics
         print("Validation Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
@@ -197,6 +200,9 @@ def train(
 
     @trainer.on(Events.COMPLETED)
     def log_test_results(trainer):
+        if kwargs['test_batch_proportion'] == 0.0:
+            return
+            
         evaluator.run(test_loader)
         metrics = evaluator.state.metrics
         print("Test Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
