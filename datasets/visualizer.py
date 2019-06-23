@@ -18,6 +18,7 @@ def plot_whole_chromatogram(
     bb_start=None,
     bb_end=None,
     threshold=0.5,
+    num_traces=6,
     mode='subsection',
     width=30):
     """
@@ -38,7 +39,7 @@ def plot_whole_chromatogram(
 
     traces, timepoints, intensities = [], [], []
 
-    for trace in range(len(chromatogram)):
+    for trace in range(num_traces):
         for timepoint in range(len(chromatogram[trace])):
             traces.append('chromatogram_' + str(trace))
             timepoints.append(timepoint)
@@ -335,6 +336,8 @@ def test_model(dataset, model, mode='whole'):
         positives = np.where(labels == np.int64(1))[0]
         negatives = np.where(labels == np.int64(0))[0]
 
+    num_traces = int(input('Number of traces to show: '))
+
     while loop:
         retrieve = input('Retrieve: ')
 
@@ -391,6 +394,7 @@ def test_model(dataset, model, mode='whole'):
                         output,
                         *dataset.get_bb(idx),
                         threshold=threshold,
+                        num_traces=num_traces,
                         width=width)
                 elif label_mode == 'point':
                     plot_whole_chromatogram(
@@ -399,6 +403,7 @@ def test_model(dataset, model, mode='whole'):
                         output,
                         *dataset.get_bb(idx),
                         threshold=threshold,
+                        num_traces=num_traces,
                         mode=label_mode)
 
         break_loop = input("Enter 'break' to exit: ")
