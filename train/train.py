@@ -141,23 +141,6 @@ def train(
         print("Epoch[{}] Loss: {:.4f}".format(
             trainer.state.epoch, trainer.state.output))
 
-    @trainer.on(Events.EPOCH_COMPLETED)
-    def log_training_results(trainer):
-        evaluator.run(train_loader)
-        metrics = evaluator.state.metrics
-        print("Training Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
-               .format(
-                   trainer.state.epoch,
-                   metrics['accuracy'],
-                   metrics['precision'],
-                   metrics['recall'],
-                   metrics['loss']))
-        if use_visdom:
-            vis.plot_train_acc(metrics['accuracy'], trainer.state.epoch)
-            vis.plot_train_prec(metrics['precision'].item(), trainer.state.epoch)
-            vis.plot_train_recall(metrics['recall'].item(), trainer.state.epoch)
-            vis.plot_train_loss(metrics['loss'], trainer.state.epoch)
-
     def neg_loss(engine):
         loss = engine.state.metrics['loss']
 
@@ -175,6 +158,27 @@ def train(
         kwargs['model_savename'],
         save_interval=5,
         n_saved=5)
+
+    @trainer.on(Events.EPOCH_COMPLETED)
+    def log_training_results(trainer):
+        evaluator.run(train_loader)
+        metrics = evaluator.state.metrics
+        print("Training Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
+               .format(
+                   trainer.state.epoch,
+                   metrics['accuracy'],
+                   metrics['precision'],
+                   metrics['recall'],
+                   metrics['loss']))
+        if use_visdom:
+            vis.plot_train_acc(metrics['accuracy'], trainer.state.epoch)
+            vis.plot_train_prec(metrics['precision'].item(), trainer.state.epoch)
+            vis.plot_train_recall(metrics['recall'].item(), trainer.state.epoch)
+            vis.plot_train_loss(metrics['loss'], trainer.state.epoch)
+
+        if kwargs['test_batch_proportion'] == 0.0:
+            checkpoint_score(evaluator, {'model': model})
+            checkpoint_interval(evaluator, {'model': model})
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_validation_results(trainer):
