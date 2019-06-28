@@ -1,3 +1,5 @@
+import time
+
 def overlap_more_than(
     pred_min,
     pred_max,
@@ -114,5 +116,8 @@ if __name__ == '__main__':
         exclusion_list='chromatograms_mixed.csv'
     )
     """
+    start = time.time()
+
+    print('It took {0:0.1f} seconds'.format(time.time() - start))
 
     pass

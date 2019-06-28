@@ -3,6 +3,7 @@ import numpy as np
 import os
 import pandas as pd
 import sys
+import time
 import torch
 
 from torch.utils.data import DataLoader
@@ -113,6 +114,8 @@ def create_results_file(
         header=False)
 
 if __name__ == "__main__":
+    start = time.time()
+
     parser = argparse.ArgumentParser()
     parser.add_argument('-data_dir', '--data_dir', type=str, default='OpenSWATHAutoAnnotated')
     parser.add_argument('-chromatograms_csv', '--chromatograms_csv', type=str, default='chromatograms.csv')
@@ -127,6 +130,8 @@ if __name__ == "__main__":
     parser.add_argument('-npy_dir', '--npy_dir', type=str, default='evaluation_results')
     parser.add_argument('-npy_name', '--npy_name', type=str, default='output_array')
     args = parser.parse_args()
+
+    print(args)
 
     dataset = ChromatogramsDataset(
         args.data_dir,
@@ -153,3 +158,5 @@ if __name__ == "__main__":
         args.chromatograms_csv,
         args.out_dir,
         args.results_csv)
+
+    print('It took {0:0.1f} seconds'.format(time.time() - start))

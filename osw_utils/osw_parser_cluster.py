@@ -3,6 +3,7 @@ import csv
 import numpy as np
 import os
 import sqlite3
+import time
 
 from sql_data_access import SqlDataAccess
 
@@ -362,6 +363,8 @@ def get_cnn_data(
         writer.writerows(chromatograms_csv)
 
 if __name__ == '__main__':
+    start = time.time()
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-out_dir', '--out_dir', type=str, default='osw_parser_out')
@@ -401,3 +404,5 @@ if __name__ == '__main__':
         decoy=args.decoy,
         isotopes=args.isotopes,
         extra_features=args.extra_features)
+
+    print('It took {0:0.1f} seconds'.format(time.time() - start))
