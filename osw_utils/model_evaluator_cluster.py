@@ -5,22 +5,58 @@ import pandas as pd
 import sys
 import torch
 
+from torch.utils.data import DataLoader
+
 sys.path.insert(0, '../datasets')
 sys.path.insert(0, '../models')
 
 from chromatograms_dataset import ChromatogramsDataset
 
-def create_results_file(
+def create_output_array(
     dataset,
     model,
+    batch_size=32,
+    device='cpu',
+    load_npy=False,
+    npy_dir='.',
+    npy_name='output_array'):
+    output_array = None
+
+    if load_npy:
+        output_array = np.load(os.path.join(npy_dir, npy_name + '.npy'))
+
+        return output_array
+        
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+    for batch in dataloader:
+        chromatograms = torch.from_numpy(
+            np.asarray(batch[0])).float().to(device)
+
+        output = model(chromatograms)
+
+        if type(output_array) == type(None):
+            output_array = output.detach().to('cpu').numpy()
+        else:
+            output_array = np.vstack(
+                (output_array, output.detach().to('cpu').numpy()))
+
+    np.save(os.path.join(npy_dir, npy_name), output_array)
+
+    return output_array
+
+def create_results_file(
+    output_array,
+    threshold=0.5,
+    device='cpu',
     data_dir='OpenSWATHAutoAnnotated',
     chromatograms_csv='chromatograms.csv',
     out_dir='.',
-    results_csv='evaluation_results.csv',
-    threshold=0.5,
-    device='cpu'):
+    results_csv='evaluation_results.csv'):
     chromatograms = pd.read_csv(os.path.join(
         data_dir, chromatograms_csv))
+
+    assert len(chromatograms) == output_array.shape[0]
 
     model_bounding_boxes = \
         [
@@ -41,13 +77,7 @@ def create_results_file(
 
         row = chromatograms.iloc[i]
 
-        chromatogram, _ = dataset[i]
-        dims = chromatogram.shape
-
-        output = model(torch.from_numpy(
-                    np.asarray(
-                        chromatogram)).view(1, *dims).float().to(device))[0]
-        output = output.detach().to('cpu').numpy()
+        output = output_array[i, :]
 
         largest_idx = np.argmax(output)
 
@@ -92,6 +122,10 @@ if __name__ == "__main__":
     parser.add_argument('-results_csv', '--results_csv', type=str, default='evaluation_results.csv')
     parser.add_argument('-threshold', '--threshold', type=float, default=0.5)
     parser.add_argument('-device', '--device', type=str, default='cpu')
+    parser.add_argument('-batch_size', '--batch_size', type=int, default=32)
+    parser.add_argument('-load_npy', '--load_npy', type=bool, default=False)
+    parser.add_argument('-npy_dir', '--npy_dir', type=str, default='evaluation_results')
+    parser.add_argument('-npy_name', '--npy_name', type=str, default='output_array')
     args = parser.parse_args()
 
     dataset = ChromatogramsDataset(
@@ -102,14 +136,20 @@ if __name__ == "__main__":
     model = torch.load(args.model_pth, map_location=args.device)
     model.eval()
 
-    threshold = args.threshold
-    modelname = args.model_pth.split('/')[-1]
-
-    create_results_file(
+    output_array = create_output_array(
         dataset,
         model,
+        args.batch_size,
+        args.device,
+        args.load_npy,
+        args.npy_dir,
+        args.npy_name)
+
+    create_results_file(
+        output_array,
+        args.threshold,
+        args.device,
         args.data_dir,
         args.chromatograms_csv,
         args.out_dir,
-        args.results_csv,
-        args.threshold)
+        args.results_csv)
