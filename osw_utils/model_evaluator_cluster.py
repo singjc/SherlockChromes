@@ -126,7 +126,7 @@ if __name__ == "__main__":
     parser.add_argument('-threshold', '--threshold', type=float, default=0.5)
     parser.add_argument('-device', '--device', type=str, default='cpu')
     parser.add_argument('-batch_size', '--batch_size', type=int, default=32)
-    parser.add_argument('-load_npy', '--load_npy', type=bool, default=False)
+    parser.add_argument('-load_npy', '--load_npy', action='store_true', default=False)
     parser.add_argument('-npy_dir', '--npy_dir', type=str, default='evaluation_results')
     parser.add_argument('-npy_name', '--npy_name', type=str, default='output_array')
     args = parser.parse_args()
