@@ -1,6 +1,6 @@
 import time
 
-def overlap_more_than(
+def overlaps(
     pred_min,
     pred_max,
     target_min,
@@ -93,7 +93,7 @@ def parse_model_evaluation_file(
                     mod_stats['tn']+= 1
                     mod_tn.append((chrom_id, osw_start, osw_end, mod_start, mod_end))
                 else:
-                    if overlap_more_than(osw_start, osw_end, mod_start, mod_end):
+                    if overlaps(osw_start, osw_end, mod_start, mod_end):
                         mod_stats['tp']+= 1
                         mod_tp.append((chrom_id, osw_start, osw_end, mod_start, mod_end))
                     else:
