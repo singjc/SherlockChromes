@@ -6,10 +6,10 @@ def overlap_more_than(
     target_min,
     target_max,
     threshold=0.7):
-    if ((pred_min <= target_min and pred_max <= target_max) or
+    if ((pred_min <= target_min and target_min <= pred_max <= target_max) or
         (pred_min <= target_min and pred_max >= target_max) or
         (target_min <= pred_min <= target_max and pred_max <= target_max) or
-        (target_min <= pred_min <= target_max and target_max <= pred_max)):
+        (target_min <= pred_min <= target_max and pred_max >= target_max)):
         return True
     return False
 
