@@ -5,7 +5,7 @@ def overlaps(
     pred_max,
     target_min,
     target_max,
-    threshold=0.7):
+    plot_things=False):
     if ((pred_min <= target_min and target_min <= pred_max <= target_max) or
         (pred_min <= target_min and pred_max >= target_max) or
         (target_min <= pred_min <= target_max and pred_max <= target_max) or
@@ -33,7 +33,8 @@ def parse_model_evaluation_file(
 
     mod_tp, mod_fp, mod_tn, mod_fn = [], [], [], []
 
-    x, y = [], []
+    mod_tp, mod_fp, mod_tn, mod_fn, osw_scores, target, pred = \
+        [], [], [], [], [], [], []
 
     with open(filename, 'r') as infile:
         next(infile)
@@ -68,14 +69,14 @@ def parse_model_evaluation_file(
                     mod_end = None
 
                 if mod_start and mod_end:
-                    if (mod_end - mod_start) < mod_min_pts:
+                    if (mod_end - mod_start + 1) < mod_min_pts:
                         mod_start, mod_end = None, None
 
                 osw_score = float(osw_score)
                 mod_score = float(mod_score)
 
-                x.append(osw_score)
-                y.append(mod_score)
+                osw_scores.append(osw_score)
+                pred.append(mod_score)
 
                 if osw_score < osw_threshold:
                     osw_start, osw_end = None, None
@@ -85,30 +86,40 @@ def parse_model_evaluation_file(
 
                 if not osw_start and mod_start:
                     mod_stats['fp']+= 1
-                    mod_fp.append((chrom_id, osw_start, osw_end, mod_start, mod_end))
+                    mod_fp.append(
+                        (chrom_id, osw_start, osw_end, mod_start, mod_end))
+                    target.append(0)
                 elif osw_start and not mod_start:
                     mod_stats['fn']+= 1
-                    mod_fn.append((chrom_id, osw_start, osw_end, mod_start, mod_end))
+                    mod_fn.append(
+                        (chrom_id, osw_start, osw_end, mod_start, mod_end))
+                    target.append(1)
                 elif not osw_start and not mod_start:
                     mod_stats['tn']+= 1
-                    mod_tn.append((chrom_id, osw_start, osw_end, mod_start, mod_end))
+                    mod_tn.append(
+                        (chrom_id, osw_start, osw_end, mod_start, mod_end))
+                    target.append(0)
                 else:
                     if overlaps(osw_start, osw_end, mod_start, mod_end):
                         mod_stats['tp']+= 1
-                        mod_tp.append((chrom_id, osw_start, osw_end, mod_start, mod_end))
+                        mod_tp.append(
+                            (chrom_id, osw_start, osw_end, mod_start, mod_end))
+                        target.append(1)
                     else:
                         mod_stats['fp']+= 1
-                        mod_fp.append((chrom_id, osw_start, osw_end, mod_start, mod_end))
+                        mod_fp.append(
+                            (chrom_id, osw_start, osw_end, mod_start, mod_end))
+                        target.append(0)
 
     print(mod_stats)
 
-    return mod_tp, mod_fp, mod_tn, mod_fn
+    return mod_tp, mod_fp, mod_tn, mod_fn, osw_scores, target, pred
 
 if __name__ == '__main__':
     """
     Usage:
 
-    tp, fp, tn, fn = parse_model_evaluation_file(
+    tp, fp, tn, fn, osw_scores, target, pred = parse_model_evaluation_file(
         'evaluation_results/evaluation_results_all_32_decoy.csv',
         osw_threshold=2.1
         mod_threshold=0.5,
