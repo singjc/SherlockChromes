@@ -117,18 +117,42 @@ if __name__ == "__main__":
     start = time.time()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-data_dir', '--data_dir', type=str, default='OpenSWATHAutoAnnotated')
-    parser.add_argument('-chromatograms_csv', '--chromatograms_csv', type=str, default='chromatograms.csv')
-    parser.add_argument('-labels_npy', '--labels_npy', type=str, default='osw_point_labels.npy')
-    parser.add_argument('-model_pth', '--model_pth', type=str, default='custom_3_layer_21_kernel_osw_points_wrt_model_150.pth')
-    parser.add_argument('-out_dir', '--out_dir', type=str, default='evaluation_results')
-    parser.add_argument('-results_csv', '--results_csv', type=str, default='evaluation_results.csv')
+    parser.add_argument(
+        '-data_dir', '--data_dir', type=str, default='OpenSWATHAutoAnnotated')
+    parser.add_argument(
+        '-chromatograms_csv',
+        '--chromatograms_csv',
+        type=str,
+        default='chromatograms.csv')
+    parser.add_argument(
+        '-labels_npy',
+        '--labels_npy',
+        type=str,
+        default='osw_point_labels.npy')
+    parser.add_argument(
+        '-model_pth',
+        '--model_pth',
+        type=str,
+        default='custom_3_layer_21_kernel_osw_points_wrt_model_150.pth')
+    parser.add_argument(
+        '-out_dir', '--out_dir', type=str, default='evaluation_results')
+    parser.add_argument(
+        '-results_csv',
+        '--results_csv',
+        type=str,
+        default='evaluation_results.csv')
     parser.add_argument('-threshold', '--threshold', type=float, default=0.5)
     parser.add_argument('-device', '--device', type=str, default='cpu')
     parser.add_argument('-batch_size', '--batch_size', type=int, default=32)
-    parser.add_argument('-load_npy', '--load_npy', action='store_true', default=False)
-    parser.add_argument('-npy_dir', '--npy_dir', type=str, default='evaluation_results')
-    parser.add_argument('-npy_name', '--npy_name', type=str, default='output_array')
+    parser.add_argument(
+        '-load_npy',
+        '--load_npy',
+        action='store_true',
+        default=False)
+    parser.add_argument(
+        '-npy_dir', '--npy_dir', type=str, default='evaluation_results')
+    parser.add_argument(
+        '-npy_name', '--npy_name', type=str, default='output_array')
     args = parser.parse_args()
 
     print(args)
