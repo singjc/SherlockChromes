@@ -4,8 +4,7 @@ def overlaps(
     pred_min,
     pred_max,
     target_min,
-    target_max,
-    plot_things=False):
+    target_max):
     if ((pred_min <= target_min and target_min <= pred_max <= target_max) or
         (pred_min <= target_min and pred_max >= target_max) or
         (target_min <= pred_min <= target_max and pred_max <= target_max) or
