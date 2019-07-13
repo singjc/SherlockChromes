@@ -16,7 +16,6 @@ class ChromatogramPeakDetectorAtrousEncoderDecoder(nn.Module):
         paddings=[1, 1, 2, 2, 3], 
         dilations=[1, 1, 2, 2, 3]):
         super(ChromatogramPeakDetectorAtrousEncoderDecoder, self).__init__()
-
         self.encoder = nn.ModuleList()
 
         self.encoder.append(
