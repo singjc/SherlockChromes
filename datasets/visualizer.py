@@ -367,13 +367,7 @@ def test_model(dataset, model, mode='whole'):
                 torch.from_numpy(
                     np.asarray(
                         chromatogram)).view(1, *dims).float(),
-                model.smoother)
-
-            plot_layer_output(
-                torch.from_numpy(
-                    np.asarray(
-                        chromatogram)).view(1, *dims).float(),
-                model.feature_detector)
+                torch.nn.Sequential(*model.encoder))
 
             output = model(
                 torch.from_numpy(
