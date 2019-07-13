@@ -142,7 +142,8 @@ def train(
             y = np.array([y])
             print('Bbox Label: ' + str(y))
             y_pred = model(x, y)
-            return y_pred
+            loss_out = loss(y_pred, y)
+            return loss_out.item()
 
     evaluator = Engine(_inference)
 
