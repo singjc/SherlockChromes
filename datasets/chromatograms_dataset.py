@@ -6,13 +6,14 @@ import torch
 from torch.utils.data import Dataset
 
 class ChromatogramsDataset(Dataset):
-    """Whole Chromatograms dataset."""
+    """Whole Chromatograms dataset with point labels."""
 
     def __init__(self, root_path, chromatograms, labels, transform=None):
         """
         Args:
             root_path (string): Path to the root folder.
-            chromatograms (string): Filename of CSV with chromatogram filenames.
+            chromatograms (string): Filename of CSV with chromatogram 
+                filenames.
             labels (string): Filename of the npy file with labels.
             transform (callable, optional): Optional transform to be applied
                 on a sample (e.g. padding).
@@ -44,6 +45,41 @@ class ChromatogramsDataset(Dataset):
             self.chromatograms.iloc[idx, 2], self.chromatograms.iloc[idx, 3]
         
         return bb_start, bb_end
+
+class ChromatogramsBBoxDataset(Dataset):
+    """Whole Chromatograms dataset with bounding boxes."""
+
+    def __init__(self, root_path, chromatograms, transform=None):
+        """
+        Args:
+            root_path (string): Path to the root folder.
+            chromatograms (string): Filename of CSV with chromatogram
+                filenames with bounding boxes.
+            transform (callable, optional): Optional transform to be applied
+                on a sample (e.g. padding).
+        """
+        self.root_dir = root_path
+        self.chromatograms = pd.read_csv(os.path.join(self.root_dir,
+                                         chromatograms))
+        self.transform = transform
+    
+    def __len__(self):
+        return len(self.chromatograms)
+
+    def __getitem__(self, idx):
+        chromatogram_id = self.chromatograms.iloc[idx, 0]
+        chromatogram_name = os.path.join(
+            self.root_dir,
+            self.chromatograms.iloc[idx, 1]) + '.npy'
+        chromatogram = np.load(chromatogram_name).astype(float)
+        bb_start, bb_end = \
+            self.chromatograms.iloc[idx, 2], self.chromatograms.iloc[idx, 3]
+        bbox = (bb_start, bb_end)
+
+        if self.transform:
+            chromatogram, bbox = self.transform((chromatogram, bbox))
+
+        return chromatogram, bbox
 
 class ChromatogramSubsectionsDataset(Dataset):
     """Chromatogram Subsections dataset."""

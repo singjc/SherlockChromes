@@ -74,3 +74,35 @@ class PadChromatogramsFor1DCNN(object):
             padded_labels[i, 0:length] = label
 
         return [padded_chromatograms, padded_labels]
+
+class PadChromatogramsOnlyFor1DCNN(object):
+    """Pad whole chromatograms in 1DCNN batch to same size.
+    Subsections shaped (D, N).
+    Assumes second item in batch is a  pair of bounding box boundaries.
+    """
+
+    def __call__(self, batch):
+        batch_size = len(batch)
+        
+        assert batch_size == 1, 'batch_size=1 support only currently'
+
+        chromatograms = [item[0] for item in batch]
+        bboxes = [item[1] for item in batch]
+
+        lengths = [chromatogram.size()[1] for chromatogram in chromatograms]
+
+        max_len = max(lengths)
+
+        channel_dim = chromatograms[0].size()[0]
+
+        out_dims = (batch_size, channel_dim, max_len)
+
+        padded_chromatograms = torch.zeros(*out_dims)
+
+        for i, chromatogram in enumerate(chromatograms):
+            length = chromatogram.size(1)
+            padded_chromatograms[i, 0:channel_dim, 0:length] = chromatogram
+
+        bboxes = bboxes[0].tolist()
+
+        return [padded_chromatograms, bboxes]
