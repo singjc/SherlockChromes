@@ -113,6 +113,62 @@ def create_results_file(
         index=False,
         header=False)
 
+def create_stats_eval_file(
+    output_array,
+    num_points=3,
+    device='cpu',
+    data_dir='OpenSWATHAutoAnnotated',
+    chromatograms_csv='chromatograms.csv',
+    out_dir='.',
+    results_csv='evaluation_results.csv'):
+    chromatograms = pd.read_csv(os.path.join(
+        data_dir, chromatograms_csv))
+
+    assert len(chromatograms) == output_array.shape[0]
+
+    model_bounding_boxes = \
+        [
+            [
+                'ID',
+                'Filename',
+                'Label BBox Start',
+                'Label BBox End',
+                'Pred BBox Start',
+                'Pred BBox End',
+                'OSW Score',
+                'Model Score'
+            ]
+        ]
+
+    for i in range(len(chromatograms)):
+        print(i)
+
+        row = chromatograms.iloc[i]
+
+        output = output_array[i, :]
+
+        largest_idx = np.argmax(output)
+
+        left_width = largest_idx - (num_points // 2)
+        right_width = largest_idx + (num_points // 2)
+
+        model_bounding_boxes.append([
+                row['ID'],
+                row['Filename'],
+                row['BB Start'],
+                row['BB End'],
+                left_width,
+                right_width,
+                row['OSW Score'],
+                str(output[largest_idx])])
+
+    model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
+
+    model_bounding_boxes.to_csv(
+        os.path.join(out_dir, results_csv),
+        index=False,
+        header=False)
+
 if __name__ == "__main__":
     start = time.time()
 
@@ -153,6 +209,8 @@ if __name__ == "__main__":
         '-npy_dir', '--npy_dir', type=str, default='evaluation_results')
     parser.add_argument(
         '-npy_name', '--npy_name', type=str, default='output_array')
+    parser.add_argument('-mode', '--mode', type=str, default='results')
+    parser.add_argument('-num_points', '--num_points', type=int, default=3)
     args = parser.parse_args()
 
     print(args)
@@ -174,13 +232,24 @@ if __name__ == "__main__":
         args.npy_dir,
         args.npy_name)
 
-    create_results_file(
-        output_array,
-        args.threshold,
-        args.device,
-        args.data_dir,
-        args.chromatograms_csv,
-        args.out_dir,
-        args.results_csv)
+    if args.mode == 'results':
+        create_results_file(
+            output_array,
+            args.threshold,
+            args.device,
+            args.data_dir,
+            args.chromatograms_csv,
+            args.out_dir,
+            args.results_csv)
+    elif args.mode == 'stats':
+        create_stats_eval_file(
+            output_array,
+            args.num_points,
+            args.device,
+            args.data_dir,
+            args.chromatograms_csv,
+            args.out_dir,
+            args.results_csv
+        )
 
     print('It took {0:0.1f} seconds'.format(time.time() - start))
