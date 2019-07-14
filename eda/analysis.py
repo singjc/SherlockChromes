@@ -5,10 +5,20 @@ from matplotlib import pyplot as plt
 
 def create_histo(data, bins='auto', title="Example data", percentile=10):
     print(np.percentile(data, percentile))
-    plt.hist(data, bins=bins, alpha=0.5)
+    
+    _, bins, _ = plt.hist(data, bins=bins, alpha=0.5)
+    bins = len(bins) - 1
     plt.title(title)
     plt.xlabel(title)
-    plt.xticks(range(1, bins + 1))
+
+    lower, upper = int(min(data)), int(max(data))
+
+    if upper <= 1:
+        xticks = [0.1 * i for i in range(0, 11)]
+    else:
+        xticks = [i for i in range(lower - 1, upper + 1)]
+
+    plt.xticks(xticks)
     plt.ylabel('count')
 
     plt.show()
