@@ -78,7 +78,7 @@ class PadChromatogramsFor1DCNN(object):
 class PadChromatogramsOnlyFor1DCNN(object):
     """Pad whole chromatograms in 1DCNN batch to same size.
     Subsections shaped (D, N).
-    Assumes second item in batch is a  pair of bounding box boundaries.
+    Assumes second item in batch is a pair of bounding box boundaries.
     """
 
     def __call__(self, batch):
