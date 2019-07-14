@@ -142,11 +142,9 @@ class ChromatogramPeakDetectorAtrousEncoderDecoder(nn.Module):
 
         for layer in self.decoder[:-1]:
             out = layer(out)
-
             out = torch.cat([out, intermediate_outs.pop()], dim=1)
 
         out = self.decoder[-1](out)
-
         out = self.classifier(out)
         out = torch.sigmoid(out).view(batch_size, -1)
 
