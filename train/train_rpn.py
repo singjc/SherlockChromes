@@ -147,13 +147,6 @@ def train(
 
     evaluator = Engine(_inference)
 
-    metrics={
-        'loss': Loss(loss)
-        }
-
-    for name, metric in metrics.items():
-        metric.attach(evaluator, name)
-
     scheduler = CosineAnnealingWarmRestarts(
         optimizer, kwargs['T_0'], T_mult=kwargs['T_mult'])
     
@@ -165,13 +158,13 @@ def train(
 
     @trainer.on(Events.ITERATION_COMPLETED)
     def log_training_loss(trainer):
-        print("Epoch[{}] Loss: {:.4f}".format(
+        print("Epoch[{}] Loss: {:.8f}".format(
             trainer.state.epoch, trainer.state.output))
 
     def neg_loss(engine):
-        loss = engine.state.metrics['loss']
+        loss = engine.state.output
 
-        return -loss
+        return loss
 
     checkpoint_score = ModelCheckpoint(
         kwargs['outdir_path'],
@@ -190,12 +183,12 @@ def train(
     def log_training_results(trainer):
         evaluator.run(train_loader)
         metrics = evaluator.state.metrics
-        print("Training Results - Epoch: {} Avg loss: {:.4f}"
+        print("Training Results - Epoch: {} Avg loss: {:.8f}"
                .format(
                    trainer.state.epoch,
-                   metrics['loss']))
+                   evaluator.state.output))
         if use_visdom:
-            vis.plot_train_loss(metrics['loss'], trainer.state.epoch)
+            vis.plot_train_loss(evaluator.state.output, trainer.state.epoch)
 
         if kwargs['test_batch_proportion'] == 0.0:
             checkpoint_score(evaluator, {'model': model})
@@ -208,12 +201,12 @@ def train(
 
         evaluator.run(val_loader)
         metrics = evaluator.state.metrics
-        print("Validation Results - Epoch: {} Avg loss: {:.4f}"
+        print("Validation Results - Epoch: {} Avg loss: {:.8f}"
             .format(
                 trainer.state.epoch,
-                metrics['loss']))
+                evaluator.state.output))
         if use_visdom:
-            vis.plot_val_loss(metrics['loss'], trainer.state.epoch)
+            vis.plot_val_loss(evaluator.state.output, trainer.state.epoch)
         checkpoint_score(evaluator, {'model': model})
         checkpoint_interval(evaluator, {'model': model})
 
@@ -224,9 +217,9 @@ def train(
             
         evaluator.run(test_loader)
         metrics = evaluator.state.metrics
-        print("Test Results - Epoch: {} Avg loss: {:.4f}"
+        print("Test Results - Epoch: {} Avg loss: {:.8f}"
             .format(
                 trainer.state.epoch,
-                metrics['loss']))
+                evaluator.state.output))
 
     trainer.run(train_loader, max_epochs=kwargs['max_epochs'])
