@@ -159,7 +159,8 @@ class RegionProposalNetwork1d(nn.Module):
         pre_nms_topN=6000,
         nms_threshold=0.7,
         post_nms_topN=300,
-        device='cpu'):
+        device='cpu',
+        store_preds=False):
         super(RegionProposalNetwork1d, self).__init__()
         self.device = device
         self.backbone = Backbone1d(
@@ -208,6 +209,12 @@ class RegionProposalNetwork1d(nn.Module):
             self.num_anchors * 2,
             1
         )
+
+        self.store_preds = store_preds
+        
+        if self.store_preds:
+            self.top_rois = []
+            self.top_scores = []
     
     def proposal_layer(self, rpn_cls_prob, rpn_bbox_pred, seq_len):
         return proposal_layer_1d(
@@ -314,9 +321,17 @@ class RegionProposalNetwork1d(nn.Module):
         rpn_bbox_pred = self.rpn_bbox_pred_net(rpn)
         rpn_bbox_pred = rpn_bbox_pred.permute(0, 2, 1).contiguous()
 
-        rois, _ = self.proposal_layer(rpn_cls_prob, rpn_bbox_pred, sequence.size(-1))
+        rois, scores = self.proposal_layer(
+            rpn_cls_prob, rpn_bbox_pred, sequence.size(-1))
 
-        print(rois[0])
+        top_roi = rois[0].clone().detach().numpy()
+        top_score = scores[0].item()
+
+        if self.store_preds:
+            self.top_rois.append(top_roi)
+            self.top_scores.append(top_score)
+        else:
+            print(top_rois, top_score)
 
         (
             rpn_labels,
