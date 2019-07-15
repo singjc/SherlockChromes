@@ -125,7 +125,7 @@ def train(
         x, y = batch
         x = x.to(device=device, non_blocking=False)
         y = np.array([y])
-        print('Bbox Label: ' + str(y))
+        print('Train Bbox Label: ' + str(y[0]))
         y_pred = model(x, y)
         loss_out = loss(y_pred, y)
         loss_out.backward()
@@ -140,7 +140,7 @@ def train(
             x, y = batch
             x = x.to(device=device, non_blocking=False)
             y = np.array([y])
-            print('Bbox Label: ' + str(y))
+            print('Eval Bbox Label: ' + str(y[0]))
             y_pred = model(x, y)
             loss_out = loss(y_pred, y)
             return loss_out.item()
