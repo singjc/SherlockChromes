@@ -331,7 +331,7 @@ class RegionProposalNetwork1d(nn.Module):
             self.top_rois.append(top_roi)
             self.top_scores.append(top_score)
         else:
-            print(top_rois, top_score)
+            print(top_roi, top_score)
 
         (
             rpn_labels,
