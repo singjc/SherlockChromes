@@ -2,7 +2,9 @@ import sys
 import time
 
 sys.path.insert(0, '../datasets')
+sys.path.insert(0, '../eda')
 
+from analysis import create_histo
 from visualizer import plot_binary_precision_recall_curve
 
 def overlaps(
@@ -350,6 +352,8 @@ def parse_amended_model_evaluation_file(
     if plot_things:
         plot_binary_precision_recall_curve(osw_target, osw_pred)
         plot_binary_precision_recall_curve(mod_target, mod_pred)
+        create_histo(osw_pred, title="OSW Scores")
+        create_histo(mod_pred, title="Model Scores")
 
     return mod_tp, mod_fp, mod_tn, mod_fn, osw_tp, osw_fp, osw_tn, osw_fn
 
