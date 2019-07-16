@@ -160,7 +160,7 @@ class RegionProposalNetwork1d(nn.Module):
         nms_threshold=0.7,
         post_nms_topN=300,
         device='cpu',
-        store_preds=False):
+        mode='train'):
         super(RegionProposalNetwork1d, self).__init__()
         self.device = device
         self.backbone = Backbone1d(
@@ -210,11 +210,7 @@ class RegionProposalNetwork1d(nn.Module):
             1
         )
 
-        self.store_preds = store_preds
-        
-        if self.store_preds:
-            self.top_rois = []
-            self.top_scores = []
+        self.mode = mode
     
     def proposal_layer(self, rpn_cls_prob, rpn_bbox_pred, seq_len):
         return proposal_layer_1d(
@@ -304,7 +300,7 @@ class RegionProposalNetwork1d(nn.Module):
 
         return rpn_loss
 
-    def forward(self, sequence, gt_boxes):
+    def forward(self, sequence, gt_boxes=None):
         assert sequence.size()[0] == 1, 'batch_size=1 support only currently'
 
         feature_map = self.backbone(sequence)
@@ -324,34 +320,35 @@ class RegionProposalNetwork1d(nn.Module):
         rois, scores = self.proposal_layer(
             rpn_cls_prob, rpn_bbox_pred, sequence.size(-1))
 
-        top_roi = rois[0].clone().detach().numpy()
+        top_roi = rois[0].data.cpu().numpy()
         top_score = scores[0].item()
 
-        if self.store_preds:
-            self.top_rois.append(top_roi)
-            self.top_scores.append(top_score)
+        if self.mode == 'test':
+            return top_roi, top_score
+        elif self.mode == 'train':
+            print('Top ROI: {} Top Score: {}'.format(top_roi, top_score))
+
+            (
+                rpn_labels,
+                rpn_bbox_targets,
+                rpn_bbox_inside_weights,
+                rpn_bbox_outside_weights
+            ) = self.anchor_target_layer(gt_boxes, sequence.size(-1))
+
+            rpn_labels = torch.from_numpy(rpn_labels).long()
+            rpn_bbox_targets = torch.from_numpy(rpn_bbox_targets).float()
+            rpn_bbox_inside_weights = torch.from_numpy(
+                rpn_bbox_inside_weights).float()
+            rpn_bbox_outside_weights = torch.from_numpy(
+                rpn_bbox_outside_weights).float()
+
+            return self.rpn_loss(
+                rpn_cls_prob,
+                rpn_labels,
+                rpn_bbox_pred,
+                rpn_bbox_targets,
+                rpn_bbox_inside_weights,
+                rpn_bbox_outside_weights
+            )
         else:
-            print(top_roi, top_score)
-
-        (
-            rpn_labels,
-            rpn_bbox_targets,
-            rpn_bbox_inside_weights,
-            rpn_bbox_outside_weights
-        ) = self.anchor_target_layer(gt_boxes, sequence.size(-1))
-
-        rpn_labels = torch.from_numpy(rpn_labels).long()
-        rpn_bbox_targets = torch.from_numpy(rpn_bbox_targets).float()
-        rpn_bbox_inside_weights = torch.from_numpy(
-            rpn_bbox_inside_weights).float()
-        rpn_bbox_outside_weights = torch.from_numpy(
-            rpn_bbox_outside_weights).float()
-
-        return self.rpn_loss(
-            rpn_cls_prob,
-            rpn_labels,
-            rpn_bbox_pred,
-            rpn_bbox_targets,
-            rpn_bbox_inside_weights,
-            rpn_bbox_outside_weights
-        )
+            raise NotImplementedError
