@@ -46,6 +46,64 @@ def create_output_array(
 
     return output_array
 
+def create_rpn_results_file(
+    dataset,
+    model,
+    device='cpu',
+    data_dir='OpenSWATHAutoAnnotated',
+    chromatograms_csv='chromatograms.csv',
+    out_dir='.',
+    results_csv='evaluation_results_rpn.csv'):
+    chromatograms = pd.read_csv(os.path.join(
+        data_dir, chromatograms_csv))
+
+    assert len(chromatograms) == len(dataset)
+
+    model_bounding_boxes = \
+        [
+            [
+                'ID',
+                'Filename',
+                'Label BBox Start',
+                'Label BBox End',
+                'Pred BBox Start',
+                'Pred BBox End',
+                'OSW Score',
+                'Model Score'
+            ]
+        ]
+
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+
+    for i, batch in enumerate(dataloader):
+        print(i)
+
+        chromatogram = torch.from_numpy(
+            np.asarray(batch[0])).float().to(device)
+
+        roi, score = model(chromatogram)
+
+        row = chromatograms.iloc[i]
+
+        left_width, right_width = roi[1:3]
+
+        model_bounding_boxes.append([
+                row['ID'],
+                row['Filename'],
+                row['BB Start'],
+                row['BB End'],
+                left_width,
+                right_width,
+                row['OSW Score'],
+                str(score)])
+
+    model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
+
+    model_bounding_boxes.to_csv(
+        os.path.join(out_dir, results_csv),
+        index=False,
+        header=False)
+
 def create_results_file(
     output_array,
     threshold=0.5,
@@ -219,32 +277,46 @@ if __name__ == "__main__":
         args.labels_npy)
 
     model = torch.load(args.model_pth, map_location=args.device)
+    
+    if args.mode == 'rpn':
+        model.mode = 'test'
+
     model.eval()
 
-    output_array = create_output_array(
-        dataset,
-        model,
-        args.batch_size,
-        args.device,
-        args.load_npy,
-        args.npy_dir,
-        args.npy_name)
+    if args.mode == 'rpn':
+        create_rpn_results_file(
+            dataset,
+            model,
+            args.device,
+            args.data_dir,
+            args.chromatograms_csv,
+            args.out_dir,
+            args.results_csv)
+    else:
+        output_array = create_output_array(
+            dataset,
+            model,
+            args.batch_size,
+            args.device,
+            args.load_npy,
+            args.npy_dir,
+            args.npy_name)
 
-    if args.mode == 'results':
-        create_results_file(
-            output_array,
-            args.threshold,
-            args.data_dir,
-            args.chromatograms_csv,
-            args.out_dir,
-            args.results_csv)
-    elif args.mode == 'stats':
-        create_stats_eval_file(
-            output_array,
-            args.num_points,
-            args.data_dir,
-            args.chromatograms_csv,
-            args.out_dir,
-            args.results_csv)
+        if args.mode == 'results':
+            create_results_file(
+                output_array,
+                args.threshold,
+                args.data_dir,
+                args.chromatograms_csv,
+                args.out_dir,
+                args.results_csv)
+        elif args.mode == 'stats':
+            create_stats_eval_file(
+                output_array,
+                args.num_points,
+                args.data_dir,
+                args.chromatograms_csv,
+                args.out_dir,
+                args.results_csv)
 
     print('It took {0:0.1f} seconds'.format(time.time() - start))
