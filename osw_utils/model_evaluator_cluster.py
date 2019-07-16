@@ -49,7 +49,6 @@ def create_output_array(
 def create_results_file(
     output_array,
     threshold=0.5,
-    device='cpu',
     data_dir='OpenSWATHAutoAnnotated',
     chromatograms_csv='chromatograms.csv',
     out_dir='.',
@@ -116,7 +115,6 @@ def create_results_file(
 def create_stats_eval_file(
     output_array,
     num_points=3,
-    device='cpu',
     data_dir='OpenSWATHAutoAnnotated',
     chromatograms_csv='chromatograms.csv',
     out_dir='.',
@@ -236,7 +234,6 @@ if __name__ == "__main__":
         create_results_file(
             output_array,
             args.threshold,
-            args.device,
             args.data_dir,
             args.chromatograms_csv,
             args.out_dir,
@@ -245,7 +242,6 @@ if __name__ == "__main__":
         create_stats_eval_file(
             output_array,
             args.num_points,
-            args.device,
             args.data_dir,
             args.chromatograms_csv,
             args.out_dir,
