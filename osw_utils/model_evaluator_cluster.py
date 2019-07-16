@@ -245,7 +245,6 @@ if __name__ == "__main__":
             args.data_dir,
             args.chromatograms_csv,
             args.out_dir,
-            args.results_csv
-        )
+            args.results_csv)
 
     print('It took {0:0.1f} seconds'.format(time.time() - start))
