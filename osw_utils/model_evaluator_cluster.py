@@ -96,10 +96,10 @@ def create_rpn_results_file(
                     row['Filename'],
                     row['BB Start'],
                     row['BB End'],
-                    round(left_width),
-                    round(right_width),
+                    int(round(left_width)),
+                    int(round(right_width)),
                     row['OSW Score'],
-                    str(score)])
+                    score])
             
             output_idx+= 1
             idx+= 1
