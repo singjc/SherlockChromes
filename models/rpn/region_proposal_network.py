@@ -301,7 +301,8 @@ class RegionProposalNetwork1d(nn.Module):
         return rpn_loss
 
     def forward(self, sequence, gt_boxes=None):
-        assert sequence.size()[0] == 1, 'batch_size=1 support only currently'
+        if self.mode == 'train':
+            assert sequence.size()[0] == 1, 'batch_size=1 train only'
 
         feature_map = self.backbone(sequence)
 
@@ -317,16 +318,15 @@ class RegionProposalNetwork1d(nn.Module):
         rpn_bbox_pred = self.rpn_bbox_pred_net(rpn)
         rpn_bbox_pred = rpn_bbox_pred.permute(0, 2, 1).contiguous()
 
-        rois, scores = self.proposal_layer(
+        rpn_output = self.proposal_layer(
             rpn_cls_prob, rpn_bbox_pred, sequence.size(-1))
 
-        top_roi = rois[0].data.cpu().numpy()
-        top_score = scores[0].item()
+        output = rpn_output.data.cpu().numpy()
 
         if self.mode == 'test':
-            return top_roi, top_score
+            return output
         elif self.mode == 'train':
-            print('Top ROI: {} Top Score: {}'.format(top_roi, top_score))
+            print('Top Outputs: {}'.format(output[:, 0, :]))
 
             (
                 rpn_labels,

@@ -49,6 +49,7 @@ def create_output_array(
 def create_rpn_results_file(
     dataset,
     model,
+    batch_size=32,
     device='cpu',
     data_dir='OpenSWATHAutoAnnotated',
     chromatograms_csv='chromatograms.csv',
@@ -73,29 +74,35 @@ def create_rpn_results_file(
             ]
         ]
 
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
-    for i, batch in enumerate(dataloader):
-        print(i)
-
+    idx = 0
+    for batch in dataloader:
         chromatogram = torch.from_numpy(
             np.asarray(batch[0])).float().to(device)
 
-        roi, score = model(chromatogram)
+        output = model(chromatogram)
 
-        row = chromatograms.iloc[i]
+        output_idx = 0
+        for i in range(idx, idx + len(batch)):
+            print(idx)
 
-        left_width, right_width = roi[1:3]
+            row = chromatograms.iloc[i]
 
-        model_bounding_boxes.append([
-                row['ID'],
-                row['Filename'],
-                row['BB Start'],
-                row['BB End'],
-                left_width,
-                right_width,
-                row['OSW Score'],
-                str(score)])
+            left_width, right_width, score = output[output_idx, 0, 1:]
+
+            model_bounding_boxes.append([
+                    row['ID'],
+                    row['Filename'],
+                    row['BB Start'],
+                    row['BB End'],
+                    round(left_width),
+                    round(right_width),
+                    row['OSW Score'],
+                    str(score)])
+            
+            output_idx+= 1
+            idx+= 1
 
     model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
 
@@ -280,6 +287,8 @@ if __name__ == "__main__":
     
     if args.mode == 'rpn':
         model.mode = 'test'
+        model.pre_nms_topN = 1
+        model.post_nms_topN = 1
 
     model.eval()
 
@@ -287,6 +296,7 @@ if __name__ == "__main__":
         create_rpn_results_file(
             dataset,
             model,
+            args.batch_size,
             args.device,
             args.data_dir,
             args.chromatograms_csv,
