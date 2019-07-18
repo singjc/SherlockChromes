@@ -84,7 +84,7 @@ def create_rpn_results_file(
         output = model(chromatogram)
 
         output_idx = 0
-        for i in range(idx, idx + len(batch)):
+        for i in range(idx, idx + len(batch[1])):
             print(idx)
 
             row = chromatograms.iloc[i]
