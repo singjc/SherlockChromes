@@ -164,7 +164,7 @@ def train(
     def neg_loss(engine):
         loss = engine.state.output
 
-        return loss
+        return -loss
 
     checkpoint_score = ModelCheckpoint(
         kwargs['outdir_path'],
