@@ -20,7 +20,6 @@ class DepthwiseAttention1d(nn.Module):
         )
 
     def forward(self, x):
-        b, c, l = x.size()
         permuted_x = x.permute(0, 2, 1)
         y = self.excitation(
                 torch.cat(
