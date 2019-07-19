@@ -17,7 +17,7 @@ sys.path.insert(0, '../train')
 from chromatograms_dataset import ChromatogramsDataset
 from collate_fns import PadChromatogramsFor1DCNN
 from focal_loss import FocalLossBinary
-from res_1dcnn_model import ChromatogramPeakDetectorCustom1d
+from model import AtrousChannelwiseEncoderDecoder
 from samplers import GroupBySequenceSampler
 from transforms import ToTensor
 
@@ -339,10 +339,14 @@ class StateCacher(object):
 if __name__ == "__main__":
     transform = ToTensor()
 
+    root_path = input('Root path: ')
+    chromatograms = input('Chromatograms CSV: ')
+    labels = input('Labels npy: ')
+
     data = ChromatogramsDataset(
-        root_path='../../../data/working/ManualValidationOpenSWATHWithExpRT',
-        chromatograms='chromatograms.csv',
-        labels='osw_point_labels.npy',
+        root_path=root_path,
+        chromatograms=chromatograms,
+        labels=labels,
         transform=transform
     )
 
@@ -352,22 +356,12 @@ if __name__ == "__main__":
 
     train_idx, val_idx, test_idx = sampler(data, 0.1)
 
-    train_set = Subset(data, test_idx)
+    train_set = Subset(data, train_idx)
 
     train_loader = DataLoader(
         train_set, batch_size=32, collate_fn=collate_fn)
 
-    model = ChromatogramPeakDetectorCustom1d(
-        in_channels=7,
-        num_smoothing_blocks=0,
-        trace_weighter_reduction_ratio=0,
-        num_custom_blocks=2,
-        feature_detector_out_channels=16,
-        attn='gc',
-        bottleneck_channels=1,
-        reduction_ratio=16,
-        classifier_out_channels=[32, 32, 16, 1],
-        classifier_kernel_sizes=[21, 1, 1, 1])
+    model = AtrousChannelwiseEncoderDecoder()
 
     criterion = FocalLossBinary()
     optimizer = optim.Adam(model.parameters(), lr=1e-7, weight_decay=0)
