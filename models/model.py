@@ -103,16 +103,11 @@ class AtrousChannelwiseEncoderDecoder(nn.Module):
         )
 
         self.classifier = nn.Sequential(
-                AttendedDepthSeparableConv1d(
+                nn.Conv1d(
                     in_channels=out_channels[0],
                     out_channels=1,
                     kernel_size=1,
-                    stride=1,
-                    padding=0,
-                    dilation=1,
-                    bias=False,
-                    depth_multiplier=1,
-                    intermediate_nonlinearity=False
+                    bias=False
                 ),
                 nn.BatchNorm1d(1)
         )
