@@ -7,11 +7,12 @@ class DepthwiseAttention1d(nn.Module):
         self.squeeze_avg = nn.AdaptiveAvgPool1d(1)
         self.squeeze_max = nn.AdaptiveMaxPool1d(1)
         self.excitation = nn.Sequential(
-            DepthSeparableConv1d(
+            nn.Conv1d(
                 2,
                 1,
                 kernel_size=kernel_size,
-                padding=(kernel_size - 1) // 2
+                padding=(kernel_size - 1) // 2,
+                bias=False
             ),
             nn.ReLU(),
             nn.BatchNorm1d(1),
