@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import sys
 import time
 
@@ -358,6 +359,51 @@ def parse_amended_model_evaluation_file(
         create_histo(mod_pred, title="Model Scores")
 
     return mod_tp, mod_fp, mod_tn, mod_fn, osw_tp, osw_fp, osw_tn, osw_fn
+
+def decoys_per_target_metric(
+    target_filename,
+    decoy_filename):
+    osw_targets, osw_decoys, mod_targets, mod_decoys = [], [], [], []
+
+    with open(target_filename, 'r') as target_file:
+        next(target_file)
+        for line in target_file:
+            line = line.rstrip('\r\n').split(',')
+            osw_targets.append(float(line[-2]))
+            mod_targets.append(float(line[-1]))
+
+    with open(decoy_filename, 'r') as decoy_file:
+        next(decoy_file)
+        for line in decoy_file:
+            line = line.rstrip('\r\n').split(',')
+            osw_decoys.append(float(line[-2]))
+            mod_decoys.append(float(line[-1]))
+    
+    osw_targets = np.array(osw_targets)
+    osw_decoys = np.array(osw_decoys)
+    mod_targets = np.array(mod_targets)
+    mod_decoys = np.array(mod_decoys)
+
+    num_osw_decoys_over_targets = []
+    num_osw_targets = []
+    num_mod_decoys_over_targets = []
+    num_mod_targets = []
+
+    for i in [n / 2 for n in range(12, -9, -1)]:
+        num_osw_decoys = (osw_decoys >= i).sum()
+        num_osw_targets.append((osw_targets >= i).sum())
+        num_osw_decoys_over_targets.append(
+            num_osw_decoys / (num_osw_decoys + num_osw_targets[-1]))
+
+    for i in [0.05 * n for n in range(20, -1, -1)]:
+        num_mod_decoys = (mod_decoys >= i).sum()
+        num_mod_targets.append((mod_targets >= i).sum())
+        num_mod_decoys_over_targets.append(
+            num_mod_decoys / (num_mod_decoys + num_mod_targets[-1]))
+
+    plt.plot(num_osw_targets, num_osw_decoys_over_targets, 'bo')
+    plt.plot(num_mod_targets, num_mod_decoys_over_targets, 'r+')
+    plt.show() 
 
 if __name__ == '__main__':
     """
