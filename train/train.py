@@ -138,7 +138,7 @@ def train(
 
     @trainer.on(Events.ITERATION_COMPLETED)
     def log_training_loss(trainer):
-        print("Epoch[{}] Loss: {:.4f}".format(
+        print("Epoch[{}] Loss: {:.8f}".format(
             trainer.state.epoch, trainer.state.output))
 
     def neg_loss(engine):
@@ -163,7 +163,7 @@ def train(
     def log_training_results(trainer):
         evaluator.run(train_loader)
         metrics = evaluator.state.metrics
-        print("Training Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
+        print("Training Results - Epoch: {} Avg accuracy: {:.8f} Avg precision: {:.8f} Avg recall: {:.8f} Avg loss: {:.8f}"
                .format(
                    trainer.state.epoch,
                    metrics['accuracy'],
@@ -187,7 +187,7 @@ def train(
 
         evaluator.run(val_loader)
         metrics = evaluator.state.metrics
-        print("Validation Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
+        print("Validation Results - Epoch: {} Avg accuracy: {:.8f} Avg precision: {:.8f} Avg recall: {:.8f} Avg loss: {:.8f}"
             .format(
                 trainer.state.epoch,
                 metrics['accuracy'],
@@ -209,7 +209,7 @@ def train(
             
         evaluator.run(test_loader)
         metrics = evaluator.state.metrics
-        print("Test Results - Epoch: {} Avg accuracy: {:.4f} Avg precision: {:.4f} Avg recall: {:.4f} Avg loss: {:.4f}"
+        print("Test Results - Epoch: {} Avg accuracy: {:.8f} Avg precision: {:.8f} Avg recall: {:.8f} Avg loss: {:.8f}"
             .format(
                 trainer.state.epoch,
                 metrics['accuracy'],
