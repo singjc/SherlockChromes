@@ -68,23 +68,16 @@ class AttendedDepthSeparableConv1d(nn.Module):
         padding=1,
         dilation=1,
         bias=False,
-        depth_multiplier=1,
         intermediate_nonlinearity=False,
+        attn=False,
         depthwise_attn_kernel_size=7,
         reduction_ratio=16):
         super(AttendedDepthSeparableConv1d, self).__init__()
-        self.depthwise = nn.Conv1d(
+        self.pointwise = nn.Conv1d(
             in_channels,
-            in_channels * depth_multiplier,
-            kernel_size,
-            stride=stride,
-            padding=padding,
-            dilation=dilation,
-            groups=in_channels,
-            bias=bias)
-
-        self.depthwise_attn = DepthwiseAttention1d(
-            kernel_size=depthwise_attn_kernel_size
+            out_channels,
+            1,
+            bias=bias
         )
 
         self.intermediate_nonlinearity = intermediate_nonlinearity
@@ -92,25 +85,42 @@ class AttendedDepthSeparableConv1d(nn.Module):
         if self.intermediate_nonlinearity:
             self.nonlinear_activation = nn.ReLU()
 
-        self.pointwise = nn.Conv1d(
-            in_channels * depth_multiplier,
+        self.depthwise = nn.Conv1d(
             out_channels,
-            1,
-            bias=bias)
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=out_channels,
+            bias=bias
+        )
 
-        self.channelwise_attn = ChannelwiseAttention1d(
-            in_channels=out_channels,
-            reduction_ratio=reduction_ratio)
+        self.attn = attn
+
+        if self.attn:
+            self.channelwise_attn = ChannelwiseAttention1d(
+                in_channels=out_channels,
+                reduction_ratio=reduction_ratio
+            )
+
+            self.depthwise_attn = DepthwiseAttention1d(
+                kernel_size=depthwise_attn_kernel_size
+            )
 
     def forward(self, x):
-        out = self.depthwise(x)
-        out = self.depthwise_attn(out)
+        out = self.pointwise(x)
+
+        if self.attn:
+            out = self.channelwise_attn(out)
 
         if self.intermediate_nonlinearity:
             out = self.nonlinear_activation(out)
 
-        out = self.pointwise(out)
-        out = self.channelwise_attn(out)
+        out = self.depthwise(out)
+
+        if self.attn:
+            out = self.depthwise_attn(out)
 
         return out
 

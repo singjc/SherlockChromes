@@ -11,10 +11,9 @@ class AtrousChannelwiseEncoderDecoder(nn.Module):
     def __init__(
         self,
         in_channels=14,
-        out_channels=[32, 16, 8, 4, 2],
-        kernel_sizes=[3, 3, 3, 3, 3],
-        paddings=[1, 1, 2, 2, 3], 
-        dilations=[1, 1, 2, 2, 3]):
+        out_channels=[256, 64, 16, 4, 1],
+        kernel_sizes=[11, 11, 11, 11, 11],
+        dilations=[1, 1, 2, 2, 4]):
         super(AtrousChannelwiseEncoderDecoder, self).__init__()
         self.encoder = nn.ModuleList()
 
@@ -24,13 +23,16 @@ class AtrousChannelwiseEncoderDecoder(nn.Module):
                     in_channels=in_channels,
                     out_channels=out_channels[0],
                     kernel_size=kernel_sizes[0],
-                    padding=paddings[0],
+                    padding=((kernel_sizes[0] - 1) // 2 * dilations[0]),
                     dilation=dilations[0],
+                    attn=True,
                     depthwise_attn_kernel_size=(kernel_sizes[0] + 4),
-                    reduction_ratio=(out_channels[0] // 2)
+                    reduction_ratio=(
+                            (out_channels[0] // 2) if (
+                                out_channels[0] > 1) else 1),
                 ),
-                nn.ReLU(),
-                nn.BatchNorm1d(out_channels[0])
+                nn.BatchNorm1d(out_channels[0]),
+                nn.ReLU()
             )
         )
 
@@ -41,13 +43,16 @@ class AtrousChannelwiseEncoderDecoder(nn.Module):
                         in_channels=out_channels[i - 1],
                         out_channels=out_channels[i],
                         kernel_size=kernel_sizes[i],
-                        padding=paddings[i],
+                        padding=((kernel_sizes[i] - 1) // 2 * dilations[i]),
                         dilation=dilations[i],
+                        attn=True,
                         depthwise_attn_kernel_size=(kernel_sizes[i] + 4),
-                        reduction_ratio=(out_channels[i] // 2)
+                        reduction_ratio=(
+                            (out_channels[i] // 2) if (
+                                out_channels[i] > 1) else 1),
                     ),
-                    nn.ReLU(),
-                    nn.BatchNorm1d(out_channels[i])
+                    nn.BatchNorm1d(out_channels[i]),
+                    nn.ReLU()
                 )
             )
 
@@ -59,13 +64,16 @@ class AtrousChannelwiseEncoderDecoder(nn.Module):
                     in_channels=out_channels[-1],
                     out_channels=out_channels[-2],
                     kernel_size=kernel_sizes[-1],
-                    padding=paddings[-1],
+                    padding=((kernel_sizes[-1] - 1) // 2 * dilations[-1]),
                     dilation=dilations[-1],
+                    attn=True,
                     depthwise_attn_kernel_size=(kernel_sizes[-1] + 4),
-                    reduction_ratio=(out_channels[-2] // 2)
+                    reduction_ratio=(
+                            (out_channels[-2] // 2) if (
+                                out_channels[-2] > 1) else 1),
                 ),
-                nn.ReLU(),
-                nn.BatchNorm1d(out_channels[-2])
+                nn.BatchNorm1d(out_channels[-2]),
+                nn.ReLU()
             )
         )
 
@@ -76,13 +84,16 @@ class AtrousChannelwiseEncoderDecoder(nn.Module):
                         in_channels=(2 * out_channels[i]),
                         out_channels=out_channels[i - 1],
                         kernel_size=kernel_sizes[i],
-                        padding=paddings[i],
+                        padding=((kernel_sizes[i] - 1) // 2 * dilations[i]),
                         dilation=dilations[i],
+                        attn=True,
                         depthwise_attn_kernel_size=(kernel_sizes[i] + 4),
-                        reduction_ratio=(out_channels[i - 1] // 2)
+                        reduction_ratio=(
+                            (out_channels[i - 1] // 2) if (
+                                out_channels[i - 1] > 1) else 1),
                     ),
-                    nn.ReLU(),
-                    nn.BatchNorm1d(out_channels[i - 1])
+                    nn.BatchNorm1d(out_channels[i - 1]),
+                    nn.ReLU()
                 )
             )
 
@@ -92,24 +103,51 @@ class AtrousChannelwiseEncoderDecoder(nn.Module):
                     in_channels=(2 * out_channels[0]),
                     out_channels=out_channels[0],
                     kernel_size=kernel_sizes[0],
-                    padding=paddings[0],
+                    padding=((kernel_sizes[0] - 1) // 2 * dilations[0]),
                     dilation=dilations[0],
+                    attn=True,
                     depthwise_attn_kernel_size=(kernel_sizes[0] + 4),
-                    reduction_ratio=(out_channels[0] // 2)
+                    reduction_ratio=(
+                            (out_channels[0] // 2) if (
+                                out_channels[0] > 1) else 1),
                 ),
-                nn.ReLU(),
-                nn.BatchNorm1d(out_channels[0])
+                nn.BatchNorm1d(out_channels[0]),
+                nn.ReLU()
             )
         )
 
         self.classifier = nn.Sequential(
-                nn.Conv1d(
-                    in_channels=out_channels[0],
-                    out_channels=1,
-                    kernel_size=1,
-                    bias=False
-                ),
-                nn.BatchNorm1d(1)
+            AttendedDepthSeparableConv1d(
+                in_channels=out_channels[0],
+                out_channels=out_channels[0],
+                kernel_size=3,
+                padding=1,
+                attn=True,
+                depthwise_attn_kernel_size=7,
+                reduction_ratio=16
+            ),
+            nn.BatchNorm1d(out_channels[0]),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            AttendedDepthSeparableConv1d(
+                in_channels=out_channels[0],
+                out_channels=out_channels[0],
+                kernel_size=3,
+                padding=1,
+                attn=True,
+                depthwise_attn_kernel_size=7,
+                reduction_ratio=16
+            ),
+            nn.BatchNorm1d(out_channels[0]),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Conv1d(
+                out_channels[0],
+                1,
+                1,
+                bias=False
+            ),
+            nn.BatchNorm1d(1)
         )
 
     def forward(self, sequence):
@@ -130,6 +168,173 @@ class AtrousChannelwiseEncoderDecoder(nn.Module):
             out = torch.cat([out, intermediate_outs.pop()], dim=1)
 
         out = self.decoder[-1](out)
+        out = self.classifier(out)
+        out = torch.sigmoid(out).view(batch_size, -1)
+
+        return out
+
+class AtrousChannelwisePyramid(nn.Module):
+    def __init__(
+        self,
+        in_channels=14,
+        out_channels=[128, 32, 8, 4, 2],
+        kernel_sizes=[11, 11, 11, 11, 11],
+        dilations=[1, 4, 16, 32, 64]):
+        super(AtrousChannelwisePyramid, self).__init__()
+        self.backbone = nn.ModuleList()
+
+        self.backbone.append(
+            nn.Sequential(
+                AttendedDepthSeparableConv1d(
+                    in_channels=in_channels,
+                    out_channels=out_channels[0],
+                    kernel_size=kernel_sizes[0],
+                    padding=((kernel_sizes[0] - 1) // 2),
+                    attn=False
+                ),
+                nn.BatchNorm1d(out_channels[0]),
+                nn.ReLU()
+            )
+        )
+
+        for i in range(1, len(out_channels)):
+            self.backbone.append(
+                nn.Sequential(
+                    AttendedDepthSeparableConv1d(
+                        in_channels=out_channels[i - 1],
+                        out_channels=out_channels[i],
+                        kernel_size=kernel_sizes[i],
+                        padding=((kernel_sizes[i] - 1) // 2),
+                        attn=False
+                    ),
+                    nn.BatchNorm1d(out_channels[i]),
+                    nn.ReLU()
+                )
+            )
+
+        self.pyramid = nn.ModuleList()
+
+        self.pyramid.append(
+            nn.Sequential(
+                AttendedDepthSeparableConv1d(
+                    in_channels=out_channels[-1],
+                    out_channels=out_channels[0],
+                    kernel_size=1,
+                    padding=0,
+                    dilation=dilations[0],
+                    attn=False
+                ),
+                nn.BatchNorm1d(out_channels[0]),
+                nn.ReLU()
+            )
+        )
+
+        for i in range(1, len(dilations)):
+            self.pyramid.append(
+                nn.Sequential(
+                    AttendedDepthSeparableConv1d(
+                        in_channels=out_channels[-1],
+                        out_channels=out_channels[0],
+                        kernel_size=kernel_sizes[0],
+                        padding=((kernel_sizes[0] - 1) // 2 * dilations[i]),
+                        dilation=dilations[i],
+                        attn=True,
+                        depthwise_attn_kernel_size=(kernel_sizes[0] + 4),
+                        reduction_ratio=(
+                            (out_channels[0] // 2) if (
+                                out_channels[0] > 1) else 1)
+                    ),
+                    nn.BatchNorm1d(out_channels[0]),
+                    nn.ReLU()
+                )
+            )
+
+        self.pyramid_compressor = nn.Sequential(
+            nn.Conv1d(
+                out_channels[0] * len(dilations),
+                out_channels[0],
+                1,
+                bias=False
+            ),
+            nn.BatchNorm1d(out_channels[0]),
+            nn.ReLU(),
+            nn.Dropout(0.5)
+        )
+
+        self.decoder = nn.ModuleList()
+
+        for i in range(len(out_channels) - 1, 0, -1):
+            self.decoder.append(
+                nn.Sequential(
+                    AttendedDepthSeparableConv1d(
+                        in_channels=out_channels[i],
+                        out_channels=out_channels[i - 1],
+                        kernel_size=kernel_sizes[i],
+                        padding=((kernel_sizes[i] - 1) // 2),
+                        attn=True,
+                        depthwise_attn_kernel_size=(kernel_sizes[i] + 4),
+                        reduction_ratio=(
+                            (out_channels[i] // 2) if (
+                                out_channels[i - 1] > 1) else 1)
+                    ),
+                    nn.BatchNorm1d(out_channels[i - 1]),
+                    nn.ReLU()
+                )
+            )
+
+        self.classifier = nn.Sequential(
+            AttendedDepthSeparableConv1d(
+                in_channels=2 * out_channels[0],
+                out_channels=out_channels[0],
+                kernel_size=3,
+                padding=1,
+                attn=True,
+                depthwise_attn_kernel_size=7,
+                reduction_ratio=16
+            ),
+            nn.BatchNorm1d(out_channels[0]),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            AttendedDepthSeparableConv1d(
+                in_channels=out_channels[0],
+                out_channels=out_channels[0],
+                kernel_size=3,
+                padding=1,
+                attn=True,
+                depthwise_attn_kernel_size=7,
+                reduction_ratio=16
+            ),
+            nn.BatchNorm1d(out_channels[0]),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Conv1d(
+                out_channels[0],
+                1,
+                1,
+                bias=False
+            ),
+            nn.BatchNorm1d(1)
+        )
+
+    def forward(self, sequence):
+        batch_size = sequence.size()[0]
+
+        out = sequence
+
+        for layer in self.backbone:
+            out = layer(out)
+
+        pyramid_out = self.pyramid[0](out)
+
+        for layer in self.pyramid[:-1]:
+            pyramid_out = torch.cat([pyramid_out, layer(out)], dim=1)
+
+        pyramid_out = self.pyramid_compressor(pyramid_out)
+
+        for layer in self.decoder:
+            out = layer(out)
+
+        out = torch.cat([pyramid_out, out], dim=1)
         out = self.classifier(out)
         out = torch.sigmoid(out).view(batch_size, -1)
 
