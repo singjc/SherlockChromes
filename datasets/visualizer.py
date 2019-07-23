@@ -187,22 +187,44 @@ def plot_confusion_matrix(y_true, y_pred, classes,
 
     return ax
 
-def plot_binary_precision_recall_curve(y_true, y_pred):
+def plot_binary_precision_recall_curve(
+    y_true,
+    y_pred,
+    y_true_2=None,
+    y_pred_2=None):
     """
     This function plots a binary precision recall curve.
     """
     average_precision = average_precision_score(y_true, y_pred)
     precision, recall, thresholds = precision_recall_curve(y_true, y_pred)
 
-    plt.step(recall, precision, color='b', alpha=0.5,
-            where='post')
+    plt.step(recall, precision, color='b', alpha=0.5, where='post', label='1')
+
+    if y_true_2 and y_pred_2:
+        average_precision_2 = average_precision_score(
+            y_true_2, y_pred_2)
+        precision_2, recall_2, thresholds_2 = precision_recall_curve(
+            y_true_2, y_pred_2)
+
+        plt.step(
+            recall_2,
+            precision_2,
+            color='r',
+            alpha=0.5,
+            where='post',
+            label='2')
 
     plt.xlabel('Recall')
     plt.ylabel('Precision')
-    plt.ylim([0.0, 1.05])
     plt.xlim([0.0, 1.0])
-    plt.title('2-class Precision-Recall curve: AP={0:0.2f}'.format(
-            average_precision))
+    plt.ylim([0.0, 1.05])
+    plt.xticks([i*0.05 for i in range(0, 21)])
+    plt.yticks([i*0.05 for i in range(0, 21)])
+    plt.grid()
+    plt.legend(title='Inputs: ')
+    plt.title(
+        '2-class Precision-Recall curve: AP=1:{0:0.4f}/2:{0:0.4f}'.format(
+            average_precision, average_precision_2))
 
     plt.show()
 
