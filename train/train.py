@@ -73,7 +73,29 @@ def get_data_loaders(
             test_set,
             batch_size=batch_size)
 
-    return train_loader, val_loader, test_loader
+    return train_loader, val_loader, test_loader, train_idx, val_idx, test_idx
+
+def get_subset_loader(
+    data,
+    idx,
+    subset_batch_proportion,
+    batch_size=1,
+    collate_fn=None):
+    n = len(idx)
+    n_subset = int(n * subset_batch_proportion)
+
+    random.shuffle(idx)
+
+    subset_idx = idx[:n_subset]
+
+    subset = Subset(data, subset_idx)
+
+    subset_loader = DataLoader(
+        subset,
+        batch_size=batch_size,
+        collate_fn=collate_fn)
+
+    return subset_loader
 
 def train(
     data,
@@ -84,12 +106,35 @@ def train(
     collate_fn=None,
     device='cpu',
     **kwargs):
-    train_loader, val_loader, test_loader = get_data_loaders(
-        data, kwargs['test_batch_proportion'],
-        kwargs['batch_size'],
-        sampling_fn,
-        collate_fn,
-        kwargs['outdir_path'])
+    (
+        train_loader,
+        val_loader,
+        test_loader,
+        train_idx,
+        val_idx,
+        test_idx
+    ) = get_data_loaders(
+            data,
+            kwargs['test_batch_proportion'],
+            kwargs['batch_size'],
+            sampling_fn,
+            collate_fn,
+            kwargs['outdir_path'])
+
+    if 'subset_batch_proportion' in kwargs:
+        train_subset_loader = get_subset_loader(
+                data,
+                train_idx[:],
+                kwargs['subset_batch_proportion'],
+                kwargs['batch_size'],
+                collate_fn)
+
+        val_subset_loader = get_subset_loader(
+                data,
+                val_idx[:],
+                kwargs['subset_batch_proportion'],
+                kwargs['batch_size'],
+                collate_fn)
 
     use_visdom = False
 
@@ -133,8 +178,12 @@ def train(
     def step_scheduler(engine, scheduler):
         scheduler.step()
 
-    trainer.add_event_handler(
-        Events.EPOCH_STARTED, step_scheduler, scheduler)
+    if 'scheduler_step_on_iter' in kwargs and kwargs['scheduler_step_on_iter']:
+        trainer.add_event_handler(
+            Events.ITERATION_COMPLETED, step_scheduler, scheduler)
+    else:
+        trainer.add_event_handler(
+            Events.EPOCH_COMPLETED, step_scheduler, scheduler)
 
     @trainer.on(Events.ITERATION_COMPLETED)
     def log_training_loss(trainer):
@@ -161,7 +210,11 @@ def train(
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_training_results(trainer):
-        evaluator.run(train_loader)
+        if 'subset_batch_proportion' in kwargs:
+            evaluator.run(train_subset_loader)
+        else:
+            evaluator.run(train_loader)
+
         metrics = evaluator.state.metrics
         print("Training Results - Epoch: {} Avg accuracy: {:.8f} Avg precision: {:.8f} Avg recall: {:.8f} Avg loss: {:.8f}"
                .format(
@@ -184,8 +237,12 @@ def train(
     def log_validation_results(trainer):
         if kwargs['test_batch_proportion'] == 0.0:
             return
-
-        evaluator.run(val_loader)
+        
+        if 'subset_batch_proportion' in kwargs:
+            evaluator.run(val_subset_loader)
+        else:
+            evaluator.run(val_loader)
+            
         metrics = evaluator.state.metrics
         print("Validation Results - Epoch: {} Avg accuracy: {:.8f} Avg precision: {:.8f} Avg recall: {:.8f} Avg loss: {:.8f}"
             .format(
