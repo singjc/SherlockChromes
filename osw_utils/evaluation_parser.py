@@ -353,8 +353,8 @@ def parse_amended_model_evaluation_file(
     print(osw_stats, mod_stats)
 
     if plot_things:
-        plot_binary_precision_recall_curve(osw_target, osw_pred)
-        plot_binary_precision_recall_curve(mod_target, mod_pred)
+        plot_binary_precision_recall_curve(
+            osw_target, osw_pred, mod_target, mod_pred)
         create_histo(osw_pred, title="OSW Scores")
         create_histo(mod_pred, title="Model Scores")
 
