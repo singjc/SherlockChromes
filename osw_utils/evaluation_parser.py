@@ -54,8 +54,7 @@ def parse_model_evaluation_file(
 
     mod_tp, mod_fp, mod_tn, mod_fn = [], [], [], []
 
-    mod_tp, mod_fp, mod_tn, mod_fn, osw_scores, target, pred = \
-        [], [], [], [], [], [], []
+    mod_tp, mod_fp, mod_tn, mod_fn = [], [], [], []
 
     for filename in filenames:
         with open(filename, 'r') as infile:
@@ -97,9 +96,6 @@ def parse_model_evaluation_file(
                 osw_score = float(osw_score)
                 mod_score = float(mod_score)
 
-                osw_scores.append(osw_score)
-                pred.append(mod_score)
-
                 if osw_score < osw_threshold:
                     osw_start, osw_end = None, None
 
@@ -115,7 +111,6 @@ def parse_model_evaluation_file(
                                 osw_end,
                                 mod_start,
                                 mod_end))
-                    target.append(0)
                 elif osw_start and not mod_start:
                     mod_stats['fn']+= 1
                     mod_fn.append(
@@ -125,7 +120,6 @@ def parse_model_evaluation_file(
                                 osw_end,
                                 mod_start,
                                 mod_end))
-                    target.append(1)
                 elif not osw_start and not mod_start:
                     mod_stats['tn']+= 1
                     mod_tn.append(
@@ -135,7 +129,6 @@ def parse_model_evaluation_file(
                                 osw_end,
                                 mod_start,
                                 mod_end))
-                    target.append(0)
                 else:
                     if overlaps(osw_start, osw_end, mod_start, mod_end):
                         mod_stats['tp']+= 1
@@ -146,7 +139,6 @@ def parse_model_evaluation_file(
                                 osw_end,
                                 mod_start,
                                 mod_end))
-                        target.append(1)
                     else:
                         mod_stats['fp']+= 1
                         mod_fp.append(
@@ -156,11 +148,10 @@ def parse_model_evaluation_file(
                                 osw_end,
                                 mod_start,
                                 mod_end))
-                        target.append(0)
 
     print(mod_stats)
 
-    return mod_tp, mod_fp, mod_tn, mod_fn, osw_scores, target, pred
+    return mod_tp, mod_fp, mod_tn, mod_fn
 
 def parse_amended_model_evaluation_file(
     filenames=[],
@@ -273,8 +264,7 @@ def parse_amended_model_evaluation_file(
                             osw_end))
                     osw_target.append(0)
                 else:
-                    if overlap_more_than(
-                        manual_start, manual_end, osw_start, osw_end):
+                    if overlaps(manual_start, manual_end, osw_start, osw_end):
                         osw_stats['tp']+= 1
                         osw_tp.append(
                             (
@@ -326,8 +316,7 @@ def parse_amended_model_evaluation_file(
                             mod_end))
                     mod_target.append(0)
                 else:
-                    if overlap_more_than(
-                        manual_start, manual_end, mod_start, mod_end):
+                    if overlaps(manual_start, manual_end, mod_start, mod_end):
                         mod_stats['tp']+= 1
                         mod_tp.append(
                             (
