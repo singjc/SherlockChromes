@@ -54,8 +54,6 @@ def parse_model_evaluation_file(
 
     mod_tp, mod_fp, mod_tn, mod_fn = [], [], [], []
 
-    mod_tp, mod_fp, mod_tn, mod_fn = [], [], [], []
-
     for filename in filenames:
         with open(filename, 'r') as infile:
             next(infile)
