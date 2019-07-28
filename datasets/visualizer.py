@@ -213,6 +213,8 @@ def plot_binary_precision_recall_curve(
             alpha=0.5,
             where='post',
             label='2')
+    else:
+        average_precision_2 = None
 
     plt.xlabel('Recall')
     plt.ylabel('Precision')
@@ -223,7 +225,7 @@ def plot_binary_precision_recall_curve(
     plt.grid()
     plt.legend(title='Inputs: ')
     plt.title(
-        '2-class Precision-Recall curve: AP=1:{0:0.4f}/2:{0:0.4f}'.format(
+        '2-class Precision-Recall curve: AP=1:{0:0.4f}/2:{1:0.4f}'.format(
             average_precision, average_precision_2))
 
     plt.show()
