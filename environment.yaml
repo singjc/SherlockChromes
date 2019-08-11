@@ -1,4 +1,4 @@
-name: SherlockChromes
+name: PyTorch
 channels:
   - pytorch
   - defaults
