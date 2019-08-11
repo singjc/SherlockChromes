@@ -151,7 +151,7 @@ def train(
             use_visdom = True
 
     if not optimizer:
-        optimizer = torch.optim.Adam(model.parameters())
+        optimizer = torch.optim.AdamW(model.parameters())
 
     if not loss:
         loss = torch.nn.BCELoss()

@@ -16,7 +16,7 @@ def main(
         optimizer_kwargs,
         train_kwargs,
         device):
-    optimizer = optim.Adam(model.parameters(), **optimizer_kwargs)
+    optimizer = optim.AdamW(model.parameters(), **optimizer_kwargs)
 
     train(
         data,
