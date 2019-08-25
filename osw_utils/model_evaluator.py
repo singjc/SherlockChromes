@@ -20,7 +20,8 @@ def create_output_array(
     device='cpu',
     load_npy=False,
     npy_dir='.',
-    npy_name='output_array'):
+    npy_name='output_array',
+    mode='inference'):
     output_array = None
 
     if load_npy:
@@ -41,6 +42,40 @@ def create_output_array(
         else:
             output_array = np.vstack(
                 (output_array, output.detach().to('cpu').numpy()))
+
+    if mode == 'semisupervised':
+        largest_idxs = np.argmax(output_array, axis=1)
+        output_array_labels = np.zeros((output_array.shape))
+        
+        for i in range(len(dataset)):
+            if 'Decoy' in dataset.chromatograms.iloc[i, 1]:
+                break
+            
+            output = output_array[i, :]
+
+            largest_idx = largest_idxs[i]
+
+            if output[largest_idx] < 0.5:
+                continue
+
+            start_idx, end_idx = largest_idx, largest_idx
+
+            while output[start_idx - 1] >= 0.5:
+                start_idx-= 1
+            
+            while output[end_idx + 1] >= 0.5:
+                end_idx+= 1
+
+            if end_idx - start_idx <= 2 or end_idx - start_idx >= 60:
+                continue
+
+            start_idx-= 1
+            end_idx+= 2
+
+            output_array_labels[i, start_idx:end_idx] = np.ones(
+                (1, end_idx - start_idx))
+
+        output_array = output_array_labels
 
     np.save(os.path.join(npy_dir, npy_name), output_array)
 
@@ -272,7 +307,7 @@ if __name__ == "__main__":
         '-npy_dir', '--npy_dir', type=str, default='evaluation_results')
     parser.add_argument(
         '-npy_name', '--npy_name', type=str, default='output_array')
-    parser.add_argument('-mode', '--mode', type=str, default='results')
+    parser.add_argument('-mode', '--mode', type=str, default='inference')
     parser.add_argument('-num_points', '--num_points', type=int, default=3)
     args = parser.parse_args()
 
@@ -310,9 +345,10 @@ if __name__ == "__main__":
             args.device,
             args.load_npy,
             args.npy_dir,
-            args.npy_name)
+            args.npy_name,
+            args.mode)
 
-        if args.mode == 'results':
+        if args.mode == 'inference':
             create_results_file(
                 output_array,
                 args.threshold,
