@@ -267,6 +267,75 @@ def create_stats_eval_file(
         index=False,
         header=False)
 
+def create_semisupervised_results_file(
+    output_array,
+    threshold=0.5,
+    data_dir='OpenSWATHAutoAnnotated',
+    chromatograms_csv='chromatograms.csv',
+    out_dir='.',
+    results_csv='semisupervised_chromatograms.csv'):
+
+    chromatograms = pd.read_csv(os.path.join(
+        data_dir, chromatograms_csv))
+
+    assert len(chromatograms) == output_array.shape[0]
+
+    model_bounding_boxes = \
+        [
+            [
+                'ID',
+                'Filename',
+                'Label BBox Start',
+                'Label BBox End',
+                'Pred BBox Start',
+                'Pred BBox End',
+                'OSW Score',
+                'Model Score'
+            ]
+        ]
+
+    for i in range(len(chromatograms)):
+        print(i)
+
+        row = chromatograms.iloc[i]
+
+        output = output_array[i, :]
+
+        if max(output) < threshold and 'Decoy' not in row['Filename']:
+            continue
+
+        largest_idx = np.argmax(output)
+
+        if output[largest_idx] >= threshold:
+            start_idx, end_idx = largest_idx, largest_idx
+
+            while output[start_idx - 1] >= threshold:
+                start_idx-= 1
+            
+            while output[end_idx + 1] >= threshold:
+                end_idx+= 1
+
+            left_width = start_idx
+            right_width = end_idx
+        else:
+            left_width, right_width = None, None
+
+        model_bounding_boxes.append([
+                row['ID'],
+                row['Filename'],
+                row['BB Start'],
+                row['BB End'],
+                left_width,
+                right_width,
+                row['OSW Score']])
+
+    model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
+
+    model_bounding_boxes.to_csv(
+        os.path.join(out_dir, results_csv),
+        index=False,
+        header=False)
+
 if __name__ == "__main__":
     start = time.time()
 
@@ -360,6 +429,14 @@ if __name__ == "__main__":
             create_stats_eval_file(
                 output_array,
                 args.num_points,
+                args.data_dir,
+                args.chromatograms_csv,
+                args.out_dir,
+                args.results_csv)
+        elif args.mode == 'semisupervised':
+            create_semisupervised_results_file(
+                output_array,
+                args.threshold,
                 args.data_dir,
                 args.chromatograms_csv,
                 args.out_dir,
