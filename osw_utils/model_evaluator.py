@@ -21,7 +21,8 @@ def create_output_array(
     load_npy=False,
     npy_dir='.',
     npy_name='output_array',
-    mode='inference'):
+    mode='inference',
+    threshold=0.5):
     output_array = None
 
     if load_npy:
@@ -55,15 +56,15 @@ def create_output_array(
 
             largest_idx = largest_idxs[i]
 
-            if output[largest_idx] < 0.5:
+            if output[largest_idx] < threshold:
                 continue
 
             start_idx, end_idx = largest_idx, largest_idx
 
-            while output[start_idx - 1] >= 0.5:
+            while output[start_idx - 1] >= threshold:
                 start_idx-= 1
             
-            while output[end_idx + 1] >= 0.5:
+            while output[end_idx + 1] >= threshold:
                 end_idx+= 1
 
             if end_idx - start_idx <= 2 or end_idx - start_idx >= 60:
@@ -269,7 +270,6 @@ def create_stats_eval_file(
 
 def create_semisupervised_results_file(
     output_array,
-    threshold=0.5,
     data_dir='OpenSWATHAutoAnnotated',
     chromatograms_csv='chromatograms.csv',
     out_dir='.',
@@ -306,13 +306,13 @@ def create_semisupervised_results_file(
 
         largest_idx = np.argmax(output)
 
-        if output[largest_idx] >= threshold:
+        if output[largest_idx] == 1:
             start_idx, end_idx = largest_idx, largest_idx
 
-            while output[start_idx - 1] >= threshold:
+            while output[start_idx - 1] == 1:
                 start_idx-= 1
             
-            while output[end_idx + 1] >= threshold:
+            while output[end_idx + 1] == 1:
                 end_idx+= 1
 
             left_width = start_idx
@@ -415,7 +415,8 @@ if __name__ == "__main__":
             args.load_npy,
             args.npy_dir,
             args.npy_name,
-            args.mode)
+            args.mode,
+            args.threshold)
 
         if args.mode == 'inference':
             create_results_file(
@@ -436,7 +437,6 @@ if __name__ == "__main__":
         elif args.mode == 'semisupervised':
             create_semisupervised_results_file(
                 output_array,
-                args.threshold,
                 args.data_dir,
                 args.chromatograms_csv,
                 args.out_dir,
