@@ -131,3 +131,38 @@ class GroupBySequenceSampler(object):
         random.shuffle(test_idx)
 
         return train_idx, val_idx, test_idx
+
+class GroupByRunSampler(object):
+    """Sample by mass spec runs."""
+
+    def __init__(self, **kwargs):
+        self.total_runs = kwargs['total_runs']
+
+    def __call__(self, data, test_batch_proportion=0.1):
+        run_to_idx = defaultdict(list)
+
+        for i in range(len(data)):
+            run = data.chromatograms.iloc[i, 1].split('_')[0:-3]
+
+            run_to_idx[run].append(i)
+
+        assert len(run_to_idx) == self.total_runs
+
+        grouped_idx = [run_to_idx[run] for run in run_to_idx]
+
+        random.shuffle(grouped_idx)
+
+        n = len(grouped_idx)
+        n_test = int(n * test_batch_proportion)
+        n_train = n - 2 * n_test
+
+        train_idx = list(chain.from_iterable(grouped_idx[:n_train]))
+        val_idx = list(
+            chain.from_iterable(grouped_idx[n_train:(n_train + n_test)]))
+        test_idx = list(chain.from_iterable(grouped_idx[(n_train + n_test):]))
+
+        random.shuffle(train_idx)
+        random.shuffle(val_idx)
+        random.shuffle(test_idx)
+
+        return train_idx, val_idx, test_idx
