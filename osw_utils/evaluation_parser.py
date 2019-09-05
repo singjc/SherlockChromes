@@ -399,8 +399,6 @@ def decoys_per_target_metric(
         num_mod_decoys_over_targets.append(
             num_mod_decoys / num_mod_targets[-1])
 
-    plt.plot(num_osw_targets, num_osw_decoys_over_targets, 'b-o')
-    plt.plot(num_mod_targets, num_mod_decoys_over_targets, 'r-+')
     plt.plot(num_osw_targets, num_osw_decoys_over_targets, 'b-o', label='osw')
     plt.plot(num_mod_targets, num_mod_decoys_over_targets, 'r-+', label='mod')
     plt.xlabel('Number of Predicted Targets')
@@ -413,7 +411,7 @@ def decoys_per_target_metric(
     plt.legend(title='Inputs: ')
     plt.title('Pseudo 1 - Precision / Recall Curve')
     
-    plt.show() 
+    plt.show()
 
 if __name__ == '__main__':
     """
