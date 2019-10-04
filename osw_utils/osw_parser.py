@@ -320,7 +320,12 @@ def get_cnn_data(
             repl_name = '_'.join(sqMass_root.split('_')[-3:])
             mod_seq_and_charge = '_'.join(
                 prec_traml_id.split('_')[-1].split('/'))
-            chromatogram_filename = '_'.join([repl_name, mod_seq_and_charge])
+            
+            chromatogram_filename = [repl_name, mod_seq_and_charge]
+            if decoy == 1:
+                chromatogram_filename.insert(0, 'DECOY')
+
+            chromatogram_filename = '_'.join(chromatogram_filename)
 
             labels, bbox_start, bbox_end = create_data_from_transition_ids(
                 sqMass_root,
