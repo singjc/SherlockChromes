@@ -3,15 +3,20 @@ import numpy as np
 
 from matplotlib import pyplot as plt
 
-def create_histo(data, bins='auto', title="Example data", percentile=10):
-    print(np.percentile(data, percentile))
-    
-    _, bins, _ = plt.hist(data, bins=bins, alpha=0.5)
-    bins = len(bins) - 1
+def create_histo(
+    data,
+    bins='auto',
+    title="Example data",
+    percentiles=[50, 50],
+    labels=['Real', 'Decoy']):
+    for i in range(len(data)):
+        print(np.percentile(data[i], percentiles[i]))
+        plt.hist(data[i], bins=bins, alpha=0.5, label=labels[i])
+
     plt.title(title)
     plt.xlabel(title)
 
-    lower, upper = int(min(data)), int(max(data))
+    lower, upper = int(min(data[0])), int(max(data[0]))
 
     if upper <= 1:
         xticks = [0.1 * i for i in range(0, 11)]
@@ -21,6 +26,7 @@ def create_histo(data, bins='auto', title="Example data", percentile=10):
     plt.xticks(xticks)
     plt.ylabel('count')
 
+    plt.legend(loc='upper right')
     plt.show()
 
 def get_peak_width_dist(annotations_filename):
