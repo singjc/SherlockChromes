@@ -173,6 +173,8 @@ def create_results_file(
             ]
         ]
 
+    largest_idxs = np.argmax(output_array, axis=1)
+
     for i in range(len(chromatograms)):
         print(i)
 
@@ -180,7 +182,9 @@ def create_results_file(
 
         output = output_array[i, :]
 
-        largest_idx = np.argmax(output)
+        largest_idx = largest_idxs[i]
+
+        left_width, right_width = None, None
 
         if output[largest_idx] >= threshold:
             start_idx, end_idx = largest_idx, largest_idx
@@ -191,10 +195,8 @@ def create_results_file(
             while output[end_idx + 1] >= threshold:
                 end_idx+= 1
 
-            left_width = start_idx
-            right_width = end_idx
-        else:
-            left_width, right_width = None, None
+            if end_idx - start_idx >= 2 or end_idx - start_idx <= 60:
+                left_width, right_width = start_idx, end_idx
 
         model_bounding_boxes.append([
                 row['ID'],
