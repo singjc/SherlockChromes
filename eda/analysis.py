@@ -21,7 +21,11 @@ def create_histo(
     if upper <= 1:
         xticks = [0.1 * i for i in range(0, 11)]
     else:
+        mult = 1
         xticks = [i for i in range(lower - 1, upper + 1)]
+        while len(xticks) > 100:
+            xticks = [i for i in range(lower - 1, upper + 1, mult)]
+            mult*= 10
 
     plt.xticks(xticks)
     plt.ylabel('count')
