@@ -1,4 +1,5 @@
 import argparse
+import bisect
 import csv
 import numpy as np
 import os
@@ -165,7 +166,8 @@ def create_data_from_transition_ids(
     library_intensities=[],
     exp_rt=None,
     extra_features=[],
-    csv_only=False):
+    csv_only=False,
+    window_size=201):
     con = sqlite3.connect(os.path.join(sqMass_dir, sqMass_filename))
 
     cursor = con.cursor()
@@ -181,23 +183,50 @@ def create_data_from_transition_ids(
         ms2_transition_ids)
 
     times = ms2_transitions[0][0]
+    len_times = len(times)
+    subsection_left, subsection_right = 0, len_times
 
     if not csv_only:
         num_expected_features = 6
+        num_expected_extra_features = 0
+        free_idx = 0
 
-        chromatogram = np.array([transition[1] for transition in ms2_transitions])
+        if 'exp_rt' in extra_features:
+            num_expected_extra_features+= 1
 
-        assert chromatogram.shape[1] > 1, print(chromatogram_filename)
+        if 'lib_int' in extra_features:
+            num_expected_extra_features+= 6
+
+        if 'ms1' in extra_features:
+            num_expected_extra_features+= len(isotopes)
+
+        chromatogram = np.zeros((num_expected_features, len_times))
+        extra = np.zeros((num_expected_extra_features, len_times))
+
+        ms2_transitions = np.array(
+            [transition[1] for transition in ms2_transitions])
+
+        assert ms2_transitions.shape[1] > 1, print(chromatogram_filename)
+
+        chromatogram[0:ms2_transitions.shape[0]] = ms2_transitions
+
+        if 'exp_rt' in extra_features:
+            dist_from_exp_rt = np.absolute(
+                np.repeat(exp_rt, len_times) - np.array(times))
+
+            extra[free_idx:free_idx + 1] = dist_from_exp_rt
+            free_idx+= 1
+
+        if 'lib_int' in extra_features:
+            lib_int_features = np.repeat(
+                library_intensities,
+                len_times).reshape(len(library_intensities), len_times)
             
-        if chromatogram.shape[0] < 6:
-            chromatogram = np.vstack(
-                (
-                    chromatogram,
-                    np.zeros((6 - chromatogram.shape[0], chromatogram.shape[1]))))
+            extra[free_idx:free_idx + lib_int_features.shape[0]] = (
+                lib_int_features)
+            free_idx+= 6
         
         if 'ms1' in extra_features:
-            num_expected_features+= len(isotopes)
-
             ms1_transition_ids = \
                 get_ms1_chromatogram_ids_from_precursor_id_and_isotope(
                     con, cursor, prec_id, isotopes)
@@ -207,55 +236,46 @@ def create_data_from_transition_ids(
             ms1_transitions = transitions.getDataForChromatograms(
                 ms1_transition_ids)
 
-            ms1_chromatogram = np.array(
+            ms1_transitions = np.array(
                 [transition[1] for transition in ms1_transitions])
 
-            if ms1_chromatogram.shape[0] < len(isotopes):
-                ms1_chromatogram = np.vstack(
-                (
-                    ms1_chromatogram,
-                    np.zeros(
-                        (
-                            len(isotopes) - ms1_chromatogram.shape[0],
-                            ms1_chromatogram.shape[1]))))
+            extra[free_idx:free_idx + ms1_transitions.shape[0]] = (
+                ms1_transitions) 
+            free_idx+= len(isotopes)
 
-            chromatogram = np.vstack((chromatogram, ms1_chromatogram))
-
-        if 'lib_int' in extra_features:
-            num_expected_features+= 6
-
-            library_intensity_features = np.repeat(
-                library_intensities,
-                len(times)).reshape(len(library_intensities), len(times))
-
-            if library_intensity_features.shape[0] < 6:
-                library_intensity_features = np.vstack(
-                    (
-                        library_intensity_features,
-                        np.zeros(
-                            (
-                                6 - library_intensity_features.shape[0],
-                                library_intensity_features.shape[1]))))
-
-            chromatogram = np.vstack((chromatogram, library_intensity_features))
-
-        if 'exp_rt' in extra_features:
-            num_expected_features+= 1
-
-            dist_from_exp_rt = np.absolute(
-                np.repeat(exp_rt, len(times)) - np.array(times))
-
-            chromatogram = np.vstack((chromatogram, dist_from_exp_rt))
-
-        assert chromatogram.shape == (num_expected_features, 2372), print(
-            chromatogram_filename)
-
-        np.save(os.path.join(out_dir, chromatogram_filename), chromatogram)
-
-    return get_chromatogram_labels_and_bbox(
+        row_labels, bbox_start, bbox_end = get_chromatogram_labels_and_bbox(
             left_width,
             right_width,
             times)
+
+        if window_size >= 0:
+            half_span = window_size // 2
+            exp_rt_idx = bisect.bisect(times, exp_rt)
+            subsection_left, subsection_right = (
+                exp_rt_idx - half_span, exp_rt_idx + half_span + 1)
+            if subsection_left < 0:
+                subsection_left, subsection_right = 0, window_size
+            elif subsection_right >= len_times:
+                subsection_left = len_times - window_size
+
+            chromatogram = chromatogram[:, subsection_left:subsection_right]
+            extra = extra[:, subsection_left:subsection_right]
+            times = times[subsection_left:subsection_right]
+            row_labels = row_labels[subsection_left:subsection_right]
+
+            label_idxs = np.where(row_labels == 1)[0]
+
+            if len(label_idxs) > 0:
+                bb_start, bb_end = label_idxs[0], label_idxs[-1]
+            else:
+                bb_start, bb_end = None, None
+
+        np.save(os.path.join(out_dir, chromatogram_filename), chromatogram)
+        np.save(
+            os.path.join(out_dir, chromatogram_filename + '_Extra'),
+            extra)
+
+    return row_labels, bbox_start, bbox_end
 
 def get_cnn_data(
     out_dir,
@@ -266,8 +286,9 @@ def get_cnn_data(
     prec_id_upper=9,
     decoy=0,
     isotopes=[0],
-    extra_features=['ms1', 'lib_int', 'exp_rt'],
-    csv_only=False):
+    extra_features=['exp_rt', 'lib_int', 'ms1'],
+    csv_only=False,
+    window_size=201):
     label_matrix, chromatograms_csv = [], []
 
     chromatogram_id = 0
@@ -317,7 +338,7 @@ def get_cnn_data(
             else:
                 continue
 
-            repl_name = '_'.join(sqMass_root.split('_')[-3:])
+            repl_name = sqMass_root
             mod_seq_and_charge = '_'.join(
                 prec_traml_id.split('_')[-1].split('/'))
             
@@ -340,7 +361,8 @@ def get_cnn_data(
                 library_intensities=library_intensities,
                 exp_rt=exp_rt,
                 extra_features=extra_features,
-                csv_only=csv_only)
+                csv_only=csv_only,
+                window_size=201)
 
             if not csv_only:
                 label_matrix.append(labels)
@@ -351,7 +373,9 @@ def get_cnn_data(
                     chromatogram_filename,
                     bbox_start,
                     bbox_end,
-                    score
+                    score,
+                    exp_rt,
+                    window_size
                 ])
             chromatogram_id+= 1
 
@@ -370,7 +394,11 @@ def get_cnn_data(
 
     with open(os.path.join(out_dir, csv_filename), 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['ID', 'Filename', 'BB Start', 'BB End', 'OSW Score'])
+        writer.writerow(
+            [
+                'ID', 'Filename', 'BB Start', 'BB End', 'OSW Score', 'Lib RT',
+                'Window Size'
+        ])
         writer.writerows(chromatograms_csv)
 
 if __name__ == '__main__':
@@ -396,12 +424,13 @@ if __name__ == '__main__':
         '-extra_features',
         '--extra_features',
         type=str,
-        default='ms1,lib_int,exp_rt')
+        default='exp_rt,lib_int,ms1')
     parser.add_argument(
         '-csv_only',
         '--csv_only',
         action='store_true',
         default=False)
+    parser.add_argument('-window_size', '--window_size', type=int, default=201)
     args = parser.parse_args()
 
     args.in_folder = args.in_folder.split(',')
@@ -420,6 +449,7 @@ if __name__ == '__main__':
         decoy=args.decoy,
         isotopes=args.isotopes,
         extra_features=args.extra_features,
-        csv_only=args.csv_only)
+        csv_only=args.csv_only,
+        window_size=args.window_size)
 
     print('It took {0:0.1f} seconds'.format(time.time() - start))

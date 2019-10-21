@@ -106,7 +106,8 @@ def create_rpn_results_file(
                 'Pred BBox Start',
                 'Pred BBox End',
                 'OSW Score',
-                'Model Score'
+                'Model Score',
+                'Lib RT'
             ]
         ]
 
@@ -135,7 +136,8 @@ def create_rpn_results_file(
                     int(round(left_width)),
                     int(round(right_width)),
                     row['OSW Score'],
-                    score])
+                    score,
+                    row['Lib RT']])
             
             output_idx+= 1
             idx+= 1
@@ -169,7 +171,8 @@ def create_results_file(
                 'Pred BBox Start',
                 'Pred BBox End',
                 'OSW Score',
-                'Model Score'
+                'Model Score',
+                'Lib RT'
             ]
         ]
 
@@ -206,7 +209,8 @@ def create_results_file(
                 left_width,
                 right_width,
                 row['OSW Score'],
-                str(output[largest_idx])])
+                str(output[largest_idx]),
+                row['Lib RT']])
 
     model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
 
@@ -237,7 +241,8 @@ def create_stats_eval_file(
                 'Pred BBox Start',
                 'Pred BBox End',
                 'OSW Score',
-                'Model Score'
+                'Model Score',
+                'Lib RT'
             ]
         ]
 
@@ -261,7 +266,8 @@ def create_stats_eval_file(
                 left_width,
                 right_width,
                 row['OSW Score'],
-                str(output[largest_idx])])
+                str(output[largest_idx]),
+                row['Lib RT']])
 
     model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
 
@@ -292,7 +298,8 @@ def create_semisupervised_results_file(
                 'Pred BBox Start',
                 'Pred BBox End',
                 'OSW Score',
-                'Model Score'
+                'Model Score',
+                'Lib RT'
             ]
         ]
 
@@ -329,7 +336,8 @@ def create_semisupervised_results_file(
                 row['BB End'],
                 left_width,
                 right_width,
-                row['OSW Score']])
+                row['OSW Score'],
+                row['Lib RT']])
 
     model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
 

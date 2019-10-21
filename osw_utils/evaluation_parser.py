@@ -68,7 +68,8 @@ def parse_model_evaluation_file(
                     mod_start,
                     mod_end,
                     osw_score,
-                    mod_score
+                    mod_score,
+                    exp_rt
                 ) = line
 
                 if chromatogram_filename in excluded_filenames:
@@ -187,6 +188,7 @@ def parse_amended_model_evaluation_file(
                     mod_score,
                     manual_start,
                     manual_end,
+                    exp_rt,
                     manual_present
                 ) = line
 
