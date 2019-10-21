@@ -15,7 +15,7 @@ class ChromatogramsDataset(Dataset):
         labels,
         extra_path=None,
         transform=None,
-        preload=True):
+        preload=False):
         """
         Args:
             root_path (string): Path to the root folder.
@@ -33,15 +33,14 @@ class ChromatogramsDataset(Dataset):
         self.labels = np.load(os.path.join(self.root_dir, labels))
         self.extra_dir = extra_path
         self.transform = transform
+        self.preload = preload
 
-        self.chromatogram_npy = None
-        if preload:
+        if self.preload:
+            npys = []
             for i in range(len(self.chromatograms)):
-                if self.chromatogram_npy is not None:
-                    self.chromatogram_npy = np.vstack(
-                        (self.chromatogram_npy, self.load_chromatogram(i)))
-                else:
-                    self.chromatogram_npy = self.load_chromatogram(i)
+                npys.append(self.load_chromatogram(i))
+            
+            self.chromatogram_npy = np.stack(npys)
     
     def __len__(self):
         return len(self.chromatograms)
@@ -49,7 +48,7 @@ class ChromatogramsDataset(Dataset):
     def __getitem__(self, idx):
         chromatogram_id = self.chromatograms.iloc[idx, 0]
         
-        if self.chromatogram_npy:
+        if self.preload:
             chromatogram = self.chromatogram_npy[chromatogram_id]
         else:
             chromatogram = self.load_chromatogram(idx)
@@ -66,7 +65,7 @@ class ChromatogramsDataset(Dataset):
 
         if len(npy_names) > 1:
             for i in range(1, len(npy_names)):
-                npy = npy.vstack((npy, np.load(npy_names[i]).astype(float)))
+                npy = np.vstack((npy, np.load(npy_names[i]).astype(float)))
 
         return npy
 
