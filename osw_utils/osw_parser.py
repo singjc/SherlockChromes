@@ -22,16 +22,20 @@ def get_run_id_from_folder_name(
 
     return tmp[0][0]
 
-def get_traml_ids_from_prec_ids(
+def get_mod_seqs_and_charges_from_prec_ids(
     con,
     cursor,
     prec_id_lower=0,
     prec_id_upper=9,
     decoy=0):
     query = \
-        """SELECT TRAML_ID FROM PRECURSOR 
-        WHERE ID BETWEEN {0} AND {1} 
-        AND DECOY = {2}""".format(prec_id_lower, prec_id_upper, decoy)
+        """SELECT peptide.MODIFIED_SEQUENCE, precursor.CHARGE 
+        FROM PRECURSOR precursor LEFT JOIN PRECURSOR_PEPTIDE_MAPPING mapping
+        ON precursor.ID = mapping.PRECURSOR_ID LEFT JOIN PEPTIDE peptide
+        ON mapping.PEPTIDE_ID = peptide.ID
+        WHERE precursor.ID BETWEEN {0} AND {1} 
+        AND precursor.DECOY = {2}""".format(
+            prec_id_lower, prec_id_upper, decoy)
     res = cursor.execute(query)
     tmp = res.fetchall()
 
@@ -72,22 +76,20 @@ def get_feature_info_from_run_and_precursor_ids(
     
     return tmp
 
-def get_transition_ids_and_library_intensities_from_prec_traml_id(
+def get_transition_ids_and_library_intensities_from_prec_id(
     con,
     cursor,
-    prec_traml_id,
+    prec_id,
     decoy=0):
-    mod_seq_and_charge = prec_traml_id.split('_')[-1]
-
     query = \
         """SELECT ID, LIBRARY_INTENSITY 
-        FROM TRANSITION 
-        WHERE TRAML_ID LIKE '%^_{0}%' ESCAPE '^' AND DECOY = {1}""".format(
-            mod_seq_and_charge, decoy)
+        FROM TRANSITION LEFT JOIN TRANSITION_PRECURSOR_MAPPING
+        ON TRANSITION.ID = TRANSITION_ID
+        WHERE PRECURSOR_ID = {0} AND DECOY = {1}""".format(prec_id, decoy)
     res = cursor.execute(query)
     tmp = res.fetchall()
 
-    assert len(tmp) > 0, mod_seq_and_charge
+    assert len(tmp) > 0, prec_id
     
     return tmp
 
@@ -103,7 +105,7 @@ def get_ms2_chromatogram_ids_from_transition_ids(con, cursor, transition_ids):
     res = cursor.execute(sql_query)
     tmp = res.fetchall()
 
-    assert len(tmp) > 0, str(transition_ids)
+    # assert len(tmp) > 0, str(transition_ids)
 
     return tmp
 
@@ -175,6 +177,9 @@ def create_data_from_transition_ids(
     ms2_transition_ids = get_ms2_chromatogram_ids_from_transition_ids(
         con, cursor, transition_ids)
 
+    if len(ms2_transition_ids) == 0:
+        return -1, -1, -1
+
     ms2_transition_ids = [item[0] for item in ms2_transition_ids]
 
     transitions = SqlDataAccess(os.path.join(sqMass_dir, sqMass_filename))
@@ -185,6 +190,11 @@ def create_data_from_transition_ids(
     times = ms2_transitions[0][0]
     len_times = len(times)
     subsection_left, subsection_right = 0, len_times
+
+    row_labels, bbox_start, bbox_end = get_chromatogram_labels_and_bbox(
+            left_width,
+            right_width,
+            times)
 
     if not csv_only:
         num_expected_features = 6
@@ -243,11 +253,6 @@ def create_data_from_transition_ids(
                 ms1_transitions) 
             free_idx+= len(isotopes)
 
-        row_labels, bbox_start, bbox_end = get_chromatogram_labels_and_bbox(
-            left_width,
-            right_width,
-            times)
-
         if window_size >= 0:
             half_span = window_size // 2
             exp_rt_idx = bisect.bisect(times, exp_rt)
@@ -288,7 +293,9 @@ def get_cnn_data(
     isotopes=[0],
     extra_features=['exp_rt', 'lib_int', 'ms1'],
     csv_only=False,
-    window_size=201):
+    window_size=201,
+    use_rt=False,
+    scored=False):
     label_matrix, chromatograms_csv = [], []
 
     chromatogram_id = 0
@@ -296,7 +303,7 @@ def get_cnn_data(
     con = sqlite3.connect(os.path.join(osw_dir, osw_filename))
     cursor = con.cursor()
 
-    prec_traml_ids = get_traml_ids_from_prec_ids(
+    prec_mod_seqs_and_charges = get_mod_seqs_and_charges_from_prec_ids(
             con,
             cursor,
             prec_id_lower,
@@ -306,43 +313,51 @@ def get_cnn_data(
     for sqMass_root in sqMass_roots:
         run_id = get_run_id_from_folder_name(con, cursor, sqMass_root)
 
-        feature_info = get_feature_info_from_run_and_precursor_ids(
-            con,
-            cursor,
-            run_id,
-            prec_id_lower,
-            prec_id_upper,
-            decoy)
+        if use_rt and scored:
+            feature_info = get_feature_info_from_run_and_precursor_ids(
+                con,
+                cursor,
+                run_id,
+                prec_id_lower,
+                prec_id_upper,
+                decoy)
 
         for prec_id in range(prec_id_lower, prec_id_upper + 1):
             print(prec_id)
 
-            prec_traml_id = prec_traml_ids[prec_id - prec_id_lower][0]
+            prec_mod_seq, prec_charge = (
+                prec_mod_seqs_and_charges[prec_id - prec_id_lower][:])
 
             transition_ids_and_library_intensities = \
-                get_transition_ids_and_library_intensities_from_prec_traml_id(
+                get_transition_ids_and_library_intensities_from_prec_id(
                     con,
                     cursor,
-                    prec_traml_id,
+                    prec_id,
                     decoy)
             transition_ids = \
                 [str(x[0]) for x in transition_ids_and_library_intensities]
             library_intensities = \
                 [x[1] for x in transition_ids_and_library_intensities]
 
-            exp_rt, delta_rt, left_width, right_width, score = \
+            if use_rt and scored:
+                exp_rt, delta_rt, left_width, right_width, score = \
                 feature_info[prec_id - prec_id_lower]
 
-            if exp_rt and delta_rt:
-                exp_rt = exp_rt - delta_rt
+                if exp_rt and delta_rt:
+                    exp_rt = exp_rt - delta_rt
+                else:
+                    continue
             else:
-                continue
+                assert window_size == -1, print(
+                    'Cannot subset without using library RT!')
+
+            if not scored:
+                # TODO: Implement extraction of OSW features only
+                exp_rt, left_width, right_width, score = -1, -1, -1, -1 
 
             repl_name = sqMass_root
-            mod_seq_and_charge = '_'.join(
-                prec_traml_id.split('_')[-1].split('/'))
             
-            chromatogram_filename = [repl_name, mod_seq_and_charge]
+            chromatogram_filename = [repl_name, prec_mod_seq, str(prec_charge)]
             if decoy == 1:
                 chromatogram_filename.insert(0, 'DECOY')
 
@@ -362,7 +377,10 @@ def get_cnn_data(
                 exp_rt=exp_rt,
                 extra_features=extra_features,
                 csv_only=csv_only,
-                window_size=201)
+                window_size=window_size)
+
+            if not isinstance(labels, np.ndarray) and labels == -1:
+                continue
 
             if not csv_only:
                 label_matrix.append(labels)
@@ -388,7 +406,7 @@ def get_cnn_data(
         npy_filename = 'osw_point_labels_decoy'
         csv_filename = 'chromatograms_decoy.csv'
 
-    if not csv_only:
+    if not csv_only and scored:
         np.save(os.path.join(
             out_dir, npy_filename), np.array(label_matrix))
 
@@ -431,6 +449,16 @@ if __name__ == '__main__':
         action='store_true',
         default=False)
     parser.add_argument('-window_size', '--window_size', type=int, default=201)
+    parser.add_argument(
+        '-use_rt',
+        '--use_rt',
+        action='store_true',
+        default=False)
+    parser.add_argument(
+        '-scored',
+        '--scored',
+        action='store_true',
+        default=False)
     args = parser.parse_args()
 
     args.in_folder = args.in_folder.split(',')
@@ -450,6 +478,8 @@ if __name__ == '__main__':
         isotopes=args.isotopes,
         extra_features=args.extra_features,
         csv_only=args.csv_only,
-        window_size=args.window_size)
+        window_size=args.window_size,
+        use_rt=args.use_rt,
+        scored=args.scored)
 
     print('It took {0:0.1f} seconds'.format(time.time() - start))

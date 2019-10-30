@@ -12,7 +12,7 @@ class ChromatogramsDataset(Dataset):
         self,
         root_path,
         chromatograms,
-        labels,
+        labels=None,
         extra_path=None,
         transform=None,
         preload=False):
@@ -30,7 +30,11 @@ class ChromatogramsDataset(Dataset):
         self.root_dir = root_path
         self.chromatograms = pd.read_csv(os.path.join(self.root_dir,
                                          chromatograms))
-        self.labels = np.load(os.path.join(self.root_dir, labels))
+        if labels:
+            self.labels = np.load(os.path.join(self.root_dir, labels))
+        else:
+            self.labels = False
+        
         self.extra_dir = extra_path
         self.transform = transform
         self.preload = preload
@@ -53,7 +57,10 @@ class ChromatogramsDataset(Dataset):
         else:
             chromatogram = self.load_chromatogram(idx)
 
-        label = self.labels[chromatogram_id].astype(float)
+        if isinstance(self.labels, np.ndarray):
+            label = self.labels[chromatogram_id].astype(float)
+        else:
+            label = np.zeros(chromatogram.shape[1])
 
         if self.transform:
             chromatogram, label = self.transform((chromatogram, label))
