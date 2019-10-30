@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 import os
 import pandas as pd
+import scipy.ndimage
 import sys
 import time
 import torch
@@ -10,8 +11,11 @@ from torch.utils.data import DataLoader
 
 sys.path.insert(0, '../datasets')
 sys.path.insert(0, '../models')
+sys.path.insert(0, '../train')
 
 from chromatograms_dataset import ChromatogramsDataset
+from collate_fns import PadChromatogramsFor1DCNN
+from transforms import ToTensor
 
 def create_output_array(
     dataset,
@@ -30,7 +34,11 @@ def create_output_array(
 
         return output_array
         
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    dataloader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        collate_fn=PadChromatogramsFor1DCNN())
 
     for batch in dataloader:
         chromatograms = torch.from_numpy(
@@ -45,33 +53,33 @@ def create_output_array(
                 (output_array, output.detach().to('cpu').numpy()))
 
     if mode == 'semisupervised':
-        largest_idxs = np.argmax(output_array, axis=1)
         output_array_labels = np.zeros((output_array.shape))
+
+        binarized_output_array = np.where(output_array >= threshold, 1, 0)
         
         for i in range(len(dataset)):
             if 'Decoy' in dataset.chromatograms.iloc[i, 1]:
                 break
             
-            output = output_array[i, :]
+            output = output_array[i]
+            binarized_output = binarized_output_array[i]
 
-            largest_idx = largest_idxs[i]
+            regions_of_interest = scipy.ndimage.find_objects(
+                scipy.ndimage.label(binarized_output)[0])
 
-            if output[largest_idx] < threshold:
+            if not regions_of_interest:
                 continue
 
-            start_idx, end_idx = largest_idx, largest_idx
+            scores = [np.sum(output[r]) for r in regions_of_interest]
+            best_region_idx = np.argmax(scores)
+            best_region = regions_of_interest[best_region_idx][0]
 
-            while output[start_idx - 1] >= threshold:
-                start_idx-= 1
-            
-            while output[end_idx + 1] >= threshold:
-                end_idx+= 1
+            start_idx, end_idx = best_region.start, best_region.stop
 
-            if end_idx - start_idx <= 2 or end_idx - start_idx >= 60:
+            if end_idx - start_idx < 2 or end_idx - start_idx >= 60:
                 continue
 
-            start_idx-= 1
-            end_idx+= 2
+            end_idx+= 1
 
             output_array_labels[i, start_idx:end_idx] = np.ones(
                 (1, end_idx - start_idx))
@@ -176,30 +184,35 @@ def create_results_file(
             ]
         ]
 
-    largest_idxs = np.argmax(output_array, axis=1)
+    binarized_output_array = np.where(output_array >= threshold, 1, 0)
 
     for i in range(len(chromatograms)):
         print(i)
 
         row = chromatograms.iloc[i]
 
-        output = output_array[i, :]
-
-        largest_idx = largest_idxs[i]
+        output = output_array[i]
+        binarized_output = binarized_output_array[i]
 
         left_width, right_width = None, None
 
-        if output[largest_idx] >= threshold:
-            start_idx, end_idx = largest_idx, largest_idx
+        score = 0.0
 
-            while output[start_idx - 1] >= threshold:
-                start_idx-= 1
-            
-            while output[end_idx + 1] >= threshold:
-                end_idx+= 1
+        regions_of_interest = scipy.ndimage.find_objects(
+            scipy.ndimage.label(binarized_output)[0])
 
-            if end_idx - start_idx >= 2 or end_idx - start_idx <= 60:
+        if regions_of_interest:
+            scores = [np.sum(output[r]) for r in regions_of_interest]
+            best_region_idx = np.argmax(scores)
+            best_region = regions_of_interest[best_region_idx][0]
+
+            start_idx, end_idx = best_region.start, best_region.stop
+
+            if end_idx - start_idx >= 2 or end_idx - start_idx < 60:
                 left_width, right_width = start_idx, end_idx
+
+                score = np.divide(
+                    np.sum(output[best_region]), output[best_region].shape[0])
 
         model_bounding_boxes.append([
                 row['ID'],
@@ -209,7 +222,7 @@ def create_results_file(
                 left_width,
                 right_width,
                 row['OSW Score'],
-                str(output[largest_idx]),
+                str(score),
                 row['Lib RT']])
 
     model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
@@ -308,7 +321,7 @@ def create_semisupervised_results_file(
 
         row = chromatograms.iloc[i]
 
-        output = output_array[i, :]
+        output = output_array[i]
 
         if max(output) < threshold and 'Decoy' not in row['Filename']:
             continue
@@ -316,12 +329,12 @@ def create_semisupervised_results_file(
         largest_idx = np.argmax(output)
 
         if output[largest_idx] == 1:
-            start_idx, end_idx = largest_idx, largest_idx
+            min_idx, max_idx = 0, len(output) - 2
 
-            while output[start_idx - 1] == 1:
+            while start_idx > min_idx and output[start_idx - 1] == 1:
                 start_idx-= 1
             
-            while output[end_idx + 1] == 1:
+            while end_idx < max_idx and output[end_idx + 1] == 1:
                 end_idx+= 1
 
             left_width = start_idx
@@ -353,6 +366,8 @@ if __name__ == "__main__":
     parser.add_argument(
         '-data_dir', '--data_dir', type=str, default='OpenSWATHAutoAnnotated')
     parser.add_argument(
+        '-extra_dir', '--extra_dir', type=str, default=None)
+    parser.add_argument(
         '-chromatograms_csv',
         '--chromatograms_csv',
         type=str,
@@ -361,7 +376,7 @@ if __name__ == "__main__":
         '-labels_npy',
         '--labels_npy',
         type=str,
-        default='osw_point_labels.npy')
+        default=None)
     parser.add_argument(
         '-model_pth',
         '--model_pth',
@@ -395,7 +410,9 @@ if __name__ == "__main__":
     dataset = ChromatogramsDataset(
         args.data_dir,
         args.chromatograms_csv,
-        args.labels_npy)
+        labels=args.labels_npy,
+        extra_path=args.extra_dir,
+        transform=ToTensor())
 
     model = torch.load(args.model_pth, map_location=args.device)
     

@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
+import scipy.ndimage
 import sys
 import torch
 
@@ -65,16 +66,21 @@ def plot_whole_chromatogram(
                 plt.axvline(max_idx, color='r')
                 plt.axvline(max_idx + width, color='r')
             elif mode == 'point':
-                start_idx, end_idx = max_idx, max_idx
+                binarized_labels = np.where(labels >= threshold, 1, 0)
 
-                while labels[start_idx - 1] >= threshold:
-                    start_idx-= 1
-                
-                while labels[end_idx + 1] >= threshold:
-                    end_idx+= 1
+                regions_of_interest = scipy.ndimage.find_objects(
+                    scipy.ndimage.label(binarized_labels)[0])
 
-                plt.axvline(start_idx, color='r')
-                plt.axvline(end_idx, color='r')
+                if regions_of_interest:
+                    scores = [np.sum(labels[r]) for r in regions_of_interest]
+                    best_region_idx = np.argmax(scores)
+                    best_region = regions_of_interest[best_region_idx][0]
+
+                    start_idx, end_idx = best_region.start, best_region.stop
+
+                    if end_idx - start_idx >= 2 or end_idx - start_idx < 60:
+                        plt.axvline(start_idx, color='r')
+                        plt.axvline(end_idx, color='r')
 
     if bb_start and bb_end:
         plt.axvline(bb_start, color='b')
