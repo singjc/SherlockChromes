@@ -7,7 +7,10 @@ sys.path.insert(0, '../models')
 
 from custom_layers_and_blocks import AttendedDepthSeparableConv1d
 from modelzoo1d.depth_separable_conv_1d import DepthSeparableConv1d
-from modelzoo1d.time_series_transformer import TimeSeriesTransformerBlock
+from modelzoo1d.time_series_transformer import (
+    TimeSeriesTransformerBlock,
+    DynamicTimeSeriesTransformerBlock
+)
 
 class AtrousChannelwiseEncoderDecoder(nn.Module):
     def __init__(
@@ -598,7 +601,7 @@ class AtrousChannelwiseEncoderPyramidalDecoder(nn.Module):
 
         pyramid_out = self.pyramid[0](out)
 
-        for layer in self.pyramid[:-1]:
+        for layer in self.pyramid[1:]:
             pyramid_out = torch.cat([pyramid_out, layer(out)], dim=1)
 
         pyramid_out = self.pyramid_compressor(pyramid_out)
@@ -627,6 +630,7 @@ class TimeSeriesTransformer(nn.Module):
         super(TimeSeriesTransformer, self).__init__()
         self.init_encoder = nn.Conv1d(in_channels, transformer_channels, 1)
 
+        self.positions = torch.arange(seq_length)
         self.pos_emb = nn.Embedding(seq_length, transformer_channels)
 
         # The sequence of transformer blocks that does all the 
@@ -659,9 +663,67 @@ class TimeSeriesTransformer(nn.Module):
         b, c, l = x.size()
 
         # generate position embeddings
-        positions = torch.arange(l)
         positions = self.pos_emb(
-            positions)[None, :, :].expand(
+            self.positions)[None, :, :].expand(
+                b, l, c).transpose(1, 2).contiguous()
+
+        x = x + positions
+        x = self.tblocks(x)
+
+        x = self.toprobs(x)
+
+        return x
+
+class DynamicTimeSeriesTransformer(nn.Module):
+    def __init__(
+        self,
+        in_channels=6,
+        transformer_channels=32,
+        heads=8,
+        depth_multiplier=4,
+        dropout=0.0,
+        seq_length=175,
+        depth=6,
+        kernel_sizes=[3, 15]):
+        super(DynamicTimeSeriesTransformer, self).__init__()
+        self.init_encoder = nn.Conv1d(in_channels, transformer_channels, 1)
+
+        self.positions = torch.arange(seq_length)
+        self.pos_emb = nn.Embedding(seq_length, transformer_channels)
+
+        # The sequence of transformer blocks that does all the 
+        # heavy lifting
+        tblocks = []
+        for i in range(depth):
+            tblocks.append(DynamicTimeSeriesTransformerBlock(
+                c=transformer_channels,
+                heads=heads,
+                depth_multiplier=depth_multiplier,
+                dropout=dropout,
+                kernel_sizes=kernel_sizes
+            ))
+        self.tblocks = nn.Sequential(*tblocks)
+
+        # Maps the final output sequence to class logits
+        self.toprobs = nn.Sequential(
+            DepthSeparableConv1d(transformer_channels, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        """
+        :param x: A (b, t) tensor of integer values representing 
+                  words (in some predetermined vocabulary).
+        :return: A (b, c) tensor of log-probabilities over the 
+                 classes (where c is the nr. of classes).
+        """
+        # generate token embeddings
+        x = self.init_encoder(x)
+        b, c, l = x.size()
+
+        # generate position embeddings
+        positions = self.pos_emb(
+            self.positions)[None, :, :].expand(
                 b, l, c).transpose(1, 2).contiguous()
 
         x = x + positions
