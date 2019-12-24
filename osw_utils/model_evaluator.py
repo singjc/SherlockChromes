@@ -13,7 +13,7 @@ sys.path.insert(0, '../datasets')
 sys.path.insert(0, '../models')
 sys.path.insert(0, '../train')
 
-from chromatograms_dataset import ChromatogramsDataset
+from chromatograms_dataset import TarChromatogramsDataset
 from collate_fns import PadChromatogramsFor1DCNN
 from transforms import ToTensor
 
@@ -25,9 +25,8 @@ def create_output_array(
     load_npy=False,
     npy_dir='.',
     npy_name='output_array',
-    mode='inference',
     threshold=0.5):
-    output_array = None
+    output_array = []
 
     if load_npy:
         output_array = np.load(os.path.join(npy_dir, npy_name + '.npy'))
@@ -46,45 +45,12 @@ def create_output_array(
 
         output = model(chromatograms)
 
-        if type(output_array) == type(None):
-            output_array = output.detach().to('cpu').numpy()
-        else:
-            output_array = np.vstack(
-                (output_array, output.detach().to('cpu').numpy()))
+        output_array.append(output.detach().to('cpu').numpy())
 
-    if mode == 'semisupervised':
-        output_array_labels = np.zeros((output_array.shape))
+    output_array = np.vstack(output_array)
 
-        binarized_output_array = np.where(output_array >= threshold, 1, 0)
-        
-        for i in range(len(dataset)):
-            if 'Decoy' in dataset.chromatograms.iloc[i, 1]:
-                break
-            
-            output = output_array[i]
-            binarized_output = binarized_output_array[i]
-
-            regions_of_interest = scipy.ndimage.find_objects(
-                scipy.ndimage.label(binarized_output)[0])
-
-            if not regions_of_interest:
-                continue
-
-            scores = [np.sum(output[r]) for r in regions_of_interest]
-            best_region_idx = np.argmax(scores)
-            best_region = regions_of_interest[best_region_idx][0]
-
-            start_idx, end_idx = best_region.start, best_region.stop
-
-            if end_idx - start_idx < 2 or end_idx - start_idx >= 60:
-                continue
-
-            end_idx+= 1
-
-            output_array_labels[i, start_idx:end_idx] = np.ones(
-                (1, end_idx - start_idx))
-
-        output_array = output_array_labels
+    if len(output_array.shape) > 2:
+        output_array = output_array.reshape(output_array.shape[0], -1)
 
     np.save(os.path.join(npy_dir, npy_name), output_array)
 
@@ -115,7 +81,8 @@ def create_rpn_results_file(
                 'Pred BBox End',
                 'OSW Score',
                 'Model Score',
-                'Lib RT'
+                'Lib RT',
+                'Window Size'
             ]
         ]
 
@@ -145,7 +112,8 @@ def create_rpn_results_file(
                     int(round(right_width)),
                     row['OSW Score'],
                     score,
-                    row['Lib RT']])
+                    row['Lib RT'],
+                    row['Window Size']])
             
             output_idx+= 1
             idx+= 1
@@ -163,6 +131,7 @@ def create_results_file(
     data_dir='OpenSWATHAutoAnnotated',
     chromatograms_csv='chromatograms.csv',
     out_dir='.',
+    npy_name='output_array',
     results_csv='evaluation_results.csv'):
     chromatograms = pd.read_csv(os.path.join(
         data_dir, chromatograms_csv))
@@ -180,10 +149,12 @@ def create_results_file(
                 'Pred BBox End',
                 'OSW Score',
                 'Model Score',
-                'Lib RT'
+                'Lib RT',
+                'Window Size'
             ]
         ]
 
+    label_output_array = np.zeros((output_array.shape))
     binarized_output_array = np.where(output_array >= threshold, 1, 0)
 
     for i in range(len(chromatograms)):
@@ -202,17 +173,26 @@ def create_results_file(
             scipy.ndimage.label(binarized_output)[0])
 
         if regions_of_interest:
-            scores = [np.sum(output[r]) for r in regions_of_interest]
+            scores = [(np.mean(output[r]) + np.max(output[r])) / 2 
+                for r 
+                in regions_of_interest]
             best_region_idx = np.argmax(scores)
             best_region = regions_of_interest[best_region_idx][0]
 
             start_idx, end_idx = best_region.start, best_region.stop
 
-            if end_idx - start_idx >= 2 or end_idx - start_idx < 60:
+            if end_idx - start_idx >= 2 and end_idx - start_idx < 60:
                 left_width, right_width = start_idx, end_idx
 
-                score = np.divide(
-                    np.sum(output[best_region]), output[best_region].shape[0])
+                score = scores[best_region_idx]
+                
+                if 'DECOY_' not in row['Filename'] and score >= 0.5:
+                    if end_idx < output_array.shape[1]:
+                        end_idx+= 1
+
+                    label_output_array[i, start_idx:end_idx] = np.ones(
+                        (end_idx - start_idx)
+                    )
 
         model_bounding_boxes.append([
                 row['ID'],
@@ -223,7 +203,10 @@ def create_results_file(
                 right_width,
                 row['OSW Score'],
                 str(score),
-                row['Lib RT']])
+                row['Lib RT'],
+                row['Window Size']])
+
+    np.save(os.path.join(out_dir, 'label_' + npy_name), label_output_array)
 
     model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
 
@@ -255,7 +238,8 @@ def create_stats_eval_file(
                 'Pred BBox End',
                 'OSW Score',
                 'Model Score',
-                'Lib RT'
+                'Lib RT',
+                'Window Size'
             ]
         ]
 
@@ -280,77 +264,8 @@ def create_stats_eval_file(
                 right_width,
                 row['OSW Score'],
                 str(output[largest_idx]),
-                row['Lib RT']])
-
-    model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
-
-    model_bounding_boxes.to_csv(
-        os.path.join(out_dir, results_csv),
-        index=False,
-        header=False)
-
-def create_semisupervised_results_file(
-    output_array,
-    data_dir='OpenSWATHAutoAnnotated',
-    chromatograms_csv='chromatograms.csv',
-    out_dir='.',
-    results_csv='semisupervised_chromatograms.csv'):
-
-    chromatograms = pd.read_csv(os.path.join(
-        data_dir, chromatograms_csv))
-
-    assert len(chromatograms) == output_array.shape[0]
-
-    model_bounding_boxes = \
-        [
-            [
-                'ID',
-                'Filename',
-                'Label BBox Start',
-                'Label BBox End',
-                'Pred BBox Start',
-                'Pred BBox End',
-                'OSW Score',
-                'Model Score',
-                'Lib RT'
-            ]
-        ]
-
-    for i in range(len(chromatograms)):
-        print(i)
-
-        row = chromatograms.iloc[i]
-
-        output = output_array[i]
-
-        if max(output) < threshold and 'Decoy' not in row['Filename']:
-            continue
-
-        largest_idx = np.argmax(output)
-
-        if output[largest_idx] == 1:
-            min_idx, max_idx = 0, len(output) - 2
-
-            while start_idx > min_idx and output[start_idx - 1] == 1:
-                start_idx-= 1
-            
-            while end_idx < max_idx and output[end_idx + 1] == 1:
-                end_idx+= 1
-
-            left_width = start_idx
-            right_width = end_idx
-        else:
-            left_width, right_width = None, None
-
-        model_bounding_boxes.append([
-                row['ID'],
-                row['Filename'],
-                row['BB Start'],
-                row['BB End'],
-                left_width,
-                right_width,
-                row['OSW Score'],
-                row['Lib RT']])
+                row['Lib RT'],
+                row['Window Size']])
 
     model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
 
@@ -364,24 +279,26 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-data_dir', '--data_dir', type=str, default='OpenSWATHAutoAnnotated')
+        '-data_dir', '--data_dir', type=str, default='.')
+    parser.add_argument(
+        '-dataset', '--dataset', type=str, default='hroest_Strep_600s_175pts.tar')
     parser.add_argument(
         '-extra_dir', '--extra_dir', type=str, default=None)
     parser.add_argument(
         '-chromatograms_csv',
         '--chromatograms_csv',
         type=str,
-        default='chromatograms.csv')
+        default='chromatograms_scored.csv')
     parser.add_argument(
-        '-labels_npy',
-        '--labels_npy',
+        '-tar_shape',
+        '--tar_shape',
         type=str,
-        default=None)
+        default='6,175')
     parser.add_argument(
         '-model_pth',
         '--model_pth',
         type=str,
-        default='custom_3_layer_21_kernel_osw_points_wrt_model_150.pth')
+        default='/home/xuleon1/projects/def-hroest/xuleon1/SherlockChromes/data/output/round_2_dacat_base_big_decoder_mv_5xlr/dacat_model_41_loss=0.004588034.pth')
     parser.add_argument(
         '-out_dir', '--out_dir', type=str, default='evaluation_results')
     parser.add_argument(
@@ -403,16 +320,30 @@ if __name__ == "__main__":
         '-npy_name', '--npy_name', type=str, default='output_array')
     parser.add_argument('-mode', '--mode', type=str, default='inference')
     parser.add_argument('-num_points', '--num_points', type=int, default=3)
+    parser.add_argument(
+        '-preload_path',
+        '--preload_path',
+        type=str,
+        default='hroest_Strep_600s_175pts.npy')
     args = parser.parse_args()
+
+    args.tar_shape = [int(x) for x in args.tar_shape.split(',')]
 
     print(args)
 
-    dataset = ChromatogramsDataset(
+    preload = args.load_npy == False
+
+    dataset = TarChromatogramsDataset(
         args.data_dir,
         args.chromatograms_csv,
-        labels=args.labels_npy,
-        extra_path=args.extra_dir,
+        args.dataset,
+        tar_shape=args.tar_shape,
+        labels=None,
+        preload=preload,
+        preload_path=args.preload_path,
         transform=ToTensor())
+
+    print('Data loaded in {0:0.1f} seconds'.format(time.time() - start))
 
     model = torch.load(args.model_pth, map_location=args.device)
     
@@ -442,7 +373,6 @@ if __name__ == "__main__":
             args.load_npy,
             args.npy_dir,
             args.npy_name,
-            args.mode,
             args.threshold)
 
         if args.mode == 'inference':
@@ -452,18 +382,12 @@ if __name__ == "__main__":
                 args.data_dir,
                 args.chromatograms_csv,
                 args.out_dir,
+                args.npy_name,
                 args.results_csv)
         elif args.mode == 'stats':
             create_stats_eval_file(
                 output_array,
                 args.num_points,
-                args.data_dir,
-                args.chromatograms_csv,
-                args.out_dir,
-                args.results_csv)
-        elif args.mode == 'semisupervised':
-            create_semisupervised_results_file(
-                output_array,
                 args.data_dir,
                 args.chromatograms_csv,
                 args.out_dir,

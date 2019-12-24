@@ -4,23 +4,28 @@ import sqlite3
 def get_precursor_id_from_mod_seq_and_charge(
     con,
     cursor,
-    target):
+    mod_seq,
+    charge):
     query = \
-        """SELECT ID FROM PRECURSOR 
-        WHERE TRAML_ID LIKE '%^_{0}' ESCAPE '^'""".format(target)
+        """SELECT precursor.ID 
+        FROM PRECURSOR precursor LEFT JOIN PRECURSOR_PEPTIDE_MAPPING mapping
+        ON precursor.ID = mapping.PRECURSOR_ID LEFT JOIN PEPTIDE peptide
+        ON mapping.PEPTIDE_ID = peptide.ID
+        WHERE peptide.MODIFIED_SEQUENCE = '{0}'
+        AND precursor.CHARGE = {1}""".format(mod_seq, charge)
     res = cursor.execute(query)
     tmp = res.fetchall()
 
-    assert len(tmp) <= 2
+    assert len(tmp) <= 1
 
     return tmp
 
 def get_precursor_ids(infile, target_file, idx_file=None):
     if idx_file:
-        target_idxs = []
+        target_idxs = {}
         with open(idx_file, 'r') as idxs:
             for idx in idxs:
-                target_idxs.append(str(int(float(idx))))
+                target_idxs[str(int(float(idx)))] = True
 
     con = sqlite3.connect(infile)
     cursor = con.cursor()
@@ -37,23 +42,20 @@ def get_precursor_ids(infile, target_file, idx_file=None):
             if idx_file:
                 if idx not in target_idxs:
                     continue
-
-            target_sequence, charge = target_filename.split(
-                '/')[-1].split('_')[-2:]
-
-            target = '/'.join([target_sequence, charge])
             
-            if target in processed:
+            if target_filename in processed:
                 continue
 
-            target_prec_ids = get_precursor_id_from_mod_seq_and_charge(
-                con, cursor, target)
+            mod_seq, charge = target_filename.split('_')[-2:]
 
-            for prec_id in target_prec_ids:
-                prec_id = prec_id[0]
+            target_prec_id = get_precursor_id_from_mod_seq_and_charge(
+                con, cursor, mod_seq, charge)
+
+            if target_prec_id:
+                prec_id = target_prec_id[0][0]
                 prec_ids.append(prec_id)
 
-            processed[target] = True
+            processed[target_filename] = True
 
     con.close()
 

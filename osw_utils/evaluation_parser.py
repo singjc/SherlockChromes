@@ -36,7 +36,7 @@ def get_filenames_from_idx(chromatograms_filename, idx_filenames=[]):
             line = line.split(',')
             
             if line[0] in idxs:
-                filenames[line[1].split('/')[-1]] = True
+                filenames[line[1]] = True
 
     return filenames
 
@@ -45,10 +45,18 @@ def parse_model_evaluation_file(
     osw_threshold=2.1,
     mod_threshold=0.5,
     mod_min_pts=1,
-    train_chromatogram_filename=None,
+    train_chromatogram_filenames=[],
     exclusion_idx_filenames=[]):
-    excluded_filenames = get_filenames_from_idx(
-        train_chromatogram_filename, exclusion_idx_filenames)
+    excluded_filenames = {}
+
+    for i in range(len(train_chromatogram_filenames)):
+        excluded_filenames = {
+            **excluded_filenames,
+            **get_filenames_from_idx(
+                train_chromatogram_filenames[i],
+                exclusion_idx_filenames[i]
+            )
+        }
 
     mod_stats = {'tp': 0, 'fp': 0, 'tn': 0, 'fn': 0}
 
@@ -69,14 +77,15 @@ def parse_model_evaluation_file(
                     mod_end,
                     osw_score,
                     mod_score,
-                    exp_rt
+                    exp_rt,
+                    win_size
                 ) = line
 
                 if chromatogram_filename in excluded_filenames:
                     continue
 
-                osw_start = int(osw_start)
-                osw_end = int(osw_end)
+                osw_start = int(float(osw_start))
+                osw_end = int(float(osw_end))
 
                 if mod_start:
                     mod_start = int(mod_start)
@@ -189,6 +198,7 @@ def parse_amended_model_evaluation_file(
                     manual_start,
                     manual_end,
                     exp_rt,
+                    win_size,
                     manual_present
                 ) = line
 
@@ -198,8 +208,8 @@ def parse_amended_model_evaluation_file(
                 if chromatogram_filename not in included_filenames:
                     continue
 
-                osw_start = int(osw_start)
-                osw_end = int(osw_end)
+                osw_start = int(float(osw_start))
+                osw_end = int(float(osw_end))
 
                 if mod_start:
                     mod_start = int(mod_start)
@@ -365,8 +375,8 @@ def decoys_per_target_metric(
             if line[1] in excluded_filenames:
                 continue
 
-            osw_targets.append(float(line[-2]))
-            mod_targets.append(float(line[-1]))
+            osw_targets.append(float(line[6]))
+            mod_targets.append(float(line[7]))
 
     with open(decoy_filename, 'r') as decoy_file:
         next(decoy_file)
@@ -376,8 +386,8 @@ def decoys_per_target_metric(
             if line[1] in excluded_filenames:
                 continue
                 
-            osw_decoys.append(float(line[-2]))
-            mod_decoys.append(float(line[-1]))
+            osw_decoys.append(float(line[6]))
+            mod_decoys.append(float(line[7]))
     
     osw_targets = np.array(osw_targets)
     osw_decoys = np.array(osw_decoys)
