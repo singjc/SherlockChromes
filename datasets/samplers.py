@@ -105,8 +105,8 @@ class GroupBySequenceSampler(object):
             seq = data.chromatograms.iloc[i, 1].split('_')[-2]
 
             if self.naked:
-                mod_start = seq.rfind('[')
-                mod_end = seq.find(']')
+                mod_start = seq.rfind('(')
+                mod_end = seq.find(')')
 
                 if mod_start != -1 and mod_end != -1:
                     seq = seq[:mod_start] + seq[mod_end + 1:]

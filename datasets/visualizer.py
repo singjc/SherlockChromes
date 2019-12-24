@@ -8,7 +8,7 @@ import torch
 
 from sklearn.metrics import average_precision_score, confusion_matrix, precision_recall_curve
 
-from chromatograms_dataset import ChromatogramsDataset, ChromatogramSubsectionsDataset, ChromatogramSubsectionsInMemoryDataset
+from chromatograms_dataset import TarChromatogramsDataset
 
 sys.path.insert(0, '../models')
 
@@ -72,13 +72,15 @@ def plot_whole_chromatogram(
                     scipy.ndimage.label(binarized_labels)[0])
 
                 if regions_of_interest:
-                    scores = [np.sum(labels[r]) for r in regions_of_interest]
+                    scores = [(np.mean(labels[r]) + np.max(labels[r])) / 2 
+                        for r 
+                        in regions_of_interest]
                     best_region_idx = np.argmax(scores)
                     best_region = regions_of_interest[best_region_idx][0]
 
                     start_idx, end_idx = best_region.start, best_region.stop
 
-                    if end_idx - start_idx >= 2 or end_idx - start_idx < 60:
+                    if end_idx - start_idx >= 2 and end_idx - start_idx < 60:
                         plt.axvline(start_idx, color='r')
                         plt.axvline(end_idx, color='r')
 
@@ -405,6 +407,9 @@ def test_model(dataset, model, mode='whole'):
 
             output = output.numpy()
 
+            if len(output.shape) > 1:
+                output = output.reshape(output.shape[-1])
+
             if mode != 'whole':
                 plot_chromatogram_subsection(chromatogram, output)
             else:
@@ -528,10 +533,15 @@ if __name__ == "__main__":
     chromatograms_filename = input('Dataset chromatograms csv: ')
     # e.g. osw_point_labels.npy
     labels_filename = input('Dataset labels npy: ')
-    dataset = ChromatogramsDataset(
+    # e.g. hroest_Strep_600s_175pts.tar
+    tar = input('Tar filename: ')
+    tar_shape = input('Tar shape: ').split(',')
+    dataset = TarChromatogramsDataset(
         root_dir,
         chromatograms_filename,
-        labels_filename)
+        tar,
+        tar_shape=tar_shape,
+        labels=labels_filename)
 
     # e.g. ../../../data/output/custom_3_layer_21_kernel_osw_points_wrt/custom_3_layer_21_kernel_osw_points_wrt_model_150.pth
     model_filename = input('Model pth: ')

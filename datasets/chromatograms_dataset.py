@@ -199,6 +199,7 @@ class TarChromatogramsDataset(Dataset):
         external_extra_paths=[],
         external_extra_features=[],
         preload=False,
+        preload_path='',
         transform=None):
         """
         Args:
@@ -208,7 +209,7 @@ class TarChromatogramsDataset(Dataset):
             tar (string): Filename of the tar file.
             tar_shape (tuple of int): Shape of individual chromatogram
                 (num_traces, total_len).
-            labels (string): Filename of labels file.
+            labels (string): Filename of labels npy file.
             internal_extra (bool): Whether tar contains extra traces or not.
             internal_extra_shape (tuple of int): Shape of individual extra
                 arrays (num_extra_traces, total_len).
@@ -219,6 +220,7 @@ class TarChromatogramsDataset(Dataset):
             external_extra_features (list of list of int): List of list of
                 indices in extra array.
             preload (bool): To load entire dataset into memory or not.
+            preload_path (str): Path to entire dataset npy file.
             transform (callable, optional): Optional transform to be applied
                 on a sample (e.g. padding).
         """
@@ -226,9 +228,9 @@ class TarChromatogramsDataset(Dataset):
         self.chromatograms = pd.read_csv(os.path.join(self.root_dir,
                                          chromatograms))
         self.tar = tarfile.open(os.path.join(self.root_dir, tar), 'r')
-        self.tar_shape = tar_shape
+        self.tar_shape = tuple(tar_shape)
         self.internal_extra = internal_extra
-        self.internal_extra_shape = internal_extra_shape
+        self.internal_extra_shape = tuple(internal_extra_shape)
         self.internal_extra_features = internal_extra_features
         self.external_extra_paths = external_extra_paths
         self.external_extra_features = external_extra_features
@@ -247,11 +249,21 @@ class TarChromatogramsDataset(Dataset):
             ).reshape((-1, self.tar_shape[1]))
 
         if self.preload:
-            npys = []
-            for i in range(len(self.chromatograms)):
-                npys.append(self.load_chromatogram(i))
-            
-            self.chromatogram_npy = np.stack(npys)
+            if os.path.exists(preload_path):
+                self.chromatogram_npy = np.load(preload_path)
+            else:
+                channels = self.tar_shape[0] + len(
+                    self.internal_extra_features)
+                for i in range(len(self.external_extra_paths)):
+                    channels+= len(self.external_extra_features[i])
+
+                self.chromatogram_npy = np.zeros(
+                    (len(self.chromatograms), channels, self.tar_shape[1]))
+
+                for i in range(len(self.chromatograms)):
+                    self.chromatogram_npy[i] = self.load_chromatogram(i)
+                
+                np.save(preload_path, self.chromatogram_npy)
     
     def __len__(self):
         return len(self.chromatograms)
@@ -302,7 +314,7 @@ class TarChromatogramsDataset(Dataset):
                             self.external_extra_paths[i],
                             f'{name}_Extra.npy'
                         )
-                    ).astype(float)
+                    ).astype(float)[self.external_extra_features[i]]
                 )
 
         dataset = np.vstack(dataset)
