@@ -172,7 +172,7 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         # dot now has channel-wise self-attention probabilities
 
         # Apply the attention to the value
-        out = torch.matmul(value, dot).view(b, h * v_c, l)
+        out = torch.matmul(value, dot).view(q_b, h * v_c, l)
 
         # Unify heads and dynamic output
         return self.unify_heads(out)
@@ -228,8 +228,13 @@ class DDSTSTransformer(nn.Module):
         dropout=0.0,
         depth=6,
         kernel_sizes=[3, 15],
-        use_template=False):
+        use_template=False,
+        cat_template=False):
         super(DDSTSTransformer, self).__init__()
+        self.use_template = use_template
+
+        self.cat_template = self.use_template and cat_template
+
         self.init_encoder = nn.Conv1d(
             in_channels,
             transformer_channels,
@@ -264,6 +269,9 @@ class DDSTSTransformer(nn.Module):
                 )
             )
 
+        if self.cat_template:
+            t_out_channels+= 1
+        elif self.use_template:
             t_out_channels = 1
 
         # Maps the final output sequence to class probabilities
@@ -285,7 +293,12 @@ class DDSTSTransformer(nn.Module):
         if self.use_template:
             template = self.init_encoder(template)
             template = self.t_blocks(template)
-            x = self.template_attn(x, template, template_label)
+            x_weighted = self.template_attn(x, template, template_label)
+
+            if self.cat_template:
+                x = torch.cat([x, x_weighted], dim=1)
+            else:
+                x = x_weighted
 
         x = self.to_probs(x)
 
