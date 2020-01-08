@@ -92,7 +92,8 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
 
         # This unifies the outputs of the different heads and dynamic
         # convolutions into a single c-vector
-        self.unify_heads = nn.Conv1d(heads * c, c, 1, bias=False)
+        if self.heads > 1:
+            self.unify_heads = nn.Conv1d(heads * c, c, 1, bias=False)
 
     def forward(self, x):
         b, c, l = x.size()
@@ -121,7 +122,10 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
         out = torch.bmm(values, dot).view(b, h * c, l)
 
         # Unify heads and dynamic output
-        return self.unify_heads(out)
+        if self.heads > 1:
+            out = self.unify_heads(out)
+
+        return out
 
 class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
     def __init__(self, qk_c, v_c, heads=8, kernel_sizes=[3, 15]):
@@ -145,7 +149,8 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
 
         # This unifies the outputs of the different heads and dynamic
         # convolutions into a single v_c-vector
-        self.unify_heads = nn.Conv1d(heads * v_c, v_c, 1, bias=False)
+        if self.heads > 1:
+            self.unify_heads = nn.Conv1d(heads * v_c, v_c, 1, bias=False)
 
     def forward(self, queries, key, value):
         q_b, qk_c, l = queries.size()
@@ -175,7 +180,10 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         out = torch.matmul(value, dot).view(q_b, h * v_c, l)
 
         # Unify heads and dynamic output
-        return self.unify_heads(out)
+        if self.heads > 1:
+            out = self.unify_heads(out)
+
+        return out
 
 class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
     def __init__(
