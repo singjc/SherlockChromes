@@ -190,8 +190,7 @@ def create_results_file(
             if (end_idx - start_idx >= 2 and
                     end_idx - start_idx < 60 and
                     start_idx < max_idx < end_idx and
-                    'DECOY_' not in row['Filename'] and
-                    score >= 0.5):
+                    'DECOY_' not in row['Filename']):
                     label_output_array[i, start_idx:end_idx] = np.ones(
                         (end_idx - start_idx)
                     )
