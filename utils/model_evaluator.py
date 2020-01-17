@@ -181,15 +181,17 @@ def create_results_file(
 
             start_idx, end_idx = best_region.start, best_region.stop
 
-            if end_idx - start_idx >= 2 and end_idx - start_idx < 60:
-                left_width, right_width = start_idx, end_idx
+            left_width, right_width = start_idx, end_idx
 
-                score = scores[best_region_idx]
-                
-                if 'DECOY_' not in row['Filename'] and score >= 0.5:
-                    if end_idx < output_array.shape[1]:
-                        end_idx+= 1
+            score = scores[best_region_idx]
 
+            max_idx = np.argmax(output[best_region])
+
+            if (end_idx - start_idx >= 2 and
+                    end_idx - start_idx < 60 and
+                    start_idx < max_idx < end_idx and
+                    'DECOY_' not in row['Filename'] and
+                    score >= 0.5):
                     label_output_array[i, start_idx:end_idx] = np.ones(
                         (end_idx - start_idx)
                     )

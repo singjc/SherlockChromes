@@ -80,9 +80,8 @@ def plot_whole_chromatogram(
 
                     start_idx, end_idx = best_region.start, best_region.stop
 
-                    if end_idx - start_idx >= 2 and end_idx - start_idx < 60:
-                        plt.axvline(start_idx, color='r')
-                        plt.axvline(end_idx, color='r')
+                    plt.axvline(start_idx, color='r')
+                    plt.axvline(end_idx, color='r')
 
     if bb_start and bb_end:
         plt.axvline(bb_start, color='b')
