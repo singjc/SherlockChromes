@@ -90,8 +90,8 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
             kernel_sizes=kernel_sizes
         )
 
-        # This unifies the outputs of the different heads and dynamic
-        # convolutions into a single c-vector
+        # This unifies the outputs of the different heads into a single 
+        # c-vector
         if self.heads > 1:
             self.unify_heads = nn.Conv1d(heads * c, c, 1, bias=False)
 
@@ -121,7 +121,7 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
         # Apply the self attention to the values
         out = torch.bmm(values, dot).view(b, h * c, l)
 
-        # Unify heads and dynamic output
+        # Unify heads
         if self.heads > 1:
             out = self.unify_heads(out)
 
@@ -147,8 +147,8 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
             kernel_sizes=kernel_sizes
         )
 
-        # This unifies the outputs of the different heads and dynamic
-        # convolutions into a single v_c-vector
+        # This unifies the outputs of the different heads into a single 
+        # v_c-vector
         if self.heads > 1:
             self.unify_heads = nn.Conv1d(heads * v_c, v_c, 1, bias=False)
 
@@ -179,7 +179,7 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         # Apply the attention to the value
         out = torch.matmul(value, dot).view(q_b, h * v_c, l)
 
-        # Unify heads and dynamic output
+        # Unify heads
         if self.heads > 1:
             out = self.unify_heads(out)
 
@@ -206,7 +206,7 @@ class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
         self.norm2 = nn.InstanceNorm1d(c, affine=True)
 
         # 1D Convolutions instead of FC
-        self.projection = nn.Sequential(
+        self.feed_forward = nn.Sequential(
             nn.Conv1d(c, depth_multiplier * c, 1, bias=False),
             nn.ReLU(),
             nn.Conv1d(depth_multiplier * c, c, 1, bias=False))
@@ -214,15 +214,11 @@ class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
         self.dropout = nn.Dropout(dropout)
         
     def forward(self, x):
-        residual = x
-        x = self.norm1(x)
-        x = self.attention(x)
-        x = self.dropout(x) + residual
-        
-        residual = x
-        x = self.norm2(x)
-        x = self.projection(x)
-        x = self.dropout(x) + residual
+        attended = self.attention(x)
+        x = self.norm1(self.dropout(attended) + x)
+
+        fed_forward = self.feed_forward(x)
+        x = self.norm2(self.dropout(fed_forward) + x)
 
         return x
 
