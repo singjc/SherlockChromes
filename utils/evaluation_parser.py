@@ -78,7 +78,8 @@ def parse_model_evaluation_file(
                     osw_score,
                     mod_score,
                     exp_rt,
-                    win_size
+                    win_size,
+                    hq
                 ) = line
 
                 if chromatogram_filename in excluded_filenames:

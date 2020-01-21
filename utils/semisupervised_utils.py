@@ -15,11 +15,11 @@ def get_high_quality_training_labels(
     with open(target_csv, 'r') as csv:
         next(csv)
         for line in csv:
-            line = line.split(',')
-            idx, filename, score = line[0], line[1], line[7]
-            score = float(score)
+            line = line.rstrip('\r\n').split(',')
+            idx, filename, high_quality = line[0], line[1], line[10]
+            high_quality = high_quality == '1'
 
-            if idx in idxs and ('DECOY_' in filename or score >= 0.5):
+            if idx in idxs and ('DECOY_' in filename or high_quality):
                 new_idxs.append(int(idx))
 
     np.savetxt(new_train_idx_filename, np.array(new_idxs))

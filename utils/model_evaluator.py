@@ -150,7 +150,8 @@ def create_results_file(
                 'OSW Score',
                 'Model Score',
                 'Lib RT',
-                'Window Size'
+                'Window Size',
+                'High Quality'
             ]
         ]
 
@@ -169,6 +170,8 @@ def create_results_file(
 
         score = 0.0
 
+        high_quality = 0
+
         regions_of_interest = scipy.ndimage.find_objects(
             scipy.ndimage.label(binarized_output)[0])
 
@@ -185,7 +188,10 @@ def create_results_file(
 
             score = scores[best_region_idx]
 
-            max_idx = np.argmax(output[best_region])
+            # Find relative index of highest intensity value in region of
+            # interest and add to start index to get absolute index
+            max_idx = np.argmax(output[regions_of_interest[best_region_idx]])
+            max_idx+= start_idx
 
             if (end_idx - start_idx >= 2 and
                     end_idx - start_idx < 60 and
@@ -195,6 +201,8 @@ def create_results_file(
                         (end_idx - start_idx)
                     )
 
+                    high_quality = 1
+
         model_bounding_boxes.append([
                 row['ID'],
                 row['Filename'],
@@ -203,9 +211,10 @@ def create_results_file(
                 left_width,
                 right_width,
                 row['OSW Score'],
-                str(score),
+                score,
                 row['Lib RT'],
-                row['Window Size']])
+                row['Window Size'],
+                high_quality])
 
     np.save(os.path.join(out_dir, 'label_' + npy_name), label_output_array)
 
