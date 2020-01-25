@@ -277,26 +277,32 @@ def create_train_val_test_split_by_sequence(
 
     np.savetxt(
         os.path.join(out_dir, 'dl_train_idx.txt'),
-        np.array(dl_train_idx)
+        np.array(dl_train_idx),
+        fmt='%i'
     )
     np.savetxt(
         os.path.join(out_dir, 'dl_val_idx.txt'),
-        np.array(dl_val_idx)
+        np.array(dl_val_idx),
+        fmt='%i'
     )
     np.savetxt(
         os.path.join(out_dir, 'dl_test_idx.txt'),
-        np.array(dl_test_idx)
+        np.array(dl_test_idx),
+        fmt='%i'
     )
 
     np.savetxt(
         os.path.join(out_dir, 'trad_train_idx.txt'),
-        np.array(trad_train_idx)
+        np.array(trad_train_idx),
+        fmt='%i'
     )
     np.savetxt(
         os.path.join(out_dir, 'trad_val_idx.txt'),
-        np.array(trad_val_idx)
+        np.array(trad_val_idx),
+        fmt='%i'
     )
     np.savetxt(
         os.path.join(out_dir, 'trad_test_idx.txt'),
-        np.array(trad_test_idx)
+        np.array(trad_test_idx),
+        fmt='%i'
     )

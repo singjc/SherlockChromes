@@ -38,12 +38,21 @@ def get_data_loaders(
         if not os.path.isdir(outdir_path):
             os.mkdir(outdir_path)
 
-        np.savetxt(os.path.join(outdir_path, 'train_idx.txt'), np.array(
-            train_idx))
-        np.savetxt(os.path.join(outdir_path, 'val_idx.txt'), np.array(
-            val_idx))
-        np.savetxt(os.path.join(outdir_path, 'test_idx.txt'), np.array(
-            test_idx))
+        np.savetxt(
+            os.path.join(outdir_path, 'train_idx.txt'),
+            np.array(train_idx),
+            fmt='%i'
+        )
+        np.savetxt(
+            os.path.join(outdir_path, 'val_idx.txt'),
+            np.array(val_idx),
+            fmt='%i'
+        )
+        np.savetxt(
+            os.path.join(outdir_path, 'test_idx.txt'),
+            np.array(test_idx),
+            fmt='%i'
+        )
 
     train_set = Subset(data, train_idx)
     val_set = Subset(data, val_idx)

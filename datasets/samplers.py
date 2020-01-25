@@ -79,10 +79,15 @@ class LoadingSampler(object):
         self.test_idx_filename = os.path.join(
             kwargs['root_path'], kwargs['test_idx_filename'])
 
-    def __call__(self, data=None, test_batch_proportion=None):
-        train_idx = [int(i) for i in np.loadtxt(self.train_idx_filename)]
-        val_idx = [int(i) for i in np.loadtxt(self.val_idx_filename)]
-        test_idx = [int(i) for i in np.loadtxt(self.test_idx_filename)]
+    def __call__(self, data=None, test_batch_proportion=None, dt='float'):
+        if dt == 'float':
+            dt = np.float64
+        elif dt == 'int':
+            dt = np.int64
+            
+        train_idx = list(np.loadtxt(self.train_idx_filename, dtype=dt))
+        val_idx = list(np.loadtxt(self.val_idx_filename, dtype=dt))
+        test_idx = list(np.loadtxt(self.test_idx_filename, dtype=dt))
 
         if self.shuffle:
             random.shuffle(train_idx)
