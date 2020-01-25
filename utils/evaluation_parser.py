@@ -13,12 +13,9 @@ def overlaps(
     pred_max,
     target_min,
     target_max):
-    if ((pred_min <= target_min and target_min <= pred_max <= target_max) or
-        (pred_min <= target_min and pred_max >= target_max) or
-        (target_min <= pred_min <= target_max and pred_max <= target_max) or
-        (target_min <= pred_min <= target_max and pred_max >= target_max)):
-        return True
-    return False
+    if not pred_min or not pred_max or not target_min or not target_max:
+        return False
+    return max(pred_min, target_min) < min(pred_max, target_max)
 
 def get_filenames_from_idx(chromatograms_filename, idx_filenames=[]):
     idxs = {}
