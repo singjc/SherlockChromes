@@ -191,7 +191,7 @@ class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
         c,
         heads,
         depth_multiplier=4,
-        dropout=0.0,
+        dropout=0.1,
         kernel_sizes=[3, 15]):
         super().__init__()
 
@@ -227,9 +227,9 @@ class DDSTSTransformer(nn.Module):
         self,
         in_channels=6,
         transformer_channels=32,
-        heads=1,
+        heads=8,
         depth_multiplier=4,
-        dropout=0.0,
+        dropout=0.1,
         depth=6,
         kernel_sizes=[3, 15],
         use_template=False,
