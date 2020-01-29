@@ -4,7 +4,45 @@ import os
 import random
 import sqlite3
 
-from evaluation_parser import overlaps
+def overlaps(
+    pred_min,
+    pred_max,
+    target_min,
+    target_max,
+    threshold=0.7):
+    if not pred_min or not pred_max or not target_min or not target_max:
+        return False
+
+    overlap = min(pred_max, target_max) - max(pred_min, target_min)
+    percent_overlap = overlap / (target_max - target_min)
+
+    if percent_overlap >= threshold:
+        return True
+    return False
+
+def get_high_quality_training_labels(
+    target_csv,
+    og_train_idx_filename,
+    new_train_idx_filename):
+    idxs = {}
+    with open(og_train_idx_filename, 'r') as idx_file:
+        for line in idx_file:
+            line = line.rstrip('\r\n')
+            line = str(int(float(line)))
+            idxs[line] = True
+
+    new_idxs = []
+    with open(target_csv, 'r') as csv:
+        next(csv)
+        for line in csv:
+            line = line.rstrip('\r\n').split(',')
+            idx, filename, high_quality = line[0], line[1], line[10]
+            high_quality = high_quality == '1'
+
+            if idx in idxs and ('DECOY_' in filename or high_quality):
+                new_idxs.append(int(idx))
+
+    np.savetxt(new_train_idx_filename, np.array(new_idxs))
 
 def parse_manual_annotation_file(manual_annotation_filename, rt_gap=3.4):
     filename_to_annotation = {}
@@ -38,11 +76,12 @@ def parse_manual_annotation_file(manual_annotation_filename, rt_gap=3.4):
 
     return filename_to_annotation
 
-def get_feature_data_table(osw_filename, decoy=0):
+def get_feature_data_table(osw_filename, decoy=0, spectral_info=True):
     con = sqlite3.connect(osw_filename)
     cursor = con.cursor()
 
-    query = \
+    if spectral_info:
+        query = \
         """SELECT r.FILENAME, p2.MODIFIED_SEQUENCE, p1.CHARGE, f.LEFT_WIDTH, 
         f.RIGHT_WIDTH, ms1.VAR_MASSDEV_SCORE, 
         ms1.VAR_ISOTOPE_CORRELATION_SCORE, ms1.VAR_ISOTOPE_OVERLAP_SCORE, 
@@ -64,6 +103,26 @@ def get_feature_data_table(osw_filename, decoy=0):
         LEFT JOIN FEATURE_MS1 ms1 ON f.ID = ms1.FEATURE_ID
         LEFT JOIN FEATURE_MS2 ms2 on f.ID = ms2.FEATURE_ID
         WHERE p1.DECOY = {0}""".format(decoy)
+    else:
+        query = \
+        """SELECT r.FILENAME, p2.MODIFIED_SEQUENCE, p1.CHARGE, f.LEFT_WIDTH, 
+        f.RIGHT_WIDTH, ms1.VAR_XCORR_COELUTION, ms1.VAR_XCORR_SHAPE,
+        ms2.VAR_DOTPROD_SCORE, ms2.VAR_INTENSITY_SCORE, 
+        ms2.VAR_LIBRARY_CORR, ms2.VAR_LIBRARY_DOTPROD, 
+        ms2.VAR_LIBRARY_MANHATTAN, ms2.VAR_LIBRARY_RMSD, 
+        ms2.VAR_LIBRARY_ROOTMEANSQUARE, ms2.VAR_LIBRARY_SANGLE, 
+        ms2.VAR_LOG_SN_SCORE, ms2.VAR_MANHATTAN_SCORE, ms2.VAR_NORM_RT_SCORE, 
+        ms2.VAR_XCORR_COELUTION, ms2.VAR_XCORR_COELUTION_WEIGHTED, 
+        ms2.VAR_XCORR_SHAPE, ms2.VAR_XCORR_SHAPE_WEIGHTED
+        FROM PRECURSOR p1
+        LEFT JOIN PRECURSOR_PEPTIDE_MAPPING ppm ON p1.ID = ppm.PRECURSOR_ID
+        LEFT JOIN PEPTIDE p2 ON p2.ID = ppm.PEPTIDE_ID
+        LEFT JOIN FEATURE f ON p1.ID = f.PRECURSOR_ID
+        LEFT JOIN RUN r on f.RUN_ID = r.ID
+        LEFT JOIN FEATURE_MS1 ms1 ON f.ID = ms1.FEATURE_ID
+        LEFT JOIN FEATURE_MS2 ms2 on f.ID = ms2.FEATURE_ID
+        WHERE p1.DECOY = {0}""".format(decoy)
+    
     res = cursor.execute(query)
     tmp = res.fetchall()
     con.close()
@@ -81,7 +140,8 @@ def create_feature_data(
     out_dir,
     data_npy,
     labels_npy,
-    csv_filename):
+    csv_filename,
+    spectral_info=True):
     manual_annotation_filename = os.path.join(
         manual_annotation_dir, manual_annotation_filename)
     osw_filename = os.path.join(osw_dir, osw_filename)
@@ -89,7 +149,8 @@ def create_feature_data(
     filename_to_annotation = parse_manual_annotation_file(
         manual_annotation_filename, rt_gap)
 
-    feature_data_table = get_feature_data_table(osw_filename, decoy)
+    feature_data_table = get_feature_data_table(
+        osw_filename, decoy, spectral_info)
 
     num_samples = len(feature_data_table)
 

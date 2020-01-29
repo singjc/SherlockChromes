@@ -138,6 +138,8 @@ def create_results_file(
 
     assert len(chromatograms) == output_array.shape[0]
 
+    has_osw_score = 'OSW Score' in list(chromatograms.columns)
+
     model_bounding_boxes = \
         [
             [
@@ -168,7 +170,7 @@ def create_results_file(
 
         left_width, right_width = None, None
 
-        score = 0.0
+        score = np.max(output)
 
         high_quality = 0
 
@@ -203,6 +205,11 @@ def create_results_file(
 
                     high_quality = 1
 
+        osw_score = None
+
+        if has_osw_score:
+            osw_score = row['OSW Score']
+
         model_bounding_boxes.append([
                 row['ID'],
                 row['Filename'],
@@ -210,7 +217,7 @@ def create_results_file(
                 row['BB End'],
                 left_width,
                 right_width,
-                row['OSW Score'],
+                osw_score,
                 score,
                 row['Lib RT'],
                 row['Window Size'],
