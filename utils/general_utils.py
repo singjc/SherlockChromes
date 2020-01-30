@@ -4,6 +4,8 @@ import os
 import random
 import sqlite3
 
+from sklearn.model_selection import KFold
+
 def overlaps(
     pred_min,
     pred_max,
@@ -232,11 +234,12 @@ def create_feature_data(
         )
         writer.writerows(feature_data_csv)
 
-def get_sequence_splits(
-    seq_csv,
-    out_dir,
-    naked=True,
-    test_proportion=0.1):
+def get_seqs_from_csv(seq_csv, naked=True, exclusion_seqs=None):
+    excluded = {}
+    if exclusion_seqs:
+        for seq in exclusion_seqs:
+            excluded[seq] = True
+
     seqs = {}
     with open(seq_csv, 'r') as seq_file:
         next(seq_file)
@@ -250,48 +253,62 @@ def get_sequence_splits(
                 if mod_start != -1 and mod_end != -1:
                     seq = seq[:mod_start] + seq[mod_end + 1:]
 
-            if seq not in seqs:
+            if seq not in seqs and seq not in excluded:
                 seqs[seq] = True
 
         seq_list = [seq for seq in seqs]
 
-        random.shuffle(seq_list)
+    return seq_list
 
-        n = len(seq_list)
-        n_test = int(n * test_proportion)
-        n_train = n - 2 * n_test
-
-        train_seqs = seq_list[:n_train]
-        val_seqs = seq_list[n_train:(n_train + n_test)]
-        test_seqs = seq_list[(n_train + n_test):]
-
-        with open(os.path.join(out_dir, 'train_seqs.txt'), 'w') as f:
-            for seq in train_seqs:
-                f.write(seq + '\n')
-
-        with open(os.path.join(out_dir, 'val_seqs.txt'), 'w') as f:
-            for seq in val_seqs:
-                f.write(seq + '\n')
-
-        with open(os.path.join(out_dir, 'test_seqs.txt'), 'w') as f:
-            for seq in test_seqs:
-                f.write(seq + '\n')
-
-        train_seqs = {seq: True for seq in train_seqs}
-        val_seqs = {seq: True for seq in val_seqs}
-        test_seqs = {seq: True for seq in test_seqs}
-        
-        return train_seqs, val_seqs, test_seqs
-
-def get_idx_from_split_sequences(
+def get_train_val_test_sequence_splits(
     seq_csv,
+    out_dir,
+    naked=True,
+    test_proportion=0.1,
+    train_seqs_filename='train_seqs.txt',
+    val_seqs_filename='val_seqs.txt',
+    test_seqs_filename='test_seqs.txt'):
+    seq_list = get_seqs_from_csv(seq_csv, naked)
+
+    random.shuffle(seq_list)
+
+    n = len(seq_list)
+    n_test = int(n * test_proportion)
+    n_train = n - 2 * n_test
+
+    train_seqs = seq_list[:n_train]
+    val_seqs = seq_list[n_train:(n_train + n_test)]
+    test_seqs = seq_list[(n_train + n_test):]
+
+    with open(os.path.join(out_dir, train_seqs_filename), 'w') as f:
+        for seq in train_seqs:
+            f.write(seq + '\n')
+
+    with open(os.path.join(out_dir, val_seqs_filename), 'w') as f:
+        for seq in val_seqs:
+            f.write(seq + '\n')
+
+    with open(os.path.join(out_dir, test_seqs_filename), 'w') as f:
+        for seq in test_seqs:
+            f.write(seq + '\n')
+
+    train_seqs = {seq: True for seq in train_seqs}
+    val_seqs = {seq: True for seq in val_seqs}
+    test_seqs = {seq: True for seq in test_seqs}
+    
+    return train_seqs, val_seqs, test_seqs
+
+def get_train_val_test_idx_from_sequences(
+    split_csv,
     train_seqs,
     val_seqs,
     test_seqs,
-    naked=True):
+    naked=True,
+    out_dir='.',
+    prefix='dl'):
     train_idx, val_idx, test_idx = [], [], []
 
-    with open(seq_csv, 'r') as seqs:
+    with open(split_csv, 'r') as seqs:
         next(seqs)
         for line in seqs:
             line = line.split(',')
@@ -315,55 +332,178 @@ def get_idx_from_split_sequences(
     random.shuffle(val_idx)
     random.shuffle(test_idx)
 
-    return train_idx, val_idx, test_idx    
+    np.savetxt(
+        os.path.join(out_dir, f'{prefix}_train_idx.txt'),
+        np.array(train_idx),
+        fmt='%i'
+    )
+    np.savetxt(
+        os.path.join(out_dir, f'{prefix}_val_idx.txt'),
+        np.array(val_idx),
+        fmt='%i'
+    )
+    np.savetxt(
+        os.path.join(out_dir, f'{prefix}_test_idx.txt'),
+        np.array(test_idx),
+        fmt='%i'
+    )
+
+    return train_idx, val_idx, test_idx
 
 def create_train_val_test_split_by_sequence(
+    in_dir,
+    seq_csv,
+    out_dir,
+    split_csv=None,
+    naked=True,
+    test_proportion=0.1,
+    prefix='dl'):
+    seq_csv = os.path.join(in_dir, seq_csv)
+
+    if split_csv:
+        split_csv = os.path.join(in_dir, split_csv)
+
+    train_seqs, val_seqs, test_seqs = get_train_val_test_sequence_splits(
+        seq_csv, out_dir, naked, test_proportion)
+
+    if split_csv:
+        seq_csv = split_csv
+
+    train_idx, val_idx, test_idx = get_train_val_test_idx_from_sequences(
+        seq_csv, train_seqs, val_seqs, test_seqs, naked, out_dir, prefix)
+
+def create_supervised_data_split(
     in_dir,
     dl_csv,
     trad_csv,
     out_dir,
     naked=True,
-    test_proportion=0.1):
-    dl_csv = os.path.join(in_dir, dl_csv)
-    trad_csv = os.path.join(in_dir, trad_csv)
+    test_proportion=0.1,
+    dl_prefix='dl',
+    trad_prefix='trad'):
+    create_train_val_test_split_by_sequence(
+        in_dir,
+        dl_csv,
+        out_dir,
+        naked=naked,
+        test_proportion=test_proportion,
+        prefix=dl_prefix)
 
-    train_seqs, val_seqs, test_seqs = get_sequence_splits(
-        dl_csv, out_dir, naked, test_proportion)
+    create_train_val_test_split_by_sequence(
+        in_dir,
+        dl_csv,
+        out_dir,
+        split_csv=trad_csv,
+        naked=naked,
+        test_proportion=test_proportion,
+        prefix=trad_prefix)
 
-    dl_train_idx, dl_val_idx, dl_test_idx = get_idx_from_split_sequences(
-        dl_csv, train_seqs, val_seqs, test_seqs, naked)
+def get_kfold_sequence_splits(
+    seq_csv,
+    out_dir,
+    exclusion_seqs=None,
+    naked=True,
+    n_splits=5,
+    prefix='mv'):
+    kf = KFold(n_splits=n_splits, shuffle=True)
+    seq_splits = {}
+    counter = 1
 
-    trad_train_idx, trad_val_idx, trad_test_idx = get_idx_from_split_sequences(
-        trad_csv, train_seqs, val_seqs, test_seqs, naked)
+    seq_list = np.array(get_seqs_from_csv(seq_csv, naked, exclusion_seqs))
 
-    np.savetxt(
-        os.path.join(out_dir, 'dl_train_idx.txt'),
-        np.array(dl_train_idx),
-        fmt='%i'
-    )
-    np.savetxt(
-        os.path.join(out_dir, 'dl_val_idx.txt'),
-        np.array(dl_val_idx),
-        fmt='%i'
-    )
-    np.savetxt(
-        os.path.join(out_dir, 'dl_test_idx.txt'),
-        np.array(dl_test_idx),
-        fmt='%i'
-    )
+    for train_idx, test_idx in kf.split(seq_list):
+        seq_splits[f'split_{counter}'] = {
+            'train_seqs': {item: True for item in seq_list[train_idx]},
+            'test_seqs': {item: True for item in seq_list[test_idx]}
+        }
+        counter+= 1
 
-    np.savetxt(
-        os.path.join(out_dir, 'trad_train_idx.txt'),
-        np.array(trad_train_idx),
-        fmt='%i'
-    )
-    np.savetxt(
-        os.path.join(out_dir, 'trad_val_idx.txt'),
-        np.array(trad_val_idx),
-        fmt='%i'
-    )
-    np.savetxt(
-        os.path.join(out_dir, 'trad_test_idx.txt'),
-        np.array(trad_test_idx),
-        fmt='%i'
-    )
+    for split in seq_splits:
+        for split_part in seq_splits[split]:
+            with open(
+                os.path.join(
+                    out_dir,
+                    f'{prefix}_{split}_{split_part}.txt'
+                ), 'w') as f:
+                for seq in seq_splits[split][split_part]:
+                    f.write(seq + '\n')
+
+    return seq_splits
+
+def get_kfold_idx_from_sequences(
+    seq_csv,
+    seq_splits,
+    naked=True,
+    out_dir='.',
+    prefix='labeled'):
+    idx_splits = {
+        split: {'train_idx': [], 'test_idx': []} for split in seq_splits
+    }
+
+    with open(seq_csv, 'r') as seqs:
+        next(seqs)
+        for line in seqs:
+            line = line.split(',')
+            idx, seq = int(line[0]), line[1].split('_')[-2]
+
+            if naked:
+                mod_start = seq.rfind('(')
+                mod_end = seq.find(')')
+
+                if mod_start != -1 and mod_end != -1:
+                    seq = seq[:mod_start] + seq[mod_end + 1:]
+
+            for split in seq_splits:
+                for split_part in seq_splits[split]:
+                    if seq in seq_splits[split][split_part]:
+                        if 'train' in split_part:
+                            idx_splits[split]['train_idx'].append(idx)
+                        else:
+                            idx_splits[split]['test_idx'].append(idx)
+
+    for split in idx_splits:
+        for split_part in idx_splits[split]:
+            random.shuffle(idx_splits[split][split_part])
+            np.savetxt(
+                os.path.join(
+                    out_dir, f'{prefix}_{split}_{split_part}.txt'
+                ),
+                np.array(idx_splits[split][split_part]),
+                fmt='%i'
+            )
+
+    return idx_splits
+
+def create_kfold_split_by_sequence(
+    in_dir,
+    seq_csv,
+    out_dir,
+    idx_csv=None,
+    exclusion_seq_csv=None,
+    naked=True,
+    n_splits=5,
+    prefix='labeled'):
+    seq_csv = os.path.join(in_dir, seq_csv)
+
+    if idx_csv:
+        idx_csv = os.path.join(in_dir, idx_csv)
+
+    exclusion_seqs = None
+
+    if exclusion_seq_csv:
+        exclusion_seq_csv = os.path.join(in_dir, exclusion_seq_csv)
+        exclusion_seqs = get_seqs_from_csv(exclusion_seq_csv, naked)
+
+    seq_splits = get_kfold_sequence_splits(
+        seq_csv,
+        out_dir,
+        exclusion_seqs,
+        naked,
+        n_splits,
+        prefix)
+
+    if idx_csv:
+        seq_csv = idx_csv
+
+    idx_splits = get_kfold_idx_from_sequences(
+        seq_csv, seq_splits, naked, out_dir, prefix)
