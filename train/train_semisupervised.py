@@ -154,8 +154,9 @@ def train(
             loss_out.backward()
             optimizer.step()
             iters+= 1
-            avg_loss+= loss_out.item()
-            print(f'Training - Iter: {iters} Avg loss: {(avg_loss / iters):.8f}')
+            iter_loss = loss_out.item()
+            avg_loss+= iter_loss
+            print(f'Training - Iter: {iters} Iter loss: {iter_loss:.8f}')
 
         print(f'Training - Epoch: {epoch} Avg loss: {(avg_loss / iters):.8f}')
 
@@ -177,6 +178,10 @@ def train(
                 kwargs['outdir_path'],
                 f"{kwargs['model_savename']}_model_{epoch}_loss={avg_loss}.pth"
             )
-            torch.save(model.state_dict(), save_path)
+
+            if 'save_whole' in kwargs and kwargs['save_whole']:
+                torch.save(model, save_path)
+            else:
+                torch.save(model.state_dict(), save_path)
 
         print(f'Validation - Epoch: {epoch} Avg loss: {(avg_loss):.8f}')

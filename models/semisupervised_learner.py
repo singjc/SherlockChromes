@@ -14,32 +14,35 @@ class SemiSupervisedLearner(nn.Module):
         model,
         wu=1,
         threshold=0.95,
-        weak_augmentator_p=0.1,
+        weak_p=0.1,
         weak_drop_channels=False,
-        strong_augmentator_p=0.3,
+        strong_p=0.3,
         strong_drop_channels=False,
         loss_alpha=0.25,
         loss_gamma=2,
         loss_logits=False,
-        loss_reduction='none'):
+        loss_reduction='none',
+        debug=False):
         super(SemiSupervisedLearner, self).__init__()
         self.segmentator = copy.deepcopy(model)
         self.wu = wu
         self.threshold = threshold
 
         if weak_drop_channels:
-            self.weak_augmentator = nn.Dropout2d(weak_augmentator_p)
+            self.weak_augmentator = nn.Dropout2d(weak_p)
         else:
-            self.weak_augmentator = nn.Dropout(weak_augmentator_p)
+            self.weak_augmentator = nn.Dropout(weak_p)
         
         if strong_drop_channels:
-            self.strong_augmentator = nn.Dropout2d(strong_augmentator_p)
+            self.strong_augmentator = nn.Dropout2d(strong_p)
         else:
-            self.strong_augmentator = nn.Dropout(strong_augmentator_p)
+            self.strong_augmentator = nn.Dropout(strong_p)
 
         self.loss = FocalLossBinary(
-            loss_alpha,loss_gamma, loss_logits, loss_reduction
+            loss_alpha, loss_gamma, loss_logits, loss_reduction
         )
+
+        self.debug = debug
 
     def forward(self, unlabeled_batch, labeled_batch=None, labels=None):
         if self.training:
@@ -59,6 +62,12 @@ class SemiSupervisedLearner(nn.Module):
                 quality_mask * 
                 self.loss(self.segmentator(strongly_augmented), pseudo_labels)
             )
+            
+            if self.debug:
+                print(
+                    f'Labeled Loss: {labeled_loss.item()}, '
+                    f'Unlabeled Loss: {unlabeled_loss.item()}'
+                )
 
             return labeled_loss + self.wu * unlabeled_loss
         else:

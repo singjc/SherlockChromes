@@ -17,7 +17,26 @@ def main(
         optimizer_kwargs,
         train_kwargs,
         device):
-    model = SemiSupervisedLearner(model)
+    model_kwargs = {}
+    for kw in [
+        'wu',
+        'threshold',
+        'weak_p',
+        'weak_drop_channels',
+        'strong_p',
+        'strong_drop_channels',
+        'loss_alpha',
+        'loss_gamma',
+        'loss_logits',
+        'loss_reduction',
+        'debug']:
+        if kw in train_kwargs:
+            model_kwargs[kw] = train_kwargs[kw]
+
+    model = SemiSupervisedLearner(
+        model,
+        **model_kwargs)
+
     optimizer = optim.AdamW(model.parameters(), **optimizer_kwargs)
 
     train(

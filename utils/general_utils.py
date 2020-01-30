@@ -260,6 +260,18 @@ def get_seqs_from_csv(seq_csv, naked=True, exclusion_seqs=None):
 
     return seq_list
 
+def get_filenames_from_csv(seq_csv):
+    filenames = {}
+    with open(seq_csv, 'r') as seq_file:
+        next(seq_file)
+        for line in seq_file:
+            filename = line.split(',')[1]
+
+            if filename not in filenames:
+                filenames[filename] = True
+
+    return filenames
+
 def get_train_val_test_sequence_splits(
     seq_csv,
     out_dir,
@@ -433,6 +445,7 @@ def get_kfold_sequence_splits(
 def get_kfold_idx_from_sequences(
     seq_csv,
     seq_splits,
+    inclusion_filenames={},
     naked=True,
     out_dir='.',
     prefix='labeled'):
@@ -444,7 +457,11 @@ def get_kfold_idx_from_sequences(
         next(seqs)
         for line in seqs:
             line = line.split(',')
-            idx, seq = int(line[0]), line[1].split('_')[-2]
+            idx, filename = int(line[0]), line[1]
+            seq = filename.split('_')[-2]
+
+            if filename not in inclusion_filenames:
+                continue
 
             if naked:
                 mod_start = seq.rfind('(')
@@ -479,7 +496,8 @@ def create_kfold_split_by_sequence(
     seq_csv,
     out_dir,
     idx_csv=None,
-    exclusion_seq_csv=None,
+    exclusion_seq_csvs=[],
+    inclusion_filename_csvs=[],
     naked=True,
     n_splits=5,
     prefix='labeled'):
@@ -488,11 +506,12 @@ def create_kfold_split_by_sequence(
     if idx_csv:
         idx_csv = os.path.join(in_dir, idx_csv)
 
-    exclusion_seqs = None
+    exclusion_seqs = []
 
-    if exclusion_seq_csv:
-        exclusion_seq_csv = os.path.join(in_dir, exclusion_seq_csv)
-        exclusion_seqs = get_seqs_from_csv(exclusion_seq_csv, naked)
+    if exclusion_seq_csvs:
+        for exclusion_seq_csv in exclusion_seq_csvs:
+            exclusion_seq_csv = os.path.join(in_dir, exclusion_seq_csv)
+            exclusion_seqs+= get_seqs_from_csv(exclusion_seq_csv, naked)
 
     seq_splits = get_kfold_sequence_splits(
         seq_csv,
@@ -505,5 +524,14 @@ def create_kfold_split_by_sequence(
     if idx_csv:
         seq_csv = idx_csv
 
+    inclusion_filenames = {}
+    if inclusion_filename_csvs:
+        for exclusion_csv in inclusion_filename_csvs:
+            exclusion_csv = os.path.join(in_dir, exclusion_csv)
+            inclusion_filenames = {
+                **inclusion_filenames,
+                **get_filenames_from_csv(exclusion_csv)
+            }
+
     idx_splits = get_kfold_idx_from_sequences(
-        seq_csv, seq_splits, naked, out_dir, prefix)
+        seq_csv, seq_splits, inclusion_filenames, naked, out_dir, prefix)
