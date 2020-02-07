@@ -332,44 +332,27 @@ if __name__ == "__main__":
     start = time.time()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-data_dir', '--data_dir', type=str, default='.')
+    parser.add_argument('-data_dir', '--data_dir', type=str, default='.')
     parser.add_argument(
         '-dataset', '--dataset', type=str, default='hroest_Strep_600s_175pts.tar')
-    parser.add_argument(
-        '-extra_dir', '--extra_dir', type=str, default=None)
     parser.add_argument(
         '-chromatograms_csv',
         '--chromatograms_csv',
         type=str,
-        default='chromatograms_scored.csv')
+        default='chromatograms.csv')
+    parser.add_argument('-tar_shape', '--tar_shape', type=str, default='6,175')
     parser.add_argument(
-        '-tar_shape',
-        '--tar_shape',
-        type=str,
-        default='6,175')
+        '-model_pth', '--model_pth', type=str, default='model.pth')
     parser.add_argument(
-        '-model_pth',
-        '--model_pth',
-        type=str,
-        default='ddstst_model.pth')
+        '-out_dir', '--out_dir', type=str, default='results')
     parser.add_argument(
-        '-out_dir', '--out_dir', type=str, default='evaluation_results')
-    parser.add_argument(
-        '-results_csv',
-        '--results_csv',
-        type=str,
-        default='evaluation_results.csv')
+        '-results_csv', '--results_csv', type=str, default='results.csv')
     parser.add_argument('-threshold', '--threshold', type=float, default=0.5)
     parser.add_argument('-device', '--device', type=str, default='cpu')
     parser.add_argument('-batch_size', '--batch_size', type=int, default=32)
     parser.add_argument(
-        '-load_npy',
-        '--load_npy',
-        action='store_true',
-        default=False)
-    parser.add_argument(
-        '-npy_dir', '--npy_dir', type=str, default='evaluation_results')
+        '-load_npy', '--load_npy', action='store_true', default=False)
+    parser.add_argument('-npy_dir', '--npy_dir', type=str, default='results')
     parser.add_argument(
         '-npy_name', '--npy_name', type=str, default='output_array')
     parser.add_argument('-mode', '--mode', type=str, default='inference')
@@ -379,6 +362,31 @@ if __name__ == "__main__":
         '--preload_path',
         type=str,
         default='hroest_Strep_600s_175pts.npy')
+    parser.add_argument(
+        '-template_chromatograms_csv',
+        '--template_chromatograms_csv',
+        type=str,
+        default='template_chromatograms.csv')
+    parser.add_argument(
+        '-template_dataset',
+        '--template_dataset',
+        type=str,
+        default='hroest_Strep_600s_175pts.tar')
+    parser.add_argument(
+        '-template_labels',
+        '--template_labels',
+        type=str,
+        default='hroest_Strep_600s_175pts_labels.npy')
+    parser.add_argument(
+        '-template_preload_path',
+        '--template_preload_path',
+        type=str,
+        default='hroest_Strep_600s_175pts.npy')
+    parser.add_argument(
+        '-template_idx',
+        '--template_idx',
+        type=str,
+        default='template_idx.txt')
     args = parser.parse_args()
 
     args.tar_shape = [int(x) for x in args.tar_shape.split(',')]
@@ -397,19 +405,25 @@ if __name__ == "__main__":
         preload_path=args.preload_path,
         transform=ToTensor())
 
-    # TODO: Implement alternative dataset to source templates from
-    # For now, use only same dataset for simplicity.
-
     if args.mode == 'alignment':
+        template_dataset = TarChromatogramsDataset(
+            args.data_dir,
+            args.template_chromatograms_csv,
+            args.template_dataset,
+            tar_shape=args.tar_shape,
+            labels=args.template_labels,
+            preload=preload,
+            preload_path=args.template_preload_path,
+            transform=ToTensor())
+
         sampling_fn = LoadingSampler(
             root_path=args.data_dir,
-            filenames=['alignment/alignment_split_1_evaluation_idx.txt', 'alignment/alignment_split_1_evaluation_template_idx.txt'],
+            filenames=[args.template_idx],
             dt='int',
             shuffle=False
         )
-        evaluation_idx, evaluation_template_idx = sampling_fn()
-        template_dataset = Subset(dataset, evaluation_template_idx)
-        dataset = Subset(dataset, evaluation_idx)
+        evaluation_template_idx = sampling_fn()[0]
+        template_dataset = Subset(template_dataset, evaluation_template_idx)
 
     print('Data loaded in {0:0.1f} seconds'.format(time.time() - start))
 
@@ -455,17 +469,7 @@ if __name__ == "__main__":
                 args.npy_name,
                 args.threshold)
 
-        if args.mode == 'alignment':
-            create_results_file(
-                output_array,
-                args.threshold,
-                args.data_dir,
-                args.chromatograms_csv,
-                args.out_dir,
-                args.npy_name,
-                args.results_csv,
-                evaluation_idx)
-        elif args.mode == 'inference':
+        if args.mode in ['alignment', 'inference']:
             create_results_file(
                 output_array,
                 args.threshold,
