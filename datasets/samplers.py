@@ -71,31 +71,27 @@ class LoadingSampler(object):
     """Load pre-existing idx numpy txt files."""
 
     def __init__(self, **kwargs):
-        self.shuffle = kwargs['shuffle']
-        self.train_idx_filename = os.path.join(
-            kwargs['root_path'], kwargs['train_idx_filename'])
-        self.val_idx_filename = os.path.join(
-            kwargs['root_path'], kwargs['val_idx_filename'])
-        self.test_idx_filename = os.path.join(
-            kwargs['root_path'], kwargs['test_idx_filename'])
-        self.dt = kwargs['dt']
+        self.dt = kwargs['dt'] if 'dt' in kwargs else 'float'
+        self.filenames = [
+            os.path.join(kwargs['root_path'], filename)
+            for filename in kwargs['filenames']]
+        self.shuffle = kwargs['shuffle'] if 'shuffle' in kwargs else False
 
     def __call__(self, data=None, test_batch_proportion=None):
-        if dt == 'float':
-            dt = np.float64
-        elif dt == 'int':
-            dt = np.int64
+        if self.dt == 'float':
+            self.dt = np.float64
+        elif self.dt == 'int':
+            self.dt = np.int64
             
-        train_idx = list(np.loadtxt(self.train_idx_filename, dtype=self.dt))
-        val_idx = list(np.loadtxt(self.val_idx_filename, dtype=self.dt))
-        test_idx = list(np.loadtxt(self.test_idx_filename, dtype=self.dt))
+        idxs = []
+        for filename in self.filenames:
+            idxs.append(list(np.loadtxt(filename, dtype=self.dt)))
 
         if self.shuffle:
-            random.shuffle(train_idx)
-            random.shuffle(val_idx)
-            random.shuffle(test_idx)
+            for idx in idxs:
+                random.shuffle(idx)
 
-        return train_idx, val_idx, test_idx
+        return idxs
 
 class GroupBySequenceSampler(object):
     """Sample by sequence groups. 
