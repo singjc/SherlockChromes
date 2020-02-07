@@ -118,7 +118,7 @@ def train(
             data,
             template_data,
             kwargs['batch_size'],
-            kwargs['template_batch_size']
+            kwargs['template_batch_size'],
             sampling_fn,
             collate_fn,
             kwargs['outdir_path'])
