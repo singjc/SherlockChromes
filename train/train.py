@@ -6,7 +6,6 @@ import sys
 import torch
 
 from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
-from ignite.handlers import EarlyStopping, ModelCheckpoint
 from ignite.metrics import Accuracy, Loss, Precision, Recall
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader, Subset
@@ -171,12 +170,24 @@ def train(
             strict=False
         )
 
+    def thresholded_output_transform(output):
+        y_pred, y = output
+        y_pred = torch.round(y_pred)
+        
+        return y_pred, y
+
     trainer = create_supervised_trainer(model, optimizer, loss, device=device)
     evaluator = create_supervised_evaluator(model,
                                             metrics={
-                                                'accuracy': Accuracy(),
-                                                'precision': Precision(),
-                                                'recall': Recall(),
+                                                'accuracy': Accuracy(
+                                                    output_transform=thresholded_output_transform
+                                                ),
+                                                'precision': Precision(
+                                                    output_transform=thresholded_output_transform
+                                                ),
+                                                'recall': Recall(
+                                                    output_transform=thresholded_output_transform
+                                                ),
                                                 'loss': Loss(loss)
                                             },
                                             device=device)
@@ -199,23 +210,13 @@ def train(
         print("Epoch[{}] Loss: {:.8f}".format(
             trainer.state.epoch, trainer.state.output))
 
-    def neg_loss(engine):
-        loss = engine.state.metrics['loss']
+    def calc_f1(precision, recall):
+        return (precision * recall * 2 / (precision + recall))
 
-        return -loss
-
-    checkpoint_score = ModelCheckpoint(
-        kwargs['outdir_path'],
-        kwargs['model_savename'],
-        score_function=neg_loss,
-        score_name='loss',
-        n_saved=5)
-
-    checkpoint_interval = ModelCheckpoint(
-        kwargs['outdir_path'],
-        kwargs['model_savename'],
-        save_interval=5,
-        n_saved=5)
+    @trainer.on(Events.STARTED)
+    @evaluator.on(Events.STARTED)
+    def init_highest_f1_var(engine):
+        engine.state.highest_f1 = 0
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_training_results(trainer):
@@ -234,13 +235,25 @@ def train(
                    metrics['loss']))
         if use_visdom:
             vis.plot_train_acc(metrics['accuracy'], trainer.state.epoch)
-            vis.plot_train_prec(metrics['precision'].item(), trainer.state.epoch)
-            vis.plot_train_recall(metrics['recall'].item(), trainer.state.epoch)
+            vis.plot_train_prec(metrics['precision'], trainer.state.epoch)
+            vis.plot_train_recall(metrics['recall'], trainer.state.epoch)
             vis.plot_train_loss(metrics['loss'], trainer.state.epoch)
 
         if kwargs['test_batch_proportion'] == 0.0:
-            checkpoint_score(evaluator, {'model': model})
-            checkpoint_interval(evaluator, {'model': model})
+            f1 = calc_f1(metrics['precision'], metrics['recall'])
+
+            if f1 >= trainer.state.highest_f1:
+                save_path = os.path.join(
+                    kwargs['outdir_path'],
+                    f"{kwargs['model_savename']}_model_{trainer.state.epoch}_dice={f1}.pth"
+                )
+
+                trainer.state.highest_f1 = f1
+
+                if 'save_whole' in kwargs and kwargs['save_whole']:
+                    torch.save(model, save_path)
+                else:
+                    torch.save(model.state_dict(), save_path)
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_validation_results(trainer):
@@ -262,11 +275,24 @@ def train(
                 metrics['loss']))
         if use_visdom:
             vis.plot_val_acc(metrics['accuracy'], trainer.state.epoch)
-            vis.plot_val_prec(metrics['precision'].item(), trainer.state.epoch)
-            vis.plot_val_recall(metrics['recall'].item(), trainer.state.epoch)
+            vis.plot_val_prec(metrics['precision'], trainer.state.epoch)
+            vis.plot_val_recall(metrics['recall'], trainer.state.epoch)
             vis.plot_val_loss(metrics['loss'], trainer.state.epoch)
-        checkpoint_score(evaluator, {'model': model})
-        checkpoint_interval(evaluator, {'model': model})
+        
+        f1 = calc_f1(metrics['precision'], metrics['recall'])
+
+        if f1 >= evaluator.state.highest_f1:
+            save_path = os.path.join(
+                kwargs['outdir_path'],
+                f"{kwargs['model_savename']}_model_{trainer.state.epoch}_dice={f1}.pth"
+            )
+
+            evaluator.state.highest_f1 = f1
+
+            if 'save_whole' in kwargs and kwargs['save_whole']:
+                torch.save(model, save_path)
+            else:
+                torch.save(model.state_dict(), save_path)
 
     @trainer.on(Events.COMPLETED)
     def log_test_results(trainer):
