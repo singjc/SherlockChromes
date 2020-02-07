@@ -78,6 +78,15 @@ def parse_manual_annotation_file(manual_annotation_filename, rt_gap=3.4):
 
     return filename_to_annotation
 
+def get_naked_seq(seq):
+    mod_start = seq.rfind('(')
+    mod_end = seq.find(')')
+
+    if mod_start != -1 and mod_end != -1:
+        seq = seq[:mod_start] + seq[mod_end + 1:]
+
+    return seq
+
 def get_feature_data_table(osw_filename, decoy=0, spectral_info=True):
     con = sqlite3.connect(osw_filename)
     cursor = con.cursor()
@@ -247,11 +256,7 @@ def get_seqs_from_csv(seq_csv, naked=True, exclusion_seqs=None):
             seq = line.split(',')[1].split('_')[-2]
 
             if naked:
-                mod_start = seq.rfind('(')
-                mod_end = seq.find(')')
-
-                if mod_start != -1 and mod_end != -1:
-                    seq = seq[:mod_start] + seq[mod_end + 1:]
+                seq = get_naked_seq(seq)
 
             if seq not in seqs and seq not in excluded:
                 seqs[seq] = True
@@ -327,11 +332,7 @@ def get_train_val_test_idx_from_sequences(
             idx, seq = int(line[0]), line[1].split('_')[-2]
 
             if naked:
-                mod_start = seq.rfind('(')
-                mod_end = seq.find(')')
-
-                if mod_start != -1 and mod_end != -1:
-                    seq = seq[:mod_start] + seq[mod_end + 1:]
+                seq = get_naked_seq(seq)
 
             if seq in train_seqs:
                 train_idx.append(idx)
@@ -460,15 +461,11 @@ def get_kfold_idx_from_sequences(
             idx, filename = int(line[0]), line[1]
             seq = filename.split('_')[-2]
 
-            if filename not in inclusion_filenames:
+            if inclusion_filenames and filename not in inclusion_filenames:
                 continue
 
             if naked:
-                mod_start = seq.rfind('(')
-                mod_end = seq.find(')')
-
-                if mod_start != -1 and mod_end != -1:
-                    seq = seq[:mod_start] + seq[mod_end + 1:]
+                seq = get_naked_seq(seq)
 
             for split in seq_splits:
                 for split_part in seq_splits[split]:
@@ -526,11 +523,11 @@ def create_kfold_split_by_sequence(
 
     inclusion_filenames = {}
     if inclusion_filename_csvs:
-        for exclusion_csv in inclusion_filename_csvs:
-            exclusion_csv = os.path.join(in_dir, exclusion_csv)
+        for inclusion_csv in inclusion_filename_csvs:
+            inclusion_csv = os.path.join(in_dir, inclusion_csv)
             inclusion_filenames = {
                 **inclusion_filenames,
-                **get_filenames_from_csv(exclusion_csv)
+                **get_filenames_from_csv(inclusion_csv)
             }
 
     idx_splits = get_kfold_idx_from_sequences(
