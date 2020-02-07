@@ -16,22 +16,18 @@ from sklearn.metrics import (
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader, Subset
 
-sys.path.insert(0, '../optimizers')
-
-from focal_loss import FocalLossBinary
-
 def get_data_loaders(
     data,
-    test_batch_proportion=0.1,
+    template_data,
     batch_size=1,
-    u_ratio=7,
+    template_batch_size=1,
     sampling_fn=None,
     collate_fn=None,
     outdir_path=None):
 
+    # LoadingSampler supported only
     if sampling_fn:
-        labeled_idx, unlabeled_idx, val_idx = sampling_fn(
-            data, test_batch_proportion)
+        train_idx, val_idx, train_template_idx, val_template_idx = sampling_fn()
     else:
         raise NotImplementedError
 
@@ -40,13 +36,8 @@ def get_data_loaders(
             os.mkdir(outdir_path)
 
         np.savetxt(
-            os.path.join(outdir_path, 'labeled_idx.txt'),
-            np.array(labeled_idx),
-            fmt='%i'
-        )
-        np.savetxt(
-            os.path.join(outdir_path, 'unlabeled_idx.txt'),
-            np.array(unlabeled_idx),
+            os.path.join(outdir_path, 'train_idx.txt'),
+            np.array(train_idx),
             fmt='%i'
         )
         np.savetxt(
@@ -54,36 +45,54 @@ def get_data_loaders(
             np.array(val_idx),
             fmt='%i'
         )
+        np.savetxt(
+            os.path.join(outdir_path, 'train_template_idx.txt'),
+            np.array(train_template_idx),
+            fmt='%i'
+        )
+        np.savetxt(
+            os.path.join(outdir_path, 'val_template_idx.txt'),
+            np.array(val_template_idx),
+            fmt='%i'
+        )
 
-    labeled_set = Subset(data, labeled_idx)
-    unlabeled_set = Subset(data, unlabeled_idx)
+    train_set = Subset(data, train_idx)
     val_set = Subset(data, val_idx)
+    train_template_set = Subset(template_data, train_template_idx)
+    val_template_set = Subset(template_data, val_template_idx)
 
     if collate_fn:
-        labeled_loader = DataLoader(
-            labeled_set,
+        train_loader = DataLoader(
+            train_set,
             batch_size=batch_size,
-            collate_fn=collate_fn)
-        unlabeled_loader = DataLoader(
-            unlabeled_set,
-            batch_size=u_ratio * batch_size,
             collate_fn=collate_fn)
         val_loader = DataLoader(
             val_set,
             batch_size=batch_size,
+            collate_fn=collate_fn)
+        train_template_loader = DataLoader(
+            train_template_set,
+            batch_size=template_batch_size,
+            collate_fn=collate_fn)
+        val_template_loader = DataLoader(
+            val_template_set,
+            batch_size=template_batch_size,
             collate_fn=collate_fn)
     else:
-        labeled_loader = DataLoader(
-            labeled_set,
+        train_loader = DataLoader(
+            train_set,
             batch_size=batch_size)
-        unlabeled_loader = DataLoader(
-            unlabeled_set,
-            batch_size=u_ratio * batch_size)
         val_loader = DataLoader(
             val_set,
             batch_size=batch_size)
+        train_template_loader = DataLoader(
+            train_template_set,
+            batch_size=template_batch_size)
+        val_template_loader = DataLoader(
+            val_template_set,
+            batch_size=template_batch_size)
 
-    return labeled_loader, unlabeled_loader, val_loader
+    return train_loader, val_loader, train_template_loader, val_template_loader
 
 def cycle(iterable):
     while True:
@@ -92,6 +101,7 @@ def cycle(iterable):
 
 def train(
     data,
+    template_data,
     model,
     optimizer=None,
     loss=None,
@@ -100,14 +110,15 @@ def train(
     device='cpu',
     **kwargs):
     (
-        labeled_loader,
-        unlabeled_loader,
-        val_loader
+        train_loader,
+        val_loader,
+        train_template_loader,
+        val_template_loader
     ) = get_data_loaders(
             data,
-            kwargs['test_batch_proportion'],
+            template_data,
             kwargs['batch_size'],
-            kwargs['uratio'],
+            kwargs['template_batch_size']
             sampling_fn,
             collate_fn,
             kwargs['outdir_path'])
@@ -127,7 +138,8 @@ def train(
     scheduler = CosineAnnealingWarmRestarts(
         optimizer, kwargs['T_0'], T_mult=kwargs['T_mult'])
 
-    unlabeled_loader = iter(cycle(unlabeled_loader))
+    train_template_loader = iter(cycle(train_template_loader))
+    val_template_loader = iter(cycle(val_template_loader))
 
     highest_dice, highest_iou, lowest_loss = 0, 0, 1
 
@@ -136,11 +148,12 @@ def train(
     for epoch in range(kwargs['max_epochs']):
         iters, avg_loss = 0, 0
 
-        for labeled_batch, labels in labeled_loader:
-            unlabeled_batch, _ = next(unlabeled_loader)
-            labeled_batch = labeled_batch.to(device=device)
+        for batch, labels in train_loader:
+            template_batch, template_labels = next(train_template_loader)
+            batch = batch.to(device=device)
             labels = labels.to(device=device)
-            unlabeled_batch = unlabeled_batch.to(device=device)
+            template_batch = template_batch.to(device=device)
+            template_labels = template_labels.to(device=device)
 
             model.train()
 
@@ -150,7 +163,8 @@ def train(
                 
             optimizer.zero_grad()
 
-            loss_out = model(unlabeled_batch, labeled_batch, labels)
+            preds = model(batch, template_batch, template_labels)
+            loss_out = loss(preds, labels)
             loss_out.backward()
             optimizer.step()
             iters+= 1
@@ -168,12 +182,15 @@ def train(
         outputs_for_metrics = []
         losses = []
         for batch, labels in val_loader:
+            template_batch, template_labels = next(val_template_loader)
             model.eval()
             with torch.no_grad():
                 batch = batch.to(device=device)
                 labels = labels.to(device=device)
+                template_batch = template_batch.to(device=device)
+                template_labels = template_labels.to(device=device)
                 labels_for_metrics.append(labels.cpu().detach().numpy())
-                preds = model(batch)
+                preds = model(batch, template_batch, template_labels)
                 outputs_for_metrics.append(preds.cpu().detach().numpy())
                 loss_out = loss(preds, labels)
                 losses.append(loss_out.cpu().detach().numpy())

@@ -7,15 +7,22 @@ import sys
 import time
 import torch
 
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 sys.path.insert(0, '../datasets')
 sys.path.insert(0, '../models')
+sys.path.insert(0, '../optimizers')
 sys.path.insert(0, '../train')
 
 from chromatograms_dataset import TarChromatogramsDataset
 from collate_fns import PadChromatogramsFor1DCNN
+from samplers import LoadingSampler
 from transforms import ToTensor
+
+def cycle(iterable):
+    while True:
+        for x in iterable:
+            yield x
 
 def create_output_array(
     dataset,
@@ -25,7 +32,8 @@ def create_output_array(
     load_npy=False,
     npy_dir='.',
     npy_name='output_array',
-    threshold=0.5):
+    threshold=0.5,
+    template_dataset=None):
     output_array = []
 
     if load_npy:
@@ -39,11 +47,34 @@ def create_output_array(
         shuffle=False,
         collate_fn=PadChromatogramsFor1DCNN())
 
-    for batch in dataloader:
-        chromatograms = torch.from_numpy(
-            np.asarray(batch[0])).float().to(device)
+    if template_dataset:
+        template_dataloader = DataLoader(
+            template_dataset,
+            batch_size=batch_size // 16,
+            shuffle=False,
+            collate_fn=PadChromatogramsFor1DCNN())
 
-        output = model(chromatograms)
+        template_dataloader = iter(cycle(template_dataloader))
+
+    for batch in dataloader:
+        chromatograms, labels = batch
+
+        if template_dataset:
+            template, template_label = next(template_dataloader)
+
+        chromatograms = torch.from_numpy(
+            np.asarray(chromatograms)).float().to(device)
+
+        if template_dataset:
+            template = torch.from_numpy(
+                np.asarray(template)).float().to(device)
+
+            template_label = torch.from_numpy(
+                np.asarray(template_label)).float().to(device)
+
+            output = model(chromatograms, template, template_label)
+        else:
+            output = model(chromatograms)
 
         output_array.append(output.detach().to('cpu').numpy())
 
@@ -90,13 +121,15 @@ def create_rpn_results_file(
 
     idx = 0
     for batch in dataloader:
-        chromatogram = torch.from_numpy(
-            np.asarray(batch[0])).float().to(device)
+        chromatograms, labels = batch
 
-        output = model(chromatogram)
+        chromatograms = torch.from_numpy(
+            np.asarray(chromatograms)).float().to(device)
+
+        output = model(chromatograms)
 
         output_idx = 0
-        for i in range(idx, idx + len(batch[1])):
+        for i in range(idx, idx + len(labels)):
             print(idx)
 
             row = chromatograms.iloc[i]
@@ -132,9 +165,13 @@ def create_results_file(
     chromatograms_csv='chromatograms.csv',
     out_dir='.',
     npy_name='output_array',
-    results_csv='evaluation_results.csv'):
+    results_csv='evaluation_results.csv',
+    idx=None):
     chromatograms = pd.read_csv(os.path.join(
         data_dir, chromatograms_csv))
+
+    if idx:
+        chromatograms = chromatograms.iloc[idx]
 
     assert len(chromatograms) == output_array.shape[0]
 
@@ -315,7 +352,7 @@ if __name__ == "__main__":
         '-model_pth',
         '--model_pth',
         type=str,
-        default='/home/xuleon1/projects/def-hroest/xuleon1/SherlockChromes/data/output/round_2_dacat_base_big_decoder_mv_5xlr/dacat_model_41_loss=0.004588034.pth')
+        default='ddstst_model.pth')
     parser.add_argument(
         '-out_dir', '--out_dir', type=str, default='evaluation_results')
     parser.add_argument(
@@ -360,6 +397,20 @@ if __name__ == "__main__":
         preload_path=args.preload_path,
         transform=ToTensor())
 
+    # TODO: Implement alternative dataset to source templates from
+    # For now, use only same dataset for simplicity.
+
+    if args.mode == 'alignment':
+        sampling_fn = LoadingSampler(
+            root_path=args.data_dir,
+            filenames=['alignment/alignment_split_1_evaluation_idx.txt', 'alignment/alignment_split_1_evaluation_template_idx.txt'],
+            dt='int',
+            shuffle=False
+        )
+        evaluation_idx, evaluation_template_idx = sampling_fn()
+        template_dataset = Subset(dataset, evaluation_template_idx)
+        dataset = Subset(dataset, evaluation_idx)
+
     print('Data loaded in {0:0.1f} seconds'.format(time.time() - start))
 
     model = torch.load(args.model_pth, map_location=args.device)
@@ -382,17 +433,39 @@ if __name__ == "__main__":
             args.out_dir,
             args.results_csv)
     else:
-        output_array = create_output_array(
-            dataset,
-            model,
-            args.batch_size,
-            args.device,
-            args.load_npy,
-            args.npy_dir,
-            args.npy_name,
-            args.threshold)
+        if args.mode == 'alignment':
+            output_array = create_output_array(
+                dataset,
+                model,
+                args.batch_size,
+                args.device,
+                args.load_npy,
+                args.npy_dir,
+                args.npy_name,
+                args.threshold,
+                template_dataset)
+        else:
+            output_array = create_output_array(
+                dataset,
+                model,
+                args.batch_size,
+                args.device,
+                args.load_npy,
+                args.npy_dir,
+                args.npy_name,
+                args.threshold)
 
-        if args.mode == 'inference':
+        if args.mode == 'alignment':
+            create_results_file(
+                output_array,
+                args.threshold,
+                args.data_dir,
+                args.chromatograms_csv,
+                args.out_dir,
+                args.npy_name,
+                args.results_csv,
+                evaluation_idx)
+        elif args.mode == 'inference':
             create_results_file(
                 output_array,
                 args.threshold,

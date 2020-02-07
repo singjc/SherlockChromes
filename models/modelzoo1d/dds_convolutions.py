@@ -108,12 +108,12 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
         keys = keys.view(b * h, c, l)
         values = values.view(b * h, c, l)
 
+        # Get dot product of queries and keys, and scale
         queries = queries / (c ** (1 / 4))
         keys = keys / (c ** (1 / 4))
 
-        # Get dot product of queries and keys, and scale
         dot = torch.bmm(keys.transpose(1, 2), queries)
-        # dot has size (b*h, l, l) containing raw weights
+        # dot now has size (b*h, l, l) containing raw weights
 
         dot = F.softmax(dot, dim=1)
         # dot now has channel-wise self-attention probabilities
@@ -152,32 +152,55 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         if self.heads > 1:
             self.unify_heads = nn.Conv1d(heads * v_c, v_c, 1, bias=False)
 
-    def forward(self, queries, key, value):
+    def forward(self, queries, keys, values):
+        if len(values.size()) == 2:
+            values = values.unsqueeze(1)
+
         q_b, qk_c, l = queries.size()
-        kv_b, v_c, _ = value.size()
+        kv_b, v_c, _ = values.size()
         h = self.heads
 
-        queries = self.to_queries_and_key(queries).view(q_b, h, qk_c, l)
-        key = self.to_queries_and_key(key).view(kv_b, h, qk_c, l)
-        value = self.to_value(value).view(kv_b, h, v_c, l)
+        queries = self.to_queries_and_keys(queries).view(q_b, h, qk_c, l)
+        keys = self.to_queries_and_keys(keys).view(kv_b, h, qk_c, l)
+        values = self.to_values(values).view(kv_b, h, v_c, l)
 
         # Fold heads into the batch dimension
         queries = queries.view(q_b * h, qk_c, l)
-        key = key.view(kv_b * h, qk_c, l)
-        value = value.view(kv_b * h, v_c, l)
-
-        queries = queries / (qk_c ** (1 / 4))
-        key = key / (v_c ** (1 / 4))
+        keys = keys.view(kv_b * h, qk_c, l)
+        values = values.view(kv_b * h, v_c, l)
 
         # Get dot product of queries and key, and scale
-        dot = torch.matmul(key.transpose(1, 2), queries)
-        # dot has size (q_b*h, l, l) containing raw weights
+        queries = queries / (qk_c ** (1 / 4))
+        keys = keys / (v_c ** (1 / 4))
 
-        dot = F.softmax(dot, dim=1)
-        # dot now has channel-wise self-attention probabilities
+        if kv_b > 1:
+            dot = torch.matmul(
+                keys.transpose(1, 2).contiguous().view(kv_b * h * l, qk_c),
+                queries
+            ).view(q_b * h, kv_b * h, l, l)
+            # dot now has size (q_b*h, kv_b*h, l, l) containing raw weights
 
-        # Apply the attention to the value
-        out = torch.matmul(value, dot).view(q_b, h * v_c, l)
+            dot = F.softmax(dot, dim=2)
+            # dot now has channel-wise self-attention probabilities
+
+            # Apply the attention to the values
+            out = torch.matmul(values, dot)
+            # out now has size (q_b*h, kv_b*h, v_c, l)
+
+            out = torch.sum(out, dim=1)
+            # out now has size (q_b*h, v_c, l)
+        else:
+            dot = torch.matmul(keys.transpose(1, 2), queries)
+            # dot now has size (q_b*h, l, l) containing raw weights
+
+            dot = F.softmax(dot, dim=1)
+            # dot now has channel-wise self-attention probabilities
+
+            # Apply the attention to the values
+            out = torch.matmul(values, dot)
+            # out now has size (q_b*h, v_c, l)
+
+        out = out.view(q_b, h * v_c, l)
 
         # Unify heads
         if self.heads > 1:
