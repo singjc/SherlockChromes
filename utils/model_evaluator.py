@@ -16,6 +16,7 @@ sys.path.insert(0, '../train')
 
 from chromatograms_dataset import TarChromatogramsDataset
 from collate_fns import PadChromatogramsFor1DCNN
+from temperature_scaler import AlignmentTemperatureScaler, TemperatureScaler
 from samplers import LoadingSampler
 from transforms import ToTensor
 
@@ -23,6 +24,39 @@ def cycle(iterable):
     while True:
         for x in iterable:
             yield x
+
+def calibrate(
+    calibration_dataset,
+    model,
+    batch_size=32,
+    device='cpu',
+    alpha=0.25,
+    gamma=2,
+    template_dataset=None,
+    template_batch_size=4):
+    calibration_dataloader = DataLoader(
+        calibration_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        collate_fn=PadChromatogramsFor1DCNN())
+
+    if template_dataset:
+        template_dataloader = DataLoader(
+            template_dataset,
+            batch_size=template_batch_size,
+            shuffle=False,
+            collate_fn=PadChromatogramsFor1DCNN())
+
+        template_dataloader = iter(cycle(template_dataloader))
+        temperature_scaler = AlignmentTemperatureScaler(model, device)
+        temperature_scaler.set_temperature(
+            calibration_dataloader, template_dataloader, alpha, gamma)
+    else:
+        temperature_scaler = TemperatureScaler(model, device)
+        temperature_scaler.set_temperature(
+            calibration_dataloader, alpha, gamma)
+
+    return temperature_scaler
 
 def create_output_array(
     dataset,
@@ -33,7 +67,8 @@ def create_output_array(
     npy_dir='.',
     npy_name='output_array',
     threshold=0.5,
-    template_dataset=None):
+    template_dataset=None,
+    template_batch_size=4):
     output_array = []
 
     if load_npy:
@@ -50,7 +85,7 @@ def create_output_array(
     if template_dataset:
         template_dataloader = DataLoader(
             template_dataset,
-            batch_size=batch_size // 16,
+            batch_size=template_batch_size,
             shuffle=False,
             collate_fn=PadChromatogramsFor1DCNN())
 
@@ -387,6 +422,48 @@ if __name__ == "__main__":
         '--template_idx',
         type=str,
         default='template_idx.txt')
+    parser.add_argument(
+        '-template_batch_size',
+        '--template_batch_size',
+        type=int,
+        default=4)
+    parser.add_argument(
+        '-calibrate', '--calibrate', action='store_true', default=False)
+    parser.add_argument(
+        '-calibration_chromatograms_csv',
+        '--calibration_chromatograms_csv',
+        type=str,
+        default='calibration_chromatograms.csv')
+    parser.add_argument(
+        '-calibration_dataset',
+        '--calibration_dataset',
+        type=str,
+        default='hroest_Strep_600s_175pts.tar')
+    parser.add_argument(
+        '-calibration_labels',
+        '--calibration_labels',
+        type=str,
+        default='hroest_Strep_600s_175pts_labels.npy')
+    parser.add_argument(
+        '-calibration_preload_path',
+        '--calibration_preload_path',
+        type=str,
+        default='hroest_Strep_600s_175pts.npy')
+    parser.add_argument(
+        '-calibration_idx',
+        '--calibration_idx',
+        type=str,
+        default='calibration_idx.txt')
+    parser.add_argument(
+        '-calibration_loss_alpha',
+        '--calibration_loss_alpha',
+        type=float,
+        default=0.25)
+    parser.add_argument(
+        '-calibration_loss_gamma',
+        '--calibration_loss_gamma',
+        type=int,
+        default=2)
     args = parser.parse_args()
 
     args.tar_shape = [int(x) for x in args.tar_shape.split(',')]
@@ -420,10 +497,30 @@ if __name__ == "__main__":
             root_path=args.data_dir,
             filenames=[args.template_idx],
             dt='int',
-            shuffle=False
+            shuffle=True
         )
         evaluation_template_idx = sampling_fn()[0]
         template_dataset = Subset(template_dataset, evaluation_template_idx)
+
+    if args.calibrate:
+        calibration_dataset = TarChromatogramsDataset(
+            args.data_dir,
+            args.calibration_chromatograms_csv,
+            args.calibration_dataset,
+            tar_shape=args.tar_shape,
+            labels=args.calibration_labels,
+            preload=preload,
+            preload_path=args.calibration_preload_path,
+            transform=ToTensor())
+
+        sampling_fn = LoadingSampler(
+            root_path=args.data_dir,
+            filenames=[args.calibration_idx],
+            dt='int',
+            shuffle=True
+        )
+        calibration_idx = sampling_fn()[0]
+        calibration_dataset = Subset(calibration_dataset, calibration_idx)
 
     print('Data loaded in {0:0.1f} seconds'.format(time.time() - start))
 
@@ -448,6 +545,19 @@ if __name__ == "__main__":
             args.results_csv)
     else:
         if args.mode == 'alignment':
+            if args.calibrate:
+                model = calibrate(
+                    calibration_dataset,
+                    model,
+                    batch_size=args.batch_size,
+                    device=args.device,
+                    alpha=args.calibration_loss_alpha,
+                    gamma=args.calibration_loss_gamma,
+                    template_dataset=template_dataset,
+                    template_batch_size=args.template_batch_size)
+            else:
+                model.probs = True
+            
             output_array = create_output_array(
                 dataset,
                 model,
@@ -457,8 +567,20 @@ if __name__ == "__main__":
                 args.npy_dir,
                 args.npy_name,
                 args.threshold,
-                template_dataset)
+                template_dataset,
+                args.template_batch_size)
         else:
+            if args.calibrate:
+                model = calibrate(
+                    calibration_dataset,
+                    model,
+                    batch_size=args.batch_size,
+                    device=args.device,
+                    alpha=args.calibration_loss_alpha,
+                    gamma=args.calibration_loss_gamma)
+            else:
+                model.probs = True
+
             output_array = create_output_array(
                 dataset,
                 model,
