@@ -8,16 +8,76 @@ sys.path.insert(0, '../optimizers')
 
 from focal_loss import FocalLossBinary
 
+class ChromatogramScaler(nn.Module):
+    def __init__(
+        self,
+        num_channels=6,
+        scale_independently=False,
+        scale_precursors=False,
+        lower=0.875,
+        upper=1.125,
+        device='cpu'):
+        super(ChromatogramScaler, self).__init__()
+        self.num_channels = num_channels
+        self.scale_independently = scale_independently
+        self.scale_precursors = scale_precursors
+        self.lower = lower
+        self.upper = upper
+        self.device = device
+
+    def forward(self, chromatogram_batch):
+        if self.scale_independently:
+            scaling_factors = (
+                torch.FloatTensor(6, 1).uniform_(self.lower, self.upper))
+        else:
+            scaling_factors = (
+                torch.FloatTensor(1).uniform_(self.lower, self.upper))
+
+        chromatogram_batch[:, 0:6] = (
+            chromatogram_batch[:, 0:6].to(self.device) * scaling_factors)
+
+        if self.num_channels == 14:
+            chromatogram_batch[:, 7:13] = (
+                chromatogram_batch[:, 7:13].to(self.device) * scaling_factors)
+
+        if self.scale_precursors:
+            if self.num_channels == 14:
+                scaling_factor = (
+                    torch.FloatTensor(1).uniform_(self.lower, self.upper))
+                chromatogram_batch[:, 13] = (
+                    chromatogram_batch[:, 13].to(self.device) * scaling_factor)
+
+        return chromatogram_batch
+
+class ChromatogramShuffler(nn.Module):
+    def __init__(self, num_channels=6):
+        super(ChromatogramShuffler, self).__init__()
+        self.num_channels = num_channels
+
+    def forward(self, chromatogram_batch):
+        shuffled_indices = torch.randperm(6)
+
+        chromatogram_batch[:, 0:6] = (
+            chromatogram_batch[:, 0:6][:, shuffled_indices])
+
+        if self.num_channels == 14:
+            chromatogram_batch[:, 7:13] = (
+                chromatogram_batch[:, 7:13][:, shuffled_indices])
+
+        return chromatogram_batch
+
 class SemiSupervisedLearner(nn.Module):
     def __init__(
         self,
         model,
         wu=1,
         threshold=0.95,
-        weak_p=0.1,
-        weak_drop_channels=False,
-        strong_p=0.3,
-        strong_drop_channels=False,
+        augmentator_num_channels=6,
+        augmentator_scale_independently=False,
+        augmentator_scale_precursors=False,
+        augmentator_lower=0.875,
+        augmentator_upper=1.125,
+        augmentator_device='cpu',
         loss_alpha=0.25,
         loss_gamma=2,
         loss_logits=False,
@@ -28,15 +88,19 @@ class SemiSupervisedLearner(nn.Module):
         self.wu = wu
         self.threshold = threshold
 
-        if weak_drop_channels:
-            self.weak_augmentator = nn.Dropout2d(weak_p)
-        else:
-            self.weak_augmentator = nn.Dropout(weak_p)
-        
-        if strong_drop_channels:
-            self.strong_augmentator = nn.Dropout2d(strong_p)
-        else:
-            self.strong_augmentator = nn.Dropout(strong_p)
+        self.weak_augmentator = ChromatogramScaler(
+            num_channels=augmentator_num_channels,
+            scale_independently=augmentator_scale_independently,
+            scale_precursors=augmentator_scale_precursors,
+            lower=augmentator_lower,
+            upper=augmentator_upper,
+            device=augmentator_device
+        )
+
+        self.strong_augmentator = nn.Sequential(
+            self.weak_augmentator,
+            ChromatogramShuffler(num_channels=augmentator_num_channels)
+        )
 
         self.loss = FocalLossBinary(
             loss_alpha, loss_gamma, loss_logits, loss_reduction
@@ -80,10 +144,12 @@ class SemiSupervisedAlignmentLearner(SemiSupervisedLearner):
         model,
         wu=1,
         threshold=0.85,
-        weak_p=0.2,
-        weak_drop_channels=True,
-        strong_p=0.3,
-        strong_drop_channels=True,
+        augmentator_num_channels=6,
+        augmentator_scale_independently=False,
+        augmentator_scale_precursors=False,
+        augmentator_lower=0.875,
+        augmentator_upper=1.125,
+        augmentator_device='cpu',
         loss_alpha=0.25,
         loss_gamma=2,
         loss_logits=False,
@@ -93,10 +159,12 @@ class SemiSupervisedAlignmentLearner(SemiSupervisedLearner):
             model,
             wu=wu,
             threshold=threshold,
-            weak_p=weak_p,
-            weak_drop_channels=weak_drop_channels,
-            strong_p=strong_p,
-            strong_drop_channels=strong_drop_channels,
+            augmentator_num_channels=augmentator_num_channels,
+            augmentator_scale_independently=augmentator_scale_independently,
+            augmentator_scale_precursors=augmentator_scale_precursors,
+            augmentator_lower=augmentator_lower,
+            augmentator_upper=augmentator_upper,
+            augmentator_device=augmentator_device,
             loss_alpha=loss_alpha,
             loss_gamma=loss_gamma,
             loss_logits=loss_logits,
