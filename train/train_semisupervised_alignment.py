@@ -299,7 +299,9 @@ def train(
             else:
                 torch.save(model.state_dict(), save_path)
 
-    save_path = f"{kwargs['model_savename']}_model_{epoch}_final.pth"
+    save_path = os.path.join(
+                kwargs['outdir_path'],
+                f"{kwargs['model_savename']}_model_{epoch}_final.pth")
 
     if 'save_whole' in kwargs and kwargs['save_whole']:
         torch.save(model, save_path)
