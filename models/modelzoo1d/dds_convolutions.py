@@ -234,7 +234,7 @@ class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
             nn.ReLU(),
             nn.Conv1d(depth_multiplier * c, c, 1, bias=False))
 
-        self.dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout2d(dropout)
         
     def forward(self, x):
         attended = self.attention(x)
@@ -255,12 +255,15 @@ class DDSTSTransformer(nn.Module):
         dropout=0.1,
         depth=6,
         kernel_sizes=[3, 15],
-        use_template=False,
-        cat_template=False):
+        use_templates=False,
+        cat_templates=False,
+        probs=True):
         super(DDSTSTransformer, self).__init__()
-        self.use_template = use_template
+        self.use_templates = use_templates
 
-        self.cat_template = self.use_template and cat_template
+        self.cat_templates = self.use_templates and cat_templates
+
+        self.probs = probs
 
         self.init_encoder = nn.Conv1d(
             in_channels,
@@ -286,8 +289,8 @@ class DDSTSTransformer(nn.Module):
 
         t_out_channels = transformer_channels
 
-        if self.use_template:
-            self.template_attn = (
+        if self.use_templates:
+            self.templates_attn = (
                 DynamicDepthSeparableTimeSeriesTemplateAttention(
                     qk_c=transformer_channels,
                     v_c=1,
@@ -296,38 +299,42 @@ class DDSTSTransformer(nn.Module):
                 )
             )
 
-        if self.cat_template:
+        if self.cat_templates:
             t_out_channels+= 1
-        elif self.use_template:
+        elif self.use_templates:
             t_out_channels = 1
 
         # Maps the final output sequence to class probabilities
-        self.to_probs = nn.Sequential(
+        self.to_logits = nn.Sequential(
             DynamicDepthSeparableConv1d(
                 t_out_channels,
                 1,
                 kernel_sizes=kernel_sizes
-            ),
-            nn.Sigmoid()
+            )
         )
 
-    def forward(self, x, template=None, template_label=None):
+        self.to_probs = nn.Sigmoid()
+
+    def forward(self, x, templates=None, templates_label=None):
         b, _, _ = x.size()
 
         x = self.init_encoder(x)
         x = self.t_blocks(x)
 
-        if self.use_template:
-            template = self.init_encoder(template)
-            template = self.t_blocks(template)
-            x_weighted = self.template_attn(x, template, template_label)
+        if self.use_templates:
+            templates = self.init_encoder(templates)
+            templates = self.t_blocks(templates)
+            x_weighted = self.templates_attn(x, templates, templates_label)
 
-            if self.cat_template:
+            if self.cat_templates:
                 x = torch.cat([x, x_weighted], dim=1)
             else:
                 x = x_weighted
 
-        x = self.to_probs(x)
+        x = self.to_logits(x)
+
+        if self.probs:
+            x = self.to_probs(x)
 
         return x.view(b, -1)
 
