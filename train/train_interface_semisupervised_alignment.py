@@ -27,10 +27,16 @@ def main(
         'augmentator_scale_precursors',
         'augmentator_lower',
         'augmentator_upper',
+        'regularizer_mode',
+        'regularizer_sigma_min',
+        'regularizer_sigma_max',
+        'regularizer_p_min',
+        'regularizer_p_max',
         'loss_alpha',
         'loss_gamma',
         'loss_logits',
         'loss_reduction',
+        'model_device',
         'debug']:
         if kw in train_kwargs:
             model_kwargs[kw] = train_kwargs[kw]
