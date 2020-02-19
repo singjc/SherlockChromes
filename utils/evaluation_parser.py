@@ -351,7 +351,8 @@ def decoys_per_target_metric(
     target_filename,
     decoy_filename,
     train_chromatogram_filename=None,
-    exclusion_idx_filenames=[]):
+    exclusion_idx_filenames=[],
+    logits=False):
     excluded_filenames = get_filenames_from_idx(
         train_chromatogram_filename, exclusion_idx_filenames)
 
@@ -395,11 +396,18 @@ def decoys_per_target_metric(
         num_osw_decoys_over_targets.append(
             num_osw_decoys / num_osw_targets[-1])
 
-    for i in [0.05 * n for n in range(20, -1, -1)]:
-        num_mod_decoys = (mod_decoys >= i).sum()
-        num_mod_targets.append((mod_targets >= i).sum() + num_mod_decoys)
-        num_mod_decoys_over_targets.append(
-            num_mod_decoys / num_mod_targets[-1])
+    if logits:
+        for i in [n / 2 for n in range(6, -8, -1)]:
+            num_mod_decoys = (mod_decoys >= i).sum()
+            num_mod_targets.append((mod_targets >= i).sum() + num_mod_decoys)
+            num_mod_decoys_over_targets.append(
+                num_mod_decoys / num_mod_targets[-1])
+    else:
+        for i in [0.05 * n for n in range(20, -1, -1)]:
+            num_mod_decoys = (mod_decoys >= i).sum()
+            num_mod_targets.append((mod_targets >= i).sum() + num_mod_decoys)
+            num_mod_decoys_over_targets.append(
+                num_mod_decoys / num_mod_targets[-1])
 
     plt.plot(num_osw_targets, num_osw_decoys_over_targets, 'b-o', label='osw')
     plt.plot(num_mod_targets, num_mod_decoys_over_targets, 'r-+', label='mod')
