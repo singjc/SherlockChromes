@@ -105,7 +105,8 @@ def get_feature_data_table(osw_filename, decoy=0, spectral_info=True):
         ms2.VAR_LOG_SN_SCORE, ms2.VAR_MANHATTAN_SCORE, ms2.VAR_MASSDEV_SCORE, 
         ms2.VAR_MASSDEV_SCORE_WEIGHTED, ms2.VAR_NORM_RT_SCORE, 
         ms2.VAR_XCORR_COELUTION, ms2.VAR_XCORR_COELUTION_WEIGHTED, 
-        ms2.VAR_XCORR_SHAPE, ms2.VAR_XCORR_SHAPE_WEIGHTED, ms2.VAR_YSERIES_SCORE
+        ms2.VAR_XCORR_SHAPE, ms2.VAR_XCORR_SHAPE_WEIGHTED,
+        ms2.VAR_YSERIES_SCORE, ms2.VAR_ELUTION_MODEL_FIT_SCORE
         FROM PRECURSOR p1
         LEFT JOIN PRECURSOR_PEPTIDE_MAPPING ppm ON p1.ID = ppm.PRECURSOR_ID
         LEFT JOIN PEPTIDE p2 ON p2.ID = ppm.PEPTIDE_ID
@@ -124,7 +125,8 @@ def get_feature_data_table(osw_filename, decoy=0, spectral_info=True):
         ms2.VAR_LIBRARY_ROOTMEANSQUARE, ms2.VAR_LIBRARY_SANGLE, 
         ms2.VAR_LOG_SN_SCORE, ms2.VAR_MANHATTAN_SCORE, ms2.VAR_NORM_RT_SCORE, 
         ms2.VAR_XCORR_COELUTION, ms2.VAR_XCORR_COELUTION_WEIGHTED, 
-        ms2.VAR_XCORR_SHAPE, ms2.VAR_XCORR_SHAPE_WEIGHTED
+        ms2.VAR_XCORR_SHAPE, ms2.VAR_XCORR_SHAPE_WEIGHTED,
+        ms2.VAR_ELUTION_MODEL_FIT_SCORE
         FROM PRECURSOR p1
         LEFT JOIN PRECURSOR_PEPTIDE_MAPPING ppm ON p1.ID = ppm.PRECURSOR_ID
         LEFT JOIN PEPTIDE p2 ON p2.ID = ppm.PEPTIDE_ID
@@ -146,13 +148,13 @@ def create_feature_data(
     rt_gap,
     osw_dir,
     osw_filename,
-    decoy,
     threshold,
     out_dir,
     data_npy,
     labels_npy,
     csv_filename,
-    spectral_info=True):
+    spectral_info=True,
+    decoys=False):
     manual_annotation_filename = os.path.join(
         manual_annotation_dir, manual_annotation_filename)
     osw_filename = os.path.join(osw_dir, osw_filename)
@@ -161,7 +163,7 @@ def create_feature_data(
         manual_annotation_filename, rt_gap)
 
     feature_data_table = get_feature_data_table(
-        osw_filename, decoy, spectral_info)
+        osw_filename, 0, spectral_info)
 
     num_samples = len(feature_data_table)
 
@@ -225,6 +227,44 @@ def create_feature_data(
         feature_idx+= 1
 
         feature_data_array.append(feature_data_table[i][5:])
+
+    if decoys:
+        decoy_feature_data_table = get_feature_data_table(
+            osw_filename, 1, spectral_info)
+
+        num_decoys = len(decoy_feature_data_table)
+
+        for i in range(num_decoys):
+            if None in decoy_feature_data_table[i]:
+                continue
+            
+            filename, mod_seq, charge, left, right = (
+                decoy_feature_data_table[i][0:5])
+            filename = '_'.join(
+                [filename.split('/')[-1].split('.')[0], mod_seq, str(charge)])
+            filename = 'DECOY_' + filename
+
+            label = 0
+
+            labels.append([label])
+            feature_data_csv.append(
+                [
+                    feature_idx,
+                    filename,
+                    None,
+                    None,
+                    None,
+                    None,
+                    label,
+                    None,
+                    None
+                ]
+            )
+
+            feature_idx+= 1
+
+            feature_data_array.append(decoy_feature_data_table[i][5:])
+
 
     feature_data_array = np.array(feature_data_array)
     labels = np.array(labels)
