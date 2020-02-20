@@ -32,10 +32,12 @@ class ChromatogramScaler(nn.Module):
     def forward(self, chromatogram_batch):
         if self.scale_independently:
             scaling_factors = (
-                torch.FloatTensor(6, 1).uniform_(self.lower, self.upper))
+                torch.FloatTensor(6, 1).uniform_(self.lower, self.upper)
+            ).to(self.device)
         else:
             scaling_factors = (
-                torch.FloatTensor(1).uniform_(self.lower, self.upper))
+                torch.FloatTensor(1).uniform_(self.lower, self.upper)
+            ).to(self.device)
 
         chromatogram_batch[:, 0:6] = (
             chromatogram_batch[:, 0:6].to(self.device) * scaling_factors)
@@ -47,7 +49,8 @@ class ChromatogramScaler(nn.Module):
         if self.scale_precursors:
             if self.num_channels == 14:
                 scaling_factor = (
-                    torch.FloatTensor(1).uniform_(self.lower, self.upper))
+                    torch.FloatTensor(1).uniform_(self.lower, self.upper)
+                ).to(self.device)
                 chromatogram_batch[:, 13] = (
                     chromatogram_batch[:, 13].to(self.device) * scaling_factor)
 
@@ -86,6 +89,7 @@ class SemiSupervisedLearner(nn.Module):
         regularizer_sigma_max=16,
         regularizer_p_min=0.5,
         regularizer_p_max=0.5,
+        modulation_mode='mask',
         loss_alpha=0.25,
         loss_gamma=2,
         loss_logits=False,
@@ -119,8 +123,13 @@ class SemiSupervisedLearner(nn.Module):
         self.regularizer_p_min = regularizer_p_min
         self.regularizer_p_max = regularizer_p_max
 
+        self.modulation_mode = modulation_mode
+
         self.loss = FocalLossBinary(
-            loss_alpha, loss_gamma, loss_logits, loss_reduction
+            alpha=loss_alpha,
+            gamma=loss_gamma,
+            logits=loss_logits,
+            reduction=loss_reduction
         )
 
         if loss_logits:
@@ -130,7 +139,8 @@ class SemiSupervisedLearner(nn.Module):
 
         self.debug = debug
 
-    def generate_cow_mask(
+    def generate_zebra_mask(
+        self,
         length,
         sigma_min=4,
         sigma_max=16,
@@ -154,8 +164,9 @@ class SemiSupervisedLearner(nn.Module):
             assert labeled_batch is not None, 'missing labeled data!'
             assert labels is not None, 'missing labels!'
 
-            if self.regularizer_mode != 'none':
-                assert b_ul % 2 == 0, 'uneven batch size!'
+            if self.regularizer_mode == 'cutmix':
+                if b_ul % 2 != 0:
+                    unlabeled_batch = unlabeled_batch[0:b_ul - 1]
 
             labeled_loss = torch.mean(
                 self.loss(self.segmentator(labeled_batch), labels)
@@ -165,27 +176,27 @@ class SemiSupervisedLearner(nn.Module):
             weakly_augmented = self.weak_augmentator(unlabeled_batch)
             weak_output = self.to_out(self.segmentator(weakly_augmented))
             pseudo_labels = (weak_output >= self.threshold).float()
-            quality_mask =  (
+            quality_modulator =  (
                 pseudo_labels + (weak_output <= (1 - self.threshold))
             )
 
             if self.regularizer_mode != 'none':
                 regularizer_mask = torch.from_numpy(
-                    self.generate_cow_mask(
+                    self.generate_zebra_mask(
                         l_ul,
-                        self.sigma_min,
-                        self.sigma_max,
-                        self.p_min,
-                        self.p_max
+                        sigma_min=self.regularizer_sigma_min,
+                        sigma_max=self.regularizer_sigma_max,
+                        p_min=self.regularizer_p_min,
+                        p_max=self.regularizer_p_max
                     )
-                ).to(self.device)
+                ).float().to(self.device)
 
                 if self.regularizer_mode == 'cutout':
                     strongly_augmented = strongly_augmented * regularizer_mask
-                    quality_mask = quality_mask * regularizer_mask
+                    quality_modulator = quality_modulator * regularizer_mask
                 elif self.regularizer_mode == 'cutmix':
                     b_ul_half = b_ul // 2
-                    strongly_augmented_mixed = (
+                    strongly_augmented = (
                         (
                             strongly_augmented[0:b_ul_half].to(self.device) * 
                             regularizer_mask
@@ -205,21 +216,24 @@ class SemiSupervisedLearner(nn.Module):
                             (1 - regularizer_mask)
                         )
                     )
-                    quality_mask = (
+                    quality_modulator = (
                         (
-                            quality_mask[0:b_ul_half].to(self.device) *
+                            quality_modulator[0:b_ul_half].to(self.device) *
                             regularizer_mask
                         ) +
                         (
-                            quality_mask[b_ul_half:].to(self.device) *
+                            quality_modulator[b_ul_half:].to(self.device) *
                             (1 - regularizer_mask)
                         )
                     )
 
-            quality_mask = quality_mask.reshape(1, -1).squeeze()
+            quality_modulator = quality_modulator.reshape(1, -1).squeeze()
+
+            if self.modulation_mode == 'mean':
+                quality_modulator = torch.mean(quality_modulator)
 
             unlabeled_loss = torch.mean(
-                quality_mask * 
+                quality_modulator * 
                 self.loss(self.segmentator(strongly_augmented), pseudo_labels)
             )
             
@@ -250,6 +264,7 @@ class SemiSupervisedAlignmentLearner(SemiSupervisedLearner):
         regularizer_sigma_max=16,
         regularizer_p_min=0.5,
         regularizer_p_max=0.5,
+        modulation_mode='mask',
         loss_alpha=0.25,
         loss_gamma=2,
         loss_logits=False,
@@ -270,6 +285,7 @@ class SemiSupervisedAlignmentLearner(SemiSupervisedLearner):
             regularizer_sigma_max=regularizer_sigma_max,
             regularizer_p_min=regularizer_p_min,
             regularizer_p_max=regularizer_p_max,
+            modulation_mode=modulation_mode,
             loss_alpha=loss_alpha,
             loss_gamma=loss_gamma,
             loss_logits=loss_logits,
@@ -291,8 +307,9 @@ class SemiSupervisedAlignmentLearner(SemiSupervisedLearner):
             assert labeled_batch is not None, 'missing labeled data!'
             assert labels is not None, 'missing labels!'
 
-            if self.regularizer_mode != 'none':
-                assert b_ul % 2 == 0, 'uneven batch size!'
+            if self.regularizer_mode == 'cutmix':
+                if b_ul % 2 != 0:
+                    unlabeled_batch = unlabeled_batch[0:b_ul - 1]
                 
             labeled_loss = torch.mean(
                 self.loss(
@@ -307,27 +324,27 @@ class SemiSupervisedAlignmentLearner(SemiSupervisedLearner):
                 self.segmentator(weakly_augmented, template, template_label)
             )
             pseudo_labels = (weak_output >= self.threshold).float()
-            quality_mask =  (
+            quality_modulator =  (
                 pseudo_labels + (weak_output <= (1 - self.threshold))
             )
 
             if self.regularizer_mode != 'none':
                 regularizer_mask = torch.from_numpy(
-                    self.generate_cow_mask(
+                    self.generate_zebra_mask(
                         l_ul,
-                        self.sigma_min,
-                        self.sigma_max,
-                        self.p_min,
-                        self.p_max
+                        sigma_min=self.regularizer_sigma_min,
+                        sigma_max=self.regularizer_sigma_max,
+                        p_min=self.regularizer_p_min,
+                        p_max=self.regularizer_p_max
                     )
-                ).to(self.device)
+                ).float().to(self.device)
 
                 if self.regularizer_mode == 'cutout':
                     strongly_augmented = strongly_augmented * regularizer_mask
-                    quality_mask = quality_mask * regularizer_mask
+                    quality_modulator = quality_modulator * regularizer_mask
                 elif self.regularizer_mode == 'cutmix':
                     b_ul_half = b_ul // 2
-                    strongly_augmented_mixed = (
+                    strongly_augmented = (
                         (
                             strongly_augmented[0:b_ul_half].to(self.device) * 
                             regularizer_mask
@@ -347,21 +364,24 @@ class SemiSupervisedAlignmentLearner(SemiSupervisedLearner):
                             (1 - regularizer_mask)
                         )
                     )
-                    quality_mask = (
+                    quality_modulator = (
                         (
-                            quality_mask[0:b_ul_half].to(self.device) *
+                            quality_modulator[0:b_ul_half].to(self.device) *
                             regularizer_mask
                         ) +
                         (
-                            quality_mask[b_ul_half:].to(self.device) *
+                            quality_modulator[b_ul_half:].to(self.device) *
                             (1 - regularizer_mask)
                         )
                     )
 
-            quality_mask = quality_mask.reshape(1, -1).squeeze()
+            quality_modulator = quality_modulator.reshape(1, -1).squeeze()
+
+            if self.modulation_mode == 'mean':
+                quality_modulator = torch.mean(quality_modulator)
 
             unlabeled_loss = torch.mean(
-                quality_mask * 
+                quality_modulator * 
                 self.loss(
                     self.segmentator(
                         strongly_augmented, template, template_label),

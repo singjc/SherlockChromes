@@ -31,6 +31,7 @@ def main(
         'regularizer_sigma_max',
         'regularizer_p_min',
         'regularizer_p_max',
+        'modulation_mode',
         'loss_alpha',
         'loss_gamma',
         'loss_logits',
