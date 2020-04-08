@@ -240,7 +240,7 @@ def create_results_file(
         output = output_array[i]
         binarized_output = binarized_output_array[i]
 
-        left_width, right_width = None, None
+        left_width, right_width = np.argmax(output), np.argmax(output)
 
         score = np.max(output)
 
@@ -590,6 +590,11 @@ if __name__ == "__main__":
                 args.npy_dir,
                 args.npy_name,
                 args.threshold)
+        
+        if args.calibrate:
+            save_name = 'calibrated_' + args.model_pth.split('/')[-1]
+            save_path = os.path.join(args.out_dir, save_name)
+            torch.save(model, save_path)
 
         if args.mode in ['alignment', 'inference']:
             create_results_file(
