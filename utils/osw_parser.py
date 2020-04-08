@@ -264,7 +264,7 @@ def create_data_from_transition_ids(
 
         if window_size >= 0:
             half_span = window_size // 2
-            exp_rt_idx = bisect.bisect(times, exp_rt)
+            exp_rt_idx = bisect.bisect_left(times, exp_rt)
             subsection_left, subsection_right = (
                 exp_rt_idx - half_span, exp_rt_idx + half_span + 1)
             if subsection_left < 0:
