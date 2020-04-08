@@ -175,9 +175,10 @@ class SemiSupervisedLearner(nn.Module):
             strongly_augmented = self.strong_augmentator(unlabeled_batch)
             weakly_augmented = self.weak_augmentator(unlabeled_batch)
             weak_output = self.to_out(self.segmentator(weakly_augmented))
-            pseudo_labels = (weak_output >= self.threshold).float()
+            pseudo_labels = (weak_output >= 0.5).float()
             quality_modulator =  (
-                pseudo_labels + (weak_output <= (1 - self.threshold))
+                (weak_output >= self.threshold).float() + 
+                (weak_output <= (1 - self.threshold))
             )
 
             if self.regularizer_mode != 'none':
@@ -323,9 +324,10 @@ class SemiSupervisedAlignmentLearner(SemiSupervisedLearner):
             weak_output = self.to_out(
                 self.segmentator(weakly_augmented, template, template_label)
             )
-            pseudo_labels = (weak_output >= self.threshold).float()
+            pseudo_labels = (weak_output >= 0.5).float()
             quality_modulator =  (
-                pseudo_labels + (weak_output <= (1 - self.threshold))
+                (weak_output >= self.threshold).float() + 
+                (weak_output <= (1 - self.threshold))
             )
 
             if self.regularizer_mode != 'none':
