@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+from .modelzoo1d.deeplab_1d import DeepLab1d
 from .modelzoo1d.transformer import TransformerBlock
 
 class BaselineSegmentationNet(nn.Module):
@@ -23,43 +24,6 @@ class BaselineSegmentationNet(nn.Module):
         output = self.convnet(x)
 
         return output
-
-class BaselineEmbeddingNet(nn.Module):
-    def __init__(self):
-        super(BaselineEmbeddingNet, self).__init__()
-        self.convnet = nn.Sequential(nn.Conv1d(1, 32, 5), nn.PReLU(),
-                                     nn.MaxPool1d(2, stride=2),
-                                     nn.Conv1d(32, 64, 5), nn.PReLU(),
-                                     nn.MaxPool1d(2, stride=2))
-
-        self.fc = nn.Sequential(nn.Linear(64 * 593, 256),
-                                nn.PReLU(),
-                                nn.Linear(256, 256),
-                                nn.PReLU(),
-                                nn.Linear(256, 2)
-                                )
-
-    def forward(self, x):
-        output = self.convnet(x)
-        output = output.view(output.size()[0], -1)
-        output = self.fc(output)
-
-        return output
-
-class BaselineTripletNet(nn.Module):
-    def __init__(self, embedding_net):
-        super(BaselineTripletNet, self).__init__()
-        self.embedding_net = embedding_net
-
-    def forward(self, x_1, x_2, x_3):
-        output_1 = self.embedding_net(x_1)
-        output_2 = self.embedding_net(x_2)
-        output_3 = self.embedding_net(x_3)
-
-        return output_1, output_2, output_3
-
-    def get_embedding(self, x):
-        return self.embedding_net(x)
 
 class BaselineTransformer(nn.Module):
     def __init__(self, in_channels, k, heads, depth, seq_length):

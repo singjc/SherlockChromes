@@ -309,7 +309,7 @@ class DDSTSTransformer(nn.Module):
             DynamicDepthSeparableConv1d(
                 t_out_channels,
                 1,
-                kernel_sizes=kernel_sizes
+                kernel_sizes=[1, 3]
             )
         )
 
