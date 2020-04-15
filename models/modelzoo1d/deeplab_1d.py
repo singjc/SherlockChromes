@@ -106,7 +106,7 @@ class ASPP1d(nn.Module):
         out3 = self.aspp3(x)
         out4 = self.aspp4(x)
         out5 = self.aspp5(x)
-        out6 = self.global_avg_pool(x).expand_as(output1)
+        out6 = self.global_avg_pool(x).expand_as(out1)
 
         out = torch.cat([out1, out2, out3, out4, out5, out6], dim=1)
 
@@ -158,26 +158,22 @@ class DeepLab1d(nn.Module):
                 res=False
             ),
             Conv1dResBlock(
-                Conv1dResBlock(
-                    in_channels=n_filters,
-                    out_channels=n_filters // 2,
-                    kernel_size=3,
-                    dilation=1,
-                    bias=False,
-                    dropout=0.5,
-                    res=False
-                )
+                in_channels=n_filters,
+                out_channels=n_filters // 2,
+                kernel_size=3,
+                dilation=1,
+                bias=False,
+                dropout=0.5,
+                res=False
             ),
             Conv1dResBlock(
-                Conv1dResBlock(
-                    in_channels=n_filters // 2,
-                    out_channels=1,
-                    kernel_size=1,
-                    dilation=1,
-                    bias=False,
-                    dropout=0.1,
-                    res=False
-                )
+                in_channels=n_filters // 2,
+                out_channels=1,
+                kernel_size=1,
+                dilation=1,
+                bias=False,
+                dropout=0.1,
+                res=False
             ),
             nn.Sigmoid()
         )
