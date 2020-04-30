@@ -226,13 +226,18 @@ def train(
             evaluator.run(train_loader)
 
         metrics = evaluator.state.metrics
-        print("Training Results - Epoch: {} Avg accuracy: {:.8f} Avg precision: {:.8f} Avg recall: {:.8f} Avg loss: {:.8f}"
+
+        f1 = calc_f1(metrics['precision'], metrics['recall'])
+
+        print("Training - Epoch: {} Accuracy: {:.8f} Precision: {:.8f} Recall: {:.8f} Dice: {:.8f} Avg loss: {:.8f}"
                .format(
                    trainer.state.epoch,
                    metrics['accuracy'],
                    metrics['precision'],
                    metrics['recall'],
+                   f1,
                    metrics['loss']))
+
         if use_visdom:
             vis.plot_train_acc(metrics['accuracy'], trainer.state.epoch)
             vis.plot_train_prec(metrics['precision'], trainer.state.epoch)
@@ -240,8 +245,6 @@ def train(
             vis.plot_train_loss(metrics['loss'], trainer.state.epoch)
 
         if kwargs['test_batch_proportion'] == 0.0:
-            f1 = calc_f1(metrics['precision'], metrics['recall'])
-
             if f1 >= trainer.state.highest_f1:
                 save_path = os.path.join(
                     kwargs['outdir_path'],
@@ -266,20 +269,23 @@ def train(
             evaluator.run(val_loader)
             
         metrics = evaluator.state.metrics
-        print("Validation Results - Epoch: {} Avg accuracy: {:.8f} Avg precision: {:.8f} Avg recall: {:.8f} Avg loss: {:.8f}"
+
+        f1 = calc_f1(metrics['precision'], metrics['recall'])
+
+        print("Validation - Epoch: {} Accuracy: {:.8f} Precision: {:.8f} Recall: {:.8f} Dice: {:.8f} Avg loss: {:.8f}"
             .format(
                 trainer.state.epoch,
                 metrics['accuracy'],
                 metrics['precision'],
                 metrics['recall'],
+                f1,
                 metrics['loss']))
+                
         if use_visdom:
             vis.plot_val_acc(metrics['accuracy'], trainer.state.epoch)
             vis.plot_val_prec(metrics['precision'], trainer.state.epoch)
             vis.plot_val_recall(metrics['recall'], trainer.state.epoch)
             vis.plot_val_loss(metrics['loss'], trainer.state.epoch)
-        
-        f1 = calc_f1(metrics['precision'], metrics['recall'])
 
         if f1 >= evaluator.state.highest_f1:
             save_path = os.path.join(
@@ -301,12 +307,16 @@ def train(
             
         evaluator.run(test_loader)
         metrics = evaluator.state.metrics
-        print("Test Results - Epoch: {} Avg accuracy: {:.8f} Avg precision: {:.8f} Avg recall: {:.8f} Avg loss: {:.8f}"
+
+        f1 = calc_f1(metrics['precision'], metrics['recall'])
+
+        print("Test - Epoch: {} Accuracy: {:.8f} Precision: {:.8f} Recall: {:.8f} Dice: {:.8f} Avg loss: {:.8f}"
             .format(
                 trainer.state.epoch,
                 metrics['accuracy'],
                 metrics['precision'],
                 metrics['recall'],
+                f1,
                 metrics['loss']))
 
     trainer.run(train_loader, max_epochs=kwargs['max_epochs'])
