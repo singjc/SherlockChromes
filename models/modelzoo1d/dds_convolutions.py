@@ -1,8 +1,94 @@
-"""Dynamic Depth Separable Convolutional Neural Networks"""
+"""Dynamic Depth Separable Convolutional Transformer"""
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+class DAIN_Layer(nn.Module):
+    # Adapted from https://github.com/passalis/dain/blob/master/dain.py
+    def __init__(self, mode='full', input_dim=6):
+        super(DAIN_Layer, self).__init__()
+        self.mode = mode
+
+        # Parameters for adaptive average
+        self.mean_layer = nn.Linear(input_dim, input_dim, bias=False)
+        self.mean_layer.weight.data = torch.FloatTensor(data=np.eye(input_dim, input_dim))
+
+        # Parameters for adaptive std
+        self.scaling_layer = nn.Linear(input_dim, input_dim, bias=False)
+        self.scaling_layer.weight.data = torch.FloatTensor(data=np.eye(input_dim, input_dim))
+
+        # Parameters for adaptive scaling
+        self.gating_layer = nn.Linear(input_dim, input_dim)
+
+        self.eps = 1e-8
+
+    def forward(self, x):
+        # Expecting  (n_samples, dim, n_feature_vectors)
+
+        # Nothing to normalize
+        if self.mode == None:
+            pass
+
+        # Do simple average normalization
+        elif self.mode == 'avg':
+            avg = torch.mean(x, 2)
+            avg = avg.resize(avg.size(0), avg.size(1), 1)
+            x = x - avg
+
+        # Perform only the first step (adaptive averaging)
+        elif self.mode == 'adaptive_avg':
+            avg = torch.mean(x, 2)
+            adaptive_avg = self.mean_layer(avg)
+            adaptive_avg = adaptive_avg.resize(adaptive_avg.size(0), adaptive_avg.size(1), 1)
+            x = x - adaptive_avg
+
+        # Perform the first + second step (adaptive averaging + adaptive scaling )
+        elif self.mode == 'adaptive_scale':
+
+            # Step 1:
+            avg = torch.mean(x, 2)
+            adaptive_avg = self.mean_layer(avg)
+            adaptive_avg = adaptive_avg.resize(adaptive_avg.size(0), adaptive_avg.size(1), 1)
+            x = x - adaptive_avg
+
+            # Step 2:
+            std = torch.mean(x ** 2, 2)
+            std = torch.sqrt(std + self.eps)
+            adaptive_std = self.scaling_layer(std)
+            adaptive_std[adaptive_std <= self.eps] = 1
+
+            adaptive_std = adaptive_std.resize(adaptive_std.size(0), adaptive_std.size(1), 1)
+            x = x / (adaptive_std)
+
+        elif self.mode == 'full':
+
+            # Step 1:
+            avg = torch.mean(x, 2)
+            adaptive_avg = self.mean_layer(avg)
+            adaptive_avg = adaptive_avg.resize(adaptive_avg.size(0), adaptive_avg.size(1), 1)
+            x = x - adaptive_avg
+
+            # # Step 2:
+            std = torch.mean(x ** 2, 2)
+            std = torch.sqrt(std + self.eps)
+            adaptive_std = self.scaling_layer(std)
+            adaptive_std[adaptive_std <= self.eps] = 1
+
+            adaptive_std = adaptive_std.resize(adaptive_std.size(0), adaptive_std.size(1), 1)
+            x = x / adaptive_std
+
+            # Step 3: 
+            avg = torch.mean(x, 2)
+            gate = F.sigmoid(self.gating_layer(avg))
+            gate = gate.resize(gate.size(0), gate.size(1), 1)
+            x = x * gate
+
+        else:
+            assert False
+
+        return x
 
 class DynamicDepthSeparableConv1d(nn.Module):
     def __init__(
@@ -255,15 +341,26 @@ class DDSTSTransformer(nn.Module):
         dropout=0.1,
         depth=6,
         kernel_sizes=[3, 15],
+        normalize=True,
+        normalization_mode='full',
         use_templates=False,
         cat_templates=False,
         probs=True):
         super(DDSTSTransformer, self).__init__()
+
+        self.normalize = normalize
+
         self.use_templates = use_templates
 
         self.cat_templates = self.use_templates and cat_templates
 
         self.probs = probs
+
+        if self.normalize:
+            self.normalization_layer = DAIN_Layer(
+                mode=normalization_mode,
+                input_dim=in_channels
+            )
 
         self.init_encoder = nn.Conv1d(
             in_channels,
@@ -318,10 +415,16 @@ class DDSTSTransformer(nn.Module):
     def forward(self, x, templates=None, templates_label=None):
         b, _, _ = x.size()
 
+        if self.normalize:
+            x = self.normalization_layer(x)
+
         x = self.init_encoder(x)
         x = self.t_blocks(x)
 
         if self.use_templates:
+            if self.normalize:
+                templates = self.normalization_layer(templates)
+
             templates = self.init_encoder(templates)
             templates = self.t_blocks(templates)
             x_weighted = self.templates_attn(x, templates, templates_label)
@@ -337,309 +440,3 @@ class DDSTSTransformer(nn.Module):
             x = self.to_probs(x)
 
         return x.view(b, -1)
-
-class DynamicDepthSeparableConv1dResBlock(nn.Module):
-    def __init__(
-        self,
-        in_channels,
-        out_channels,
-        kernel_sizes=[3, 15],
-        dilation=1,
-        bias=False,
-        intermediate_nonlinearity=False
-    ):
-        super(DynamicDepthSeparableConv1dResBlock, self).__init__()
-        self.network = nn.Sequential(
-            nn.BatchNorm1d(in_channels),
-            nn.ReLU(),
-            DynamicDepthSeparableConv1d(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_sizes=kernel_sizes,
-                dilation=dilation,
-                bias=bias,
-                intermediate_nonlinearity=intermediate_nonlinearity
-            )
-        )
-
-        self.residual = (
-            nn.Identity() if in_channels == out_channels else nn.Conv1d(
-                in_channels,
-                out_channels,
-                1,
-                bias=False
-            )
-        )
-
-    def forward(self, x):
-        out = self.network(x) + self.residual(x)
-
-        return out
-
-class EncoderDecoderNet(nn.Module):
-    def __init__(
-        self,
-        in_channels=6,
-        out_channels=[64, 32, 8, 4, 1],
-        kernel_sizes=[3, 15],
-        dilations=[1, 1, 1, 1, 1],
-        bias=False,
-        intermediate_nonlinearity=False,
-        normalize=False,
-        freeze=False,
-        use_cuda=False
-    ):
-        super(EncoderDecoderNet, self).__init__()
-        self.normalize = normalize
-
-        self.layers = nn.ModuleList()
-        
-        self.layers.append(
-            DynamicDepthSeparableConv1d(
-                in_channels=in_channels,
-                out_channels=out_channels[0],
-                kernel_sizes=kernel_sizes,
-                dilation=dilations[0],
-                bias=bias,
-                intermediate_nonlinearity=intermediate_nonlinearity
-            )
-        )
-
-        for i in range(1, len(out_channels)):
-            self.layers.append(
-                DynamicDepthSeparableConv1dResBlock(
-                    in_channels=out_channels[i - 1],
-                    out_channels=out_channels[i],
-                    kernel_sizes=kernel_sizes,
-                    dilation=dilations[i],
-                    bias=bias,
-                    intermediate_nonlinearity=intermediate_nonlinearity
-                )
-            )
-
-        self.network = nn.Sequential(*self.layers)
-
-        if freeze:
-            for param in self.network.parameters():
-                param.requires_grad = False
-
-        if use_cuda:
-            self.network = self.network.to('cuda:0')
-
-    def forward(self, sequence_batch):
-        out = self.network(sequence_batch)
-        
-        if self.normalize:
-            out = F.normalize(out, p=2, dim=1, eps=1e-12, out=None)
-
-        return out
-
-class Pyramid(nn.Module):
-    def __init__(
-        self, 
-        in_channels=32,
-        out_channels=32,
-        kernel_sizes=[3, 15],
-        dilations=[1, 2, 6, 12, 18]
-    ):
-        super(Pyramid, self).__init__()
-        self.pyramid = nn.ModuleList()
-
-        self.pyramid.append(
-            nn.Sequential(
-                nn.Conv1d(
-                    in_channels,
-                    out_channels,
-                    1,
-                    dilation=dilations[0],
-                    bias=False
-                ),
-                nn.BatchNorm1d(out_channels),
-                nn.ReLU()
-            )
-        )
-
-        for i in range(1, len(dilations)):
-            self.pyramid.append(
-                nn.Sequential(
-                    DynamicDepthSeparableConv1d(
-                        in_channels=in_channels,
-                        out_channels=out_channels,
-                        kernel_sizes=kernel_sizes,
-                        dilation=dilations[i]
-                    ),
-                    nn.BatchNorm1d(out_channels),
-                    nn.ReLU()
-                )
-            )
-
-        self.global_avg_pool = nn.Sequential(
-            nn.AdaptiveAvgPool1d(1),
-            nn.Conv1d(in_channels, out_channels, 1, bias=False),
-            nn.BatchNorm1d(out_channels),
-            nn.ReLU()
-        )
-
-        self.global_max_pool = nn.Sequential(
-            nn.AdaptiveMaxPool1d(1),
-            nn.Conv1d(in_channels, out_channels, 1, bias=False),
-            nn.BatchNorm1d(out_channels),
-            nn.ReLU()
-        )
-
-    def forward(self, x):
-        out = self.pyramid[0](x)
-        block_size = out.size()
-
-        for layer in self.pyramid[1:]:
-            out = torch.cat([out, layer(x)], dim=1)
-
-        out = torch.cat(
-            [out, self.global_avg_pool(x).expand(block_size)],
-            dim=1
-        )
-
-        out = torch.cat(
-            [out, self.global_max_pool(x).expand(block_size)],
-            dim=1
-        )
-
-        return out
-
-class DynamicSegmentationNet(nn.Module):
-    def __init__(
-        self,
-        in_channels=6,
-        out_channels=[8, 16, 32, 64, 128],
-        kernel_sizes=[3, 15],
-        dilations=[1, 1, 1, 1, 1],
-        use_unet=False,
-        p_dilations=[1, 2, 6, 12, 18],
-        depth=1,
-        fusion_channels=32,
-        heads=1,
-        boom_multiplier=4,
-        dropout=0.3
-    ):
-        super(DynamicSegmentationNet, self).__init__()
-        self.use_unet = use_unet
-        self.use_pyramid = (len(p_dilations) > 0)
-        self.use_transformer = (depth > 0)
-
-        # Convolutional Encoder Component
-        self.encoder = EncoderDecoderNet(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_sizes=kernel_sizes,
-            dilations=dilations
-        )
-
-        # Decoder Component
-        if self.use_unet:
-            self.decoder = EncoderDecoderNet(
-                in_channels=out_channels[-1],
-                out_channels=out_channels[:-1][::-1] + [fusion_channels],
-                kernel_sizes=kernel_sizes,
-                dilations=dilations[::-1]
-            )
-        else:
-            self.decoder = nn.Sequential(
-                    DynamicDepthSeparableConv1d(
-                        in_channels=out_channels[-1],
-                        out_channels=fusion_channels,
-                        kernel_sizes=kernel_sizes,
-                        dilation=1
-                    ),
-                    nn.BatchNorm1d(fusion_channels),
-                    nn.ReLU()
-                )
-
-        # Pyramid Component
-        if self.use_pyramid:
-            self.pyramid = Pyramid(
-                in_channels=out_channels[-1],
-                out_channels=fusion_channels,
-                kernel_sizes=kernel_sizes,
-                dilations=p_dilations
-            )
-
-        # Transformer Component
-        if self.use_transformer:
-            self.t_encoder = nn.Conv1d(
-                out_channels[-1],
-                fusion_channels,
-                1,
-                bias=False
-            )
-
-            self.transformer = []
-
-            for i in range(depth):
-                self.transformer.append(
-                    DynamicDepthSeparableTimeSeriesTransformerBlock(
-                        c=fusion_channels,
-                        heads=heads,
-                        depth_multiplier=boom_multiplier,
-                        dropout=dropout,
-                        kernel_sizes=kernel_sizes
-                    )
-                )
-
-            self.transformer = nn.Sequential(*self.transformer)
-
-        # Maps the final output sequence to class probabilities
-        channel_mult = 1
-
-        if self.use_pyramid:
-            channel_mult+= (len(p_dilations) + 2)
-
-        if self.use_transformer:
-            channel_mult+= 1
-
-        self.to_probs = nn.Sequential(
-            nn.Dropout(dropout),
-            DynamicDepthSeparableConv1d(
-                channel_mult * fusion_channels,
-                1,
-                kernel_sizes=kernel_sizes
-            ),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        b, _, _ = x.size()
-
-        encoder_out = x
-
-        if self.use_unet:
-            skip_outs = []
-
-        for layer in self.encoder.layers[:-1]:
-            encoder_out = layer(encoder_out)
-
-            if self.use_unet:
-                skip_outs.append(encoder_out)
-
-        encoder_out = self.encoder.layers[-1](encoder_out)
-        out = encoder_out
-
-        if self.use_unet:
-            for layer in self.decoder.layers[:-1]:
-                out = layer(out)
-                out = out + skip_outs.pop()
-
-            out = self.decoder.layers[-1](out)
-        else:
-            out = self.decoder(out)
-
-        if self.use_pyramid:
-            out = torch.cat([out, self.pyramid(encoder_out)], dim=1)
-
-        if self.use_transformer:
-            t_out = self.t_encoder(encoder_out)
-            t_out = self.transformer(t_out)
-            out = torch.cat([out, t_out], dim=1)
-
-        out = self.to_probs(out)
-
-        return out.view(b, -1)
