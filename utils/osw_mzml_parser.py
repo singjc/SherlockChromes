@@ -157,7 +157,8 @@ def extract_additional_info_traces(
 if __name__ == "__main__":
     start = time.time()
 
-    # parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser()
+
     # parser.add_argument('-num_traces', '--num_traces', type=int, default=15)
     # parser.add_argument(
     #     '-trace_length', '--trace_length', type=int, default=2372)
@@ -187,7 +188,11 @@ if __name__ == "__main__":
     #         out_dir=args.out_dir,
     #         decoy=args.decoy)
 
-    consumer = RawData2DExtractionConsumer('hroest_K120808_Strep0PlasmaBiolRepl1_R01_SW.mzML.gz')
-    ms.MzMLFile().transform(b'hroest_K120808_Strep0PlasmaBiolRepl1_R01_SW.mzML.gz', consumer)
+    parser.add_argument('-raw_mzml', '--raw_mzml', type=str, default='')
+
+    args = parser.parse_args()
+
+    consumer = RawData2DExtractionConsumer(args.raw_mzml)
+    ms.MzMLFile().transform(args.raw_mzml.encode(), consumer)
     
     print('It took {0:0.1f} seconds'.format(time.time() - start))
