@@ -571,6 +571,8 @@ if __name__ == "__main__":
                 args.template_batch_size)
         else:
             if args.calibrate:
+                model.probs = False
+
                 model = calibrate(
                     calibration_dataset,
                     model,
@@ -579,7 +581,8 @@ if __name__ == "__main__":
                     alpha=args.calibration_loss_alpha,
                     gamma=args.calibration_loss_gamma)
             else:
-                model.probs = True
+                if hasattr(model, 'probs'):
+                    model.probs = True
 
             output_array = create_output_array(
                 dataset,
