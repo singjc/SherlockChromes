@@ -34,14 +34,14 @@ class DAIN_Layer(nn.Module):
         # Do simple average normalization
         elif self.mode == 'avg':
             avg = torch.mean(x, 2)
-            avg = avg.resize(avg.size(0), avg.size(1), 1)
+            avg = avg.unsqueeze(-1)
             x = x - avg
 
         # Perform only the first step (adaptive averaging)
         elif self.mode == 'adaptive_avg':
             avg = torch.mean(x, 2)
             adaptive_avg = self.mean_layer(avg)
-            adaptive_avg = adaptive_avg.resize(adaptive_avg.size(0), adaptive_avg.size(1), 1)
+            adaptive_avg = adaptive_avg.unsqueeze(-1)
             x = x - adaptive_avg
 
         # Perform the first + second step (adaptive averaging + adaptive scaling )
@@ -50,7 +50,7 @@ class DAIN_Layer(nn.Module):
             # Step 1:
             avg = torch.mean(x, 2)
             adaptive_avg = self.mean_layer(avg)
-            adaptive_avg = adaptive_avg.resize(adaptive_avg.size(0), adaptive_avg.size(1), 1)
+            adaptive_avg = adaptive_avg.unsqueeze(-1)
             x = x - adaptive_avg
 
             # Step 2:
@@ -59,7 +59,7 @@ class DAIN_Layer(nn.Module):
             adaptive_std = self.scaling_layer(std)
             adaptive_std[adaptive_std <= self.eps] = 1
 
-            adaptive_std = adaptive_std.resize(adaptive_std.size(0), adaptive_std.size(1), 1)
+            adaptive_std = adaptive_std.unsqueeze(-1)
             x = x / (adaptive_std)
 
         elif self.mode == 'full':
@@ -67,7 +67,7 @@ class DAIN_Layer(nn.Module):
             # Step 1:
             avg = torch.mean(x, 2)
             adaptive_avg = self.mean_layer(avg)
-            adaptive_avg = adaptive_avg.resize(adaptive_avg.size(0), adaptive_avg.size(1), 1)
+            adaptive_avg = adaptive_avg.unsqueeze(-1)
             x = x - adaptive_avg
 
             # # Step 2:
@@ -76,13 +76,13 @@ class DAIN_Layer(nn.Module):
             adaptive_std = self.scaling_layer(std)
             adaptive_std[adaptive_std <= self.eps] = 1
 
-            adaptive_std = adaptive_std.resize(adaptive_std.size(0), adaptive_std.size(1), 1)
+            adaptive_std = adaptive_std.unsqueeze(-1)
             x = x / adaptive_std
 
             # Step 3: 
             avg = torch.mean(x, 2)
-            gate = F.sigmoid(self.gating_layer(avg))
-            gate = gate.resize(gate.size(0), gate.size(1), 1)
+            gate = torch.sigmoid(self.gating_layer(avg))
+            gate = gate.unsqueeze(-1)
             x = x * gate
 
         else:
