@@ -1,5 +1,4 @@
 import argparse
-import bisect
 import csv
 import h5py
 import io

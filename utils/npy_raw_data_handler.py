@@ -1,4 +1,4 @@
-import bisect
+import argparse
 import csv
 import numpy as np
 import os
@@ -77,7 +77,7 @@ def create_chromatogram(
 
     chromatogram.append(
         np.repeat(
-            library_intensities,
+            lib_intensities,
             ms1_rt_array.shape[-1])
         .reshape(
             len(lib_intensities),
@@ -124,7 +124,8 @@ def create_repl_chromatograms_array(
             prec_mz,
             lib_rt,
             prod_mzs,
-            lib_intensities
+            lib_intensities,
+            decoy
         ) = specs[i]
 
         prod_mzs = [float(x) for x in prod_mzs.split('|')]
@@ -144,12 +145,23 @@ def create_repl_chromatograms_array(
         )
 
         filename = f'{repl}_{mod_seq_and_charge}'
+
+        if decoy == 1:
+            filename = f'DECOY_{filename}'
+
         chromatograms_array.append(chromatogram)
         out_csv.append([prec_id, filename, lib_rt_idx, analysis_win_size])
 
+    chromatograms_array = np.vstack(chromatograms_array)
+
+    print(
+        f'Saving chromatograms array for {repl} of shape '
+        f'{chromatograms_array.shape}'
+    )
+
     np.save(
         os.path.join(work_dir, f'{repl}_chromatograms_array'),
-        np.vstack(chromatograms_array)
+        chromatograms_array
     )
 
     with open(os.path.join(work_dir, f'{repl}_chromatograms.csv'), 'w') as out:
