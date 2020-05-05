@@ -292,7 +292,7 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         if self.heads > 1:
             out = self.unify_heads(out)
 
-        return out
+        return out, dot
 
 class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
     def __init__(
@@ -343,16 +343,22 @@ class DDSTSTransformer(nn.Module):
         kernel_sizes=[3, 15],
         normalize=True,
         normalization_mode='full',
+        return_normalized=False,
         use_templates=False,
         cat_templates=False,
+        return_attn=False,
         probs=True):
         super(DDSTSTransformer, self).__init__()
 
         self.normalize = normalize
 
+        self.return_normalized = self.normalize and return_normalized
+
         self.use_templates = use_templates
 
         self.cat_templates = self.use_templates and cat_templates
+
+        self.return_attn = self.use_templates and return_attn
 
         self.probs = probs
 
@@ -418,8 +424,8 @@ class DDSTSTransformer(nn.Module):
         if self.normalize:
             x = self.normalization_layer(x)
 
-        x = self.init_encoder(x)
-        x = self.t_blocks(x)
+        out = self.init_encoder(x)
+        out = self.t_blocks(out)
 
         if self.use_templates:
             if self.normalize:
@@ -427,16 +433,32 @@ class DDSTSTransformer(nn.Module):
 
             templates = self.init_encoder(templates)
             templates = self.t_blocks(templates)
-            x_weighted = self.templates_attn(x, templates, templates_label)
+            out_weighted, attn_matrix = self.templates_attn(
+                out, templates, templates_label)
 
             if self.cat_templates:
-                x = torch.cat([x, x_weighted], dim=1)
+                out = torch.cat([out, out_weighted], dim=1)
             else:
-                x = x_weighted
+                out = out_weighted
 
-        x = self.to_logits(x)
+        out = self.to_logits(out)
 
         if self.probs:
-            x = self.to_probs(x)
+            out = self.to_probs(out)
 
-        return x.view(b, -1)
+        if self.return_normalized or self.return_attn:
+            all_outs = [out.view(b, -1)]
+
+        if self.return_normalized:
+            all_outs.append(x)
+        else:
+            all_outs.append(None)
+        
+        if self.return_attn:
+            all_outs.append(attn_matrix)
+        else:
+            all_outs.append(None)
+
+        if self.return_normalized or self.return_attn:
+            return all_outs
+        return out.view(b, -1)
