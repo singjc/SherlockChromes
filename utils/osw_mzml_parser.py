@@ -5,6 +5,8 @@ import os
 import pyopenms as ms
 import time
 
+from general_utils import calc_bin_idx
+
 class ExtraTraceConsumer():
     def __init__(self, num_traces, trace_length, out_dir, repl_name, decoy):
         self.num_traces = num_traces
@@ -61,8 +63,10 @@ class RawData2DExtractionConsumer():
         self,
         mzml_filename,
         num_ms2_scans=32,
-        min_mz=400,
-        max_mz=1200,
+        ms1_min_mz=400,
+        ms1_max_mz=1200,
+        ms2_min_mz=0,
+        ms2_max_mz=2000,
         bin_resolution=0.01,
         expected_cycles=2372,
         outdir='.'):
@@ -72,10 +76,15 @@ class RawData2DExtractionConsumer():
         self.ms2_array = [[] for _ in range(self.num_ms2_scans)]
         self.ms1_rt_array = []
         self.ms2_rt_array = [[] for _ in range(self.num_ms2_scans)]
-        self.min_mz = min_mz
-        self.max_mz = max_mz
+        self.ms1_min_mz = ms1_min_mz
+        self.ms1_max_mz = ms1_max_mz
+        self.ms2_min_mz = ms2_min_mz
+        self.ms2_max_mz = ms2_max_mz
         self.bin_resolution = bin_resolution
-        self.num_bins = int((self.max_mz - self.min_mz) / self.bin_resolution)
+        self.ms1_num_bins = int(
+            (self.ms1_max_mz - self.ms1_min_mz) / self.bin_resolution)
+        self.ms2_num_bins = int(
+            (self.ms2_max_mz - self.ms2_min_mz) / self.bin_resolution)
         self.expected_cycles = expected_cycles
         self.curr_cycle = 0
         self.curr_ms2_scan = 0
@@ -91,19 +100,22 @@ class RawData2DExtractionConsumer():
         pass
 
     def consumeSpectrum(self, s):
-        binned_rt_slice = [0 for _ in range(self.num_bins)]
+        ms_level = s.getMSLevel()
+
+        if ms_level > 1:
+            num_bins = self.ms2_num_bins
+            min_mz = self.ms2_min_mz
+        else:
+            num_bins = self.ms1_num_bins
+            min_mz = self.ms1_min_mz
+
+        binned_rt_slice = [0 for _ in range(num_bins)]
 
         for mz, i in zip(*s.get_peaks()):
-            if mz >= self.max_mz:
-                bin_idx = self.num_bins - 1
-            elif mz < self.min_mz:
-                bin_idx = 0
-            else:
-                bin_idx = math.floor((mz - self.min_mz) / self.bin_resolution)
+            bin_idx = calc_bin_idx(mz, min_mz, num_bins)
             
             binned_rt_slice[bin_idx]+= i
-
-        ms_level = s.getMSLevel()
+        
         rt = s.getRT()
 
         if ms_level > 1:

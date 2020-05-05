@@ -6,6 +6,27 @@ import sqlite3
 
 from sklearn.model_selection import KFold
 
+def calc_bin_idx(mz, min_mz, bin_resolution):
+    bin_idx = math.floor((mz - min_mz) / bin_resolution)
+
+    return bin_idx
+
+def get_subsequence_at(sequence, value, subsequence_size):
+    length = len(sequence)
+    half_span = subsequence_size // 2
+    value_idx = bisect.bisect_left(sequence, value)
+    subsequence_left, subsequence_right = (
+        value_idx - half_span, value_idx + half_span + 1)
+
+    if subsequence_left < 0:
+        subsequence_left, subsequence_right = 0, subsequence_size
+        value_idx = half_span
+    elif subsequence_right >= length:
+        subsequence_left = length - subsequence_size
+        value_idx = length - half_span - 1
+
+    return subsequence_left, subsequence_right, value_idx
+
 def overlaps(
     pred_min,
     pred_max,

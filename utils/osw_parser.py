@@ -9,6 +9,7 @@ import sqlite3
 import tarfile
 import time
 
+from general_utils import get_subsequence_at
 from sql_data_access import SqlDataAccess
 
 def get_run_id_from_folder_name(
@@ -263,14 +264,8 @@ def create_data_from_transition_ids(
             extra_meta['ms1_end'] = free_idx
 
         if window_size >= 0:
-            half_span = window_size // 2
-            exp_rt_idx = bisect.bisect_left(times, exp_rt)
-            subsection_left, subsection_right = (
-                exp_rt_idx - half_span, exp_rt_idx + half_span + 1)
-            if subsection_left < 0:
-                subsection_left, subsection_right = 0, window_size
-            elif subsection_right >= len_times:
-                subsection_left = len_times - window_size
+            subsection_left, subsection_right, _ = get_subsequence_at(
+                times, exp_rt, window_size)
 
             chromatogram = chromatogram[:, subsection_left:subsection_right]
             extra = extra[:, subsection_left:subsection_right]
