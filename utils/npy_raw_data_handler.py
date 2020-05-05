@@ -7,37 +7,53 @@ import time
 
 from general_utils import calc_bin_idx, get_subsequence_at
 
-def get_specs_from_sql(con, cursor):
+def get_specs_from_sql(con, cursor, repl):
     query = \
-        """SELECT
+        f"""SELECT
         PRECURSOR_ID,
         MODIFIED_SEQUENCE || '_' || CHARGE AS PEPTIDE_NAME,
         PRECURSOR_MZ,
-        LIBRARY_RT, 
         group_concat(PRODUCT_MZ, '|') AS PRODUCT_MZS,
         group_concat(LIBRARY_INTENSITY, '|') AS LIBRARY_INTENSITIES,
-        DECOY
+        DECOY,
+		EXP_RT,
+        DELTA_RT
             FROM (
-            SELECT 
-            prec.ID AS PRECURSOR_ID,
-            MODIFIED_SEQUENCE,
-            prec.CHARGE AS CHARGE,
-            PRECURSOR_MZ,
-            LIBRARY_RT,
-            PRODUCT_MZ,
-            trans.LIBRARY_INTENSITY AS LIBRARY_INTENSITY,
-            prec.DECOY AS DECOY
-            FROM PRECURSOR AS prec
-            LEFT JOIN PRECURSOR_PEPTIDE_MAPPING AS prec_to_pep
-            ON prec.ID = prec_to_pep.PRECURSOR_ID
-            LEFT JOIN PEPTIDE as pep 
-            ON prec_to_pep.PEPTIDE_ID = pep.ID
-            LEFT JOIN TRANSITION_PRECURSOR_MAPPING AS trans_to_prec
-            ON prec.ID = trans_to_prec.PRECURSOR_ID
-            LEFT JOIN TRANSITION as trans 
-            ON trans_to_prec.TRANSITION_ID = trans.ID
-            ORDER BY PRECURSOR_ID, TRANSITION_ID ASC
-            )
+                SELECT 
+                prec.ID AS PRECURSOR_ID,
+                MODIFIED_SEQUENCE,
+                prec.CHARGE AS CHARGE,
+                PRECURSOR_MZ,
+                PRODUCT_MZ,
+                trans.LIBRARY_INTENSITY AS LIBRARY_INTENSITY,
+                prec.DECOY AS DECOY,
+                feat2.EXP_RT AS EXP_RT,
+                feat2.DELTA_RT AS DELTA_RT
+                FROM PRECURSOR AS prec
+                LEFT JOIN PRECURSOR_PEPTIDE_MAPPING AS prec_to_pep
+                ON prec.ID = prec_to_pep.PRECURSOR_ID
+                LEFT JOIN PEPTIDE as pep 
+                ON prec_to_pep.PEPTIDE_ID = pep.ID
+                LEFT JOIN TRANSITION_PRECURSOR_MAPPING AS trans_to_prec
+                ON prec.ID = trans_to_prec.PRECURSOR_ID
+                LEFT JOIN TRANSITION as trans 
+                ON trans_to_prec.TRANSITION_ID = trans.ID
+                LEFT JOIN (
+                    SELECT
+                    PRECURSOR_ID,
+                    EXP_RT,
+                    DELTA_RT
+                    FROM FEATURE as feat1
+                    LEFT JOIN (
+                        SELECT
+                        ID
+                        FROM RUN
+                        WHERE FILENAME LIKE '%{repl}%') as run
+                    ON feat1.RUN_ID = run.ID
+                    WHERE NOT run.ID IS NULL
+                    GROUP BY PRECURSOR_ID) as feat2
+                ON prec.ID = feat2.PRECURSOR_ID
+                ORDER BY PRECURSOR_ID, TRANSITION_ID ASC)
         GROUP BY PRECURSOR_ID;"""
     res = cursor.execute(query)
     tmp = res.fetchall()
@@ -63,6 +79,7 @@ def create_chromatogram(
     lib_rt,
     prod_mzs,
     lib_intensities,
+    num_traces=6,
     min_swath_win=399.5,
     swath_win_size=25,
     analysis_win_size=175):
@@ -73,7 +90,15 @@ def create_chromatogram(
     for mz in prod_mzs:
         chromatogram.append(extract_target_strip(ms2_map[ms2_map_idx], mz))
 
+    if len(prod_mzs) < num_traces:
+        for i in range(num_traces - len(prod_mzs)):
+            chromatogram.append(np.zeros((chromatogram[-1].shape)))
+
     chromatogram.append(np.expand_dims(abs(ms1_rt_array - lib_rt), axis=0))
+
+    if len(lib_intensities) < num_traces:
+        for i in range(num_traces - len(prod_mzs)):
+            lib_intensities.append(0)
 
     chromatogram.append(
         np.repeat(
@@ -100,6 +125,7 @@ def create_repl_chromatograms_array(
     work_dir,
     osw_filename,
     repl,
+    num_traces=6,
     min_swath_win=399.5,
     swath_win_size=25,
     analysis_win_size=175):
@@ -112,21 +138,29 @@ def create_repl_chromatograms_array(
     con = sqlite3.connect(os.path.join(work_dir, osw_filename))
     cursor = con.cursor()
 
-    specs = get_specs_from_sql(con, cursor)
+    specs = get_specs_from_sql(con, cursor, repl)
 
     chromatograms_array = []
-    out_csv = [['ID', 'Filename', 'Lib RT IDX', 'Window Size']]
+    out_csv = [['ID', 'PREC_ID', 'Filename', 'Lib RT IDX', 'Window Size']]
 
+    idx = 0
     for i in range(len(specs)):
         (
             prec_id,
             mod_seq_and_charge,
             prec_mz,
-            lib_rt,
             prod_mzs,
             lib_intensities,
-            decoy
+            decoy,
+            exp_rt,
+            delta_rt
         ) = specs[i]
+
+        if exp_rt and delta_rt:
+            lib_rt = exp_rt - delta_rt
+        else:
+            print(f'Precursor {prec_id}: {mod_seq_and_charge} missing lib_rt')
+            continue
 
         prod_mzs = [float(x) for x in prod_mzs.split('|')]
         lib_intensities = [float(x) for x in lib_intensities.split('|')]
@@ -139,6 +173,7 @@ def create_repl_chromatograms_array(
             lib_rt,
             prod_mzs,
             lib_intensities,
+            num_traces,
             min_swath_win,
             swath_win_size,
             analysis_win_size
@@ -150,9 +185,10 @@ def create_repl_chromatograms_array(
             filename = f'DECOY_{filename}'
 
         chromatograms_array.append(chromatogram)
-        out_csv.append([prec_id, filename, lib_rt_idx, analysis_win_size])
+        out_csv.append([idx, prec_id, filename, lib_rt_idx, analysis_win_size])
+        idx+= 1
 
-    chromatograms_array = np.vstack(chromatograms_array)
+    chromatograms_array = np.stack(chromatograms_array, axis=0)
 
     print(
         f'Saving chromatograms array for {repl} of shape '
