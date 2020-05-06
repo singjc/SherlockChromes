@@ -34,17 +34,29 @@ class ChromatogramScaler(nn.Module):
             scaling_factors = (
                 torch.FloatTensor(6, 1).uniform_(self.lower, self.upper)
             ).to(self.device)
+            
+            if self.num_channels == 84:
+                sf_ri = (
+                    scaling_factors.repeat_interleave(11, dim=0)
+                ).to(self.device)
         else:
             scaling_factors = (
                 torch.FloatTensor(1).uniform_(self.lower, self.upper)
             ).to(self.device)
 
-        chromatogram_batch[:, 0:6] = (
-            chromatogram_batch[:, 0:6].to(self.device) * scaling_factors)
+        if self.num_channels < 15:
+            chromatogram_batch[:, 0:6] = (
+                chromatogram_batch[:, 0:6].to(self.device) * scaling_factors)
+        elif self.num_channels == 84:
+            chromatogram_batch[:, 0:66] = (
+                chromatogram_batch[:, 0:66].to(self.device) * sf_ri)
 
         if self.num_channels == 14:
             chromatogram_batch[:, 7:13] = (
                 chromatogram_batch[:, 7:13].to(self.device) * scaling_factors)
+        elif self.num_channels == 84:
+            chromatogram_batch[:, 67:73] = (
+                chromatogram_batch[:, 67:73].to(self.device) * scaling_factors)
 
         if self.scale_precursors:
             if self.num_channels == 14:
@@ -53,6 +65,11 @@ class ChromatogramScaler(nn.Module):
                 ).to(self.device)
                 chromatogram_batch[:, 13] = (
                     chromatogram_batch[:, 13].to(self.device) * scaling_factor)
+            elif self.num_channels == 84:
+                scaling_factors = (
+                    torch.FloatTensor(1).uniform_(self.lower, self.upper)
+                ).to(self.device).unsqueeze(1)
+                chromatogram_batch[:, 73:]
 
         return chromatogram_batch
 
@@ -64,12 +81,21 @@ class ChromatogramShuffler(nn.Module):
     def forward(self, chromatogram_batch):
         shuffled_indices = torch.randperm(6)
 
-        chromatogram_batch[:, 0:6] = (
-            chromatogram_batch[:, 0:6][:, shuffled_indices])
+        if self.num_channels < 15:
+            chromatogram_batch[:, 0:6] = (
+                chromatogram_batch[:, 0:6][:, shuffled_indices])
+        elif self.num_channels == 84:
+            N = 11
+            b, M, n = chromatogram_batch.size()
+            chromatogram_batch.reshape(
+                b, M, -1, n)[:, shuffled_indices].reshape(b, -1, n)
 
         if self.num_channels == 14:
             chromatogram_batch[:, 7:13] = (
                 chromatogram_batch[:, 7:13][:, shuffled_indices])
+        elif self.num_channels == 84:
+            chromatogram_batch[:, 67:73] = (
+                chromatogram_batch[:, 67:73][:, shuffled_indices])
 
         return chromatogram_batch
 
