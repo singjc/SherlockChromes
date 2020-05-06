@@ -303,7 +303,6 @@ class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
         dropout=0.1,
         kernel_sizes=[3, 15]):
         super().__init__()
-
         self.attention = DynamicDepthSeparableTimeSeriesSelfAttention(
             c,
             heads=heads,
@@ -349,17 +348,11 @@ class DDSTSTransformer(nn.Module):
         return_attn=False,
         probs=True):
         super(DDSTSTransformer, self).__init__()
-
         self.normalize = normalize
-
         self.return_normalized = self.normalize and return_normalized
-
         self.use_templates = use_templates
-
         self.cat_templates = self.use_templates and cat_templates
-
         self.return_attn = self.use_templates and return_attn
-
         self.probs = probs
 
         if self.normalize:
