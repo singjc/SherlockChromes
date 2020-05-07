@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import torch
 import torch.nn as nn
@@ -5,158 +6,17 @@ import torch.nn.functional as F
 import os
 import sys
 
-file_dir = os.path.dirname(__file__)
-sys.path.append(file_dir)
-
 from .anchor_generation_1d import generate_anchors_1d
 from .anchor_target_layer_1d import anchor_target_layer_1d
 from .proposal_layer_1d import proposal_layer_1d
 
-sys.path.insert(0, os.path.join(file_dir,  '..')) # Path for models/
-sys.path.insert(0, '../../datasets')
-
 from datasets.chromatograms_dataset import ChromatogramsDataset
-from models.custom_layers_and_blocks import DepthSeparableConv1d, GlobalContextBlock1d
-from model import AtrousChannelwiseEncoderDecoder
-
-class Backbone1d(nn.Module):
-    def __init__(
-        self,
-        in_channels=14,
-        out_channels=[32, 16, 8, 4, 2],
-        kernel_sizes=[3, 3, 3, 3, 3],
-        paddings=[1, 1, 2, 2, 3], 
-        dilations=[1, 1, 2, 2, 3]):
-        super(Backbone1d, self).__init__()
-        self.encoder = nn.ModuleList()
-
-        self.encoder.append(
-            nn.Sequential(
-                AttendedDepthSeparableConv1d(
-                    in_channels=in_channels,
-                    out_channels=out_channels[0],
-                    kernel_size=kernel_sizes[0],
-                    padding=paddings[0],
-                    dilation=dilations[0],
-                    depthwise_attn_kernel_size=(kernel_sizes[0] + 4),
-                    reduction_ratio=(out_channels[0] // 2)
-                ),
-                nn.ReLU(),
-                nn.BatchNorm1d(out_channels[0])
-            )
-        )
-
-        for i in range(1, len(out_channels)):
-            self.encoder.append(
-                nn.Sequential(
-                    AttendedDepthSeparableConv1d(
-                        in_channels=out_channels[i - 1],
-                        out_channels=out_channels[i],
-                        kernel_size=kernel_sizes[i],
-                        padding=paddings[i],
-                        dilation=dilations[i],
-                        depthwise_attn_kernel_size=(kernel_sizes[i] + 4),
-                        reduction_ratio=(out_channels[i] // 2)
-                    ),
-                    nn.ReLU(),
-                    nn.BatchNorm1d(out_channels[i])
-                )
-            )
-
-        self.decoder = nn.ModuleList()
-
-        self.decoder.append(
-            nn.Sequential(
-                AttendedDepthSeparableConv1d(
-                    in_channels=out_channels[-1],
-                    out_channels=out_channels[-2],
-                    kernel_size=kernel_sizes[-1],
-                    padding=paddings[-1],
-                    dilation=dilations[-1],
-                    depthwise_attn_kernel_size=(kernel_sizes[-1] + 4),
-                    reduction_ratio=(out_channels[-2] // 2)
-                ),
-                nn.ReLU(),
-                nn.BatchNorm1d(out_channels[-2])
-            )
-        )
-
-        for i in range(len(out_channels) - 2, 0, -1):
-            self.decoder.append(
-                nn.Sequential(
-                    AttendedDepthSeparableConv1d(
-                        in_channels=(2 * out_channels[i]),
-                        out_channels=out_channels[i - 1],
-                        kernel_size=kernel_sizes[i],
-                        padding=paddings[i],
-                        dilation=dilations[i],
-                        depthwise_attn_kernel_size=(kernel_sizes[i] + 4),
-                        reduction_ratio=(out_channels[i - 1] // 2)
-                    ),
-                    nn.ReLU(),
-                    nn.BatchNorm1d(out_channels[i - 1])
-                )
-            )
-
-        self.decoder.append(
-            nn.Sequential(
-                AttendedDepthSeparableConv1d(
-                    in_channels=(2 * out_channels[0]),
-                    out_channels=out_channels[0],
-                    kernel_size=kernel_sizes[0],
-                    padding=paddings[0],
-                    dilation=dilations[0],
-                    depthwise_attn_kernel_size=(kernel_sizes[0] + 4),
-                    reduction_ratio=(out_channels[0] // 2)
-                ),
-                nn.ReLU(),
-                nn.BatchNorm1d(out_channels[0])
-            )
-        )
-
-        self.classifier = nn.Sequential(
-                AttendedDepthSeparableConv1d(
-                    in_channels=out_channels[0],
-                    out_channels=1,
-                    kernel_size=1,
-                    stride=1,
-                    padding=0,
-                    dilation=1,
-                    bias=False,
-                    depth_multiplier=1,
-                    intermediate_nonlinearity=False
-                ),
-                nn.BatchNorm1d(1)
-            )
-
-    def forward(self, sequence):
-        intermediate_outs = []
-
-        out = sequence
-
-        for layer in self.encoder:
-            out = layer(out)
-            intermediate_outs.append(out)
-
-        intermediate_outs.pop()
-
-        for layer in self.decoder[:-1]:
-            out = layer(out)
-
-            out = torch.cat([out, intermediate_outs.pop()], dim=1)
-
-        out = self.decoder[-1](out)
-
-        return out
+from models.modelzoo1d.depth_separable_conv_1d import DepthSeparableConv1d
 
 class RegionProposalNetwork1d(nn.Module):
     def __init__(
         self,
-        in_channels=14,
-        out_channels=[32, 16, 8, 4, 2],
-        kernel_sizes=[3, 3, 3, 3, 3],
-        paddings=[1, 1, 2, 2, 3], 
-        dilations=[1, 1, 2, 2, 3],
+        model,
         load_backbone=False,
         backbone_path="",
         rpn_channels=16,
@@ -168,13 +28,7 @@ class RegionProposalNetwork1d(nn.Module):
         mode='train'):
         super(RegionProposalNetwork1d, self).__init__()
         self.device = device
-        self.backbone = Backbone1d(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_sizes=kernel_sizes,
-            paddings=paddings, 
-            dilations=dilations
-        )
+        self.backbone = copy.deepcopy(model)
 
         if load_backbone:
             self.backbone.load_state_dict(
