@@ -5,7 +5,7 @@ from .train_semisupervised_alignment import train
 
 sys.path.insert(0, '../models')
 
-from models.semisupervised_learner import SemiSupervisedAlignmentLearner
+from models.semisupervised_learner import SemiSupervisedAlignmentLearner1d
 
 def main(
         data,
@@ -41,7 +41,7 @@ def main(
         if kw in train_kwargs:
             model_kwargs[kw] = train_kwargs[kw]
 
-    model = SemiSupervisedAlignmentLearner(
+    model = SemiSupervisedAlignmentLearner1d(
         model,
         **model_kwargs)
 

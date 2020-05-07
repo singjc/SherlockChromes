@@ -103,7 +103,7 @@ class ChromatogramShuffler(nn.Module):
 
         return chromatogram_batch
 
-class SemiSupervisedLearner(nn.Module):
+class SemiSupervisedLearner1d(nn.Module):
     def __init__(
         self,
         model,
@@ -128,7 +128,7 @@ class SemiSupervisedLearner(nn.Module):
         loss_reduction='none',
         model_device='cpu',
         debug=False):
-        super(SemiSupervisedLearner, self).__init__()
+        super(SemiSupervisedLearner1d, self).__init__()
         self.segmentator = copy.deepcopy(model)
         self.wu = wu
         self.threshold = threshold
@@ -293,7 +293,7 @@ class SemiSupervisedLearner(nn.Module):
         else:
             return self.segmentator(unlabeled_batch)
 
-class SemiSupervisedAlignmentLearner(SemiSupervisedLearner):
+class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
     def __init__(
         self,
         model,
@@ -318,7 +318,7 @@ class SemiSupervisedAlignmentLearner(SemiSupervisedLearner):
         loss_reduction='none',
         model_device='cpu',
         debug=False):
-        super(SemiSupervisedAlignmentLearner, self).__init__(
+        super(SemiSupervisedAlignmentLearner1d, self).__init__(
             model,
             wu=wu,
             threshold=threshold,

@@ -5,7 +5,7 @@ from .train_semisupervised import train
 
 sys.path.insert(0, '../models')
 
-from models.semisupervised_learner import SemiSupervisedLearner
+from models.semisupervised_learner import SemiSupervisedLearner1d
 
 def main(
         data,
@@ -40,7 +40,7 @@ def main(
         if kw in train_kwargs:
             model_kwargs[kw] = train_kwargs[kw]
 
-    model = SemiSupervisedLearner(
+    model = SemiSupervisedLearner1d(
         model,
         **model_kwargs)
 
