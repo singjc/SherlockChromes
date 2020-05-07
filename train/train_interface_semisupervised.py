@@ -18,6 +18,8 @@ def main(
         'wu',
         'threshold',
         'augmentator_num_channels',
+        'augmentator_normalize',
+        'augmentator_normalization_mode',
         'augmentator_scale_independently',
         'augmentator_scale_precursors',
         'augmentator_lower',
