@@ -256,7 +256,7 @@ class DDSTSTransformer(nn.Module):
         dropout=0.1,
         depth=6,
         kernel_sizes=[3, 15],
-        normalize=True,
+        normalize=False,
         normalization_mode='full',
         return_normalized=False,
         use_templates=False,

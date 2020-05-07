@@ -8,6 +8,8 @@ import torch.nn.functional as F
 from scipy.ndimage.filters import gaussian_filter1d
 from scipy.special import erfinv
 
+from .modelzoo1d.dain import DAIN_Layer
+
 sys.path.insert(0, '../optimizers')
 
 from optimizers.focal_loss import FocalLossBinary
@@ -108,6 +110,8 @@ class SemiSupervisedLearner(nn.Module):
         wu=1,
         threshold=0.95,
         augmentator_num_channels=6,
+        augmentator_normalize=False,
+        augmentator_normalization_mode='full',
         augmentator_scale_independently=False,
         augmentator_scale_precursors=False,
         augmentator_lower=0.875,
@@ -128,8 +132,14 @@ class SemiSupervisedLearner(nn.Module):
         self.segmentator = copy.deepcopy(model)
         self.wu = wu
         self.threshold = threshold
-        
+        self.normalize = augmentator_normalize
         self.device = model_device
+
+        if self.normalize:
+            self.normalization_layer = DAIN_Layer(
+                mode=augmentator_normalization_mode,
+                input_dim=augmentator_num_channels
+            )
 
         self.weak_augmentator = ChromatogramScaler(
             num_channels=augmentator_num_channels,
@@ -187,6 +197,12 @@ class SemiSupervisedLearner(nn.Module):
 
     def forward(self, unlabeled_batch, labeled_batch=None, labels=None):
         b_ul, c_ul, l_ul = unlabeled_batch.size()
+
+        if self.normalize:
+            unlabeled_batch = self.normalization_layer(unlabeled_batch)
+
+            if labeled_batch:
+                labeled_batch = self.normalization_layer(labeled_batch)
 
         if self.training:
             assert labeled_batch is not None, 'missing labeled data!'
@@ -284,6 +300,8 @@ class SemiSupervisedAlignmentLearner(SemiSupervisedLearner):
         wu=1,
         threshold=0.85,
         augmentator_num_channels=6,
+        augmentator_normalize=False,
+        augmentator_normalization_mode='full',
         augmentator_scale_independently=False,
         augmentator_scale_precursors=False,
         augmentator_lower=0.875,
@@ -305,6 +323,8 @@ class SemiSupervisedAlignmentLearner(SemiSupervisedLearner):
             wu=wu,
             threshold=threshold,
             augmentator_num_channels=augmentator_num_channels,
+            augmentator_normalize=augmentator_normalize,
+            augmentator_normalization_mode=augmentator_normalization_mode,
             augmentator_scale_independently=augmentator_scale_independently,
             augmentator_scale_precursors=augmentator_scale_precursors,
             augmentator_lower=augmentator_lower,
@@ -331,6 +351,13 @@ class SemiSupervisedAlignmentLearner(SemiSupervisedLearner):
         labeled_batch=None,
         labels=None):
         b_ul, c_ul, l_ul = unlabeled_batch.size()
+
+        if self.normalize:
+            unlabeled_batch = self.normalization_layer(unlabeled_batch)
+            template = self.normalization_layer(template)
+
+            if labeled_batch:
+                labeled_batch = self.normalization_layer(labeled_batch)
 
         if self.training:
             assert labeled_batch is not None, 'missing labeled data!'
