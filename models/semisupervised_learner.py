@@ -10,7 +10,9 @@ from scipy.special import erfinv
 
 sys.path.insert(0, '../optimizers')
 
-from focal_loss import FocalLossBinary
+from optimizers.focal_loss import FocalLossBinary
+
+# TODO: Implement normalization layer here before regularization
 
 class ChromatogramScaler(nn.Module):
     def __init__(

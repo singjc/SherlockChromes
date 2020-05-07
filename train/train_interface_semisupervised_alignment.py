@@ -1,12 +1,11 @@
 import sys
 import torch.optim as optim
 
-sys.path.insert(0, '../models')
-sys.path.insert(0, '../datasets')
-sys.path.insert(0, '../optimizers')
+from .train_semisupervised_alignment import train
 
-from semisupervised_learner import SemiSupervisedAlignmentLearner
-from train_semisupervised_alignment import train
+sys.path.insert(0, '../models')
+
+from models.semisupervised_learner import SemiSupervisedAlignmentLearner
 
 def main(
         data,

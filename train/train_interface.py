@@ -1,11 +1,7 @@
 import sys
 import torch.optim as optim
 
-sys.path.insert(0, '../models')
-sys.path.insert(0, '../datasets')
-sys.path.insert(0, '../optimizers')
-
-from train import train
+from .train import train
 
 def main(
         data,

@@ -1,7 +1,6 @@
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
-
-from torch import nn
 
 class SelfAttention(nn.Module):
     def __init__(self, k, heads=8, mask=False):

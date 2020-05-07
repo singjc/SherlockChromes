@@ -8,7 +8,7 @@ import torch
 
 from sklearn.metrics import average_precision_score, confusion_matrix, precision_recall_curve
 
-from chromatograms_dataset import TarChromatogramsDataset
+from .chromatograms_dataset import TarChromatogramsDataset
 
 sys.path.insert(0, '../models')
 

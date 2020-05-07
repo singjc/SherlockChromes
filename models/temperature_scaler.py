@@ -7,8 +7,8 @@ import torch.nn.functional as F
 
 sys.path.insert(0, '../optimizers')
 
-from ece_loss import ECELossBinary
-from focal_loss import FocalLossBinary
+from optimizers.ece_loss import ECELossBinary
+from optimizers.focal_loss import FocalLossBinary
 
 class TemperatureScaler(nn.Module):
     """

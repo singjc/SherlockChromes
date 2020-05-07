@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader, Subset
 
 sys.path.insert(0, '../optimizers')
 
-from focal_loss import FocalLossBinary
+from optimizers.focal_loss import FocalLossBinary
 
 def get_data_loaders(
     data,
