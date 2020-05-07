@@ -11,17 +11,17 @@ from torch.utils.data import DataLoader, Subset
 
 sys.path.insert(0, '../datasets')
 
-from datasets.chromatograms_dataset import TarChromatogramsDataset
-from datasets.samplers import LoadingSampler
-from datasets.transforms import ToTensor
+from chromatograms_dataset import TarChromatogramsDataset
+from samplers import LoadingSampler
+from transforms import ToTensor
 
 sys.path.insert(0, '../models')
 
-from models.temperature_scaler import AlignmentTemperatureScaler, TemperatureScaler
+from temperature_scaler import AlignmentTemperatureScaler, TemperatureScaler
 
 sys.path.insert(0, '../train')
 
-from train.collate_fns import PadChromatogramsFor1DCNN
+from collate_fns import PadChromatogramsFor1DCNN
 
 def cycle(iterable):
     while True:

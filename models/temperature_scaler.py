@@ -5,8 +5,6 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-sys.path.insert(0, '../optimizers')
-
 from optimizers.ece_loss import ECELossBinary
 from optimizers.focal_loss import FocalLossBinary
 

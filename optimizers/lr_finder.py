@@ -10,21 +10,21 @@ from tqdm.autonotebook import tqdm
 from torch.optim.lr_scheduler import _LRScheduler
 from torch.utils.data import DataLoader, Subset
 
-from .focal_loss import FocalLossBinary
+from focal_loss import FocalLossBinary
 
 sys.path.insert(0, '../datasets')
 
-from datasets.chromatograms_dataset import ChromatogramsDataset
-from datasets.samplers import GroupBySequenceSampler
-from datasets.transforms import ToTensor
+from chromatograms_dataset import ChromatogramsDataset
+from samplers import GroupBySequenceSampler
+from transforms import ToTensor
 
 sys.path.insert(0, '../models')
 
-from models.model import AtrousChannelwiseEncoderDecoder
+from modelzoo1d.ddsct import DDSTSTransformer
 
 sys.path.insert(0, '../train')
 
-from train.collate_fns import PadChromatogramsFor1DCNN
+from collate_fns import PadChromatogramsFor1DCNN
 
 class LRFinder(object):
     """Learning rate range test.
@@ -366,8 +366,8 @@ if __name__ == "__main__":
     train_loader = DataLoader(
         train_set, batch_size=32, collate_fn=collate_fn)
 
-    # TODO: Change hardcoded model
-    model = AtrousChannelwiseEncoderDecoder()
+    # TODO: Allow any model
+    model = DDSTSTransformer()
 
     criterion = FocalLossBinary()
     optimizer = optim.Adam(model.parameters(), lr=1e-7, weight_decay=0)

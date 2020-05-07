@@ -9,12 +9,7 @@ from scipy.ndimage.filters import gaussian_filter1d
 from scipy.special import erfinv
 
 from .modelzoo1d.dain import DAIN_Layer
-
-sys.path.insert(0, '../optimizers')
-
 from optimizers.focal_loss import FocalLossBinary
-
-# TODO: Implement normalization layer here before regularization
 
 class ChromatogramScaler(nn.Module):
     def __init__(

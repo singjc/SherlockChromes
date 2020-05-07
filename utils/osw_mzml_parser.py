@@ -5,7 +5,7 @@ import os
 import pyopenms as ms
 import time
 
-from .general_utils import calc_bin_idx
+from general_utils import calc_bin_idx
 
 class ExtraTraceConsumer():
     def __init__(self, num_traces, trace_length, out_dir, repl_name, decoy):

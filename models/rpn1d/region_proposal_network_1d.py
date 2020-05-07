@@ -8,15 +8,15 @@ import sys
 file_dir = os.path.dirname(__file__)
 sys.path.append(file_dir)
 
-from anchor_generation import generate_anchors_1d
-from anchor_target_layer import anchor_target_layer_1d
-from proposal_layer import proposal_layer_1d
+from .anchor_generation_1d import generate_anchors_1d
+from .anchor_target_layer_1d import anchor_target_layer_1d
+from .proposal_layer_1d import proposal_layer_1d
 
 sys.path.insert(0, os.path.join(file_dir,  '..')) # Path for models/
 sys.path.insert(0, '../../datasets')
 
-from chromatograms_dataset import ChromatogramsDataset
-from custom_layers_and_blocks import DepthSeparableConv1d, GlobalContextBlock1d
+from datasets.chromatograms_dataset import ChromatogramsDataset
+from models.custom_layers_and_blocks import DepthSeparableConv1d, GlobalContextBlock1d
 from model import AtrousChannelwiseEncoderDecoder
 
 class Backbone1d(nn.Module):

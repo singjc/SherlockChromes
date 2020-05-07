@@ -8,8 +8,8 @@ import sqlite3
 import tarfile
 import time
 
-from .general_utils import get_subsequence_at
-from .sql_data_access import SqlDataAccess
+from general_utils import get_subsequence_at
+from sql_data_access import SqlDataAccess
 
 def get_run_id_from_folder_name(
     con,

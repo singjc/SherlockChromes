@@ -5,7 +5,7 @@ import os
 import sqlite3
 import time
 
-from .general_utils import calc_bin_idx, get_subsequence_at
+from general_utils import calc_bin_idx, get_subsequence_at
 
 def get_specs_from_sql(con, cursor, repl):
     query = \
