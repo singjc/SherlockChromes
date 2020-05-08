@@ -288,7 +288,7 @@ class SemiSupervisedLearner1d(nn.Module):
 
             return labeled_loss + self.wu * unlabeled_loss
         else:
-            return self.segmentator(unlabeled_batch)
+            return self.segmentator(self.normalization_layer(unlabeled_batch))
 
 class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
     def __init__(
@@ -454,4 +454,8 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
 
             return labeled_loss + self.wu * unlabeled_loss
         else:
-            return self.segmentator(unlabeled_batch, templates, template_labels)
+            return self.segmentator(
+                self.normalization_layer(unlabeled_batch),
+                templates,
+                template_labels
+            )
