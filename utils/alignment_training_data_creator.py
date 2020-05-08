@@ -1,7 +1,7 @@
 import numpy as np 
 import os
 
-from utils.general_utils import get_filenames_from_csv, get_naked_seq
+from general_utils import get_filenames_from_csv, get_naked_seq
 
 def parse_osw_score_data(
     in_dir,
