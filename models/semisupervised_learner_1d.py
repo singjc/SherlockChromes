@@ -196,7 +196,7 @@ class SemiSupervisedLearner1d(nn.Module):
         if self.normalize:
             unlabeled_batch = self.normalization_layer(unlabeled_batch)
 
-            if labeled_batch:
+            if labeled_batch is not None:
                 labeled_batch = self.normalization_layer(labeled_batch)
 
         if self.training:
@@ -351,7 +351,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
             unlabeled_batch = self.normalization_layer(unlabeled_batch)
             template = self.normalization_layer(template)
 
-            if labeled_batch:
+            if labeled_batch is not None:
                 labeled_batch = self.normalization_layer(labeled_batch)
 
         if self.training:
