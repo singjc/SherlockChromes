@@ -269,6 +269,7 @@ class DDSTSTransformer(nn.Module):
         self.use_templates = use_templates
         self.cat_templates = self.use_templates and cat_templates
         self.return_attn = self.use_templates and return_attn
+        self.return_list = self.return_normalized or self.return_attn
         self.probs = probs
 
         if self.normalize:
@@ -355,19 +356,19 @@ class DDSTSTransformer(nn.Module):
         if self.probs:
             out = self.to_probs(out)
 
-        if self.return_normalized or self.return_attn:
+        if self.return_list:
             all_outs = [out.view(b, -1)]
 
-        if self.return_normalized:
+        if self.return_list and self.return_normalized:
             all_outs.append(x)
-        else:
+        elif self.return_list:
             all_outs.append(None)
         
-        if self.return_attn:
+        if self.return_list and self.return_attn:
             all_outs.append(attn_matrix)
-        else:
+        elif self.return_list:
             all_outs.append(None)
 
-        if self.return_normalized or self.return_attn:
+        if self.return_list:
             return all_outs
         return out.view(b, -1)
