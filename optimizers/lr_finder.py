@@ -12,19 +12,13 @@ from torch.utils.data import DataLoader, Subset
 
 from focal_loss import FocalLossBinary
 
-sys.path.insert(0, '../datasets')
+sys.path.insert(0, '..')
 
-from chromatograms_dataset import ChromatogramsDataset
-from samplers import GroupBySequenceSampler
-from transforms import ToTensor
-
-sys.path.insert(0, '../models')
-
-from modelzoo1d.ddsct import DDSTSTransformer
-
-sys.path.insert(0, '../train')
-
-from collate_fns import PadChromatogramsFor1DCNN
+from datasets.chromatograms_dataset import ChromatogramsDataset
+from datasets.samplers import GroupBySequenceSampler
+from datasets.transforms import ToTensor
+from models.modelzoo1d.ddsct import DDSTSTransformer
+from train.collate_fns import PadChromatogramsFor1DCNN
 
 class LRFinder(object):
     """Learning rate range test.

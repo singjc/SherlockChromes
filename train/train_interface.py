@@ -1,7 +1,7 @@
 import sys
 import torch.optim as optim
 
-from .train import train
+from train.train import train
 
 def main(
         data,

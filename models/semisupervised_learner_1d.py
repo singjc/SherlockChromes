@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from scipy.ndimage.filters import gaussian_filter1d
 from scipy.special import erfinv
 
-from .modelzoo1d.dain import DAIN_Layer
+from models.modelzoo1d.dain import DAIN_Layer
 from optimizers.focal_loss import FocalLossBinary
 
 class ChromatogramScaler(nn.Module):

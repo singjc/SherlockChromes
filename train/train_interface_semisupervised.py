@@ -1,8 +1,8 @@
 import sys
 import torch.optim as optim
 
-from .train_semisupervised import train
 from models.semisupervised_learner_1d import SemiSupervisedLearner1d
+from train.train_semisupervised import train
 
 def main(
         data,

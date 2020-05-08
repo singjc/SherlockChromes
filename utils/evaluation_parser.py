@@ -4,13 +4,10 @@ import time
 
 from general_utils import overlaps
 
-sys.path.insert(0, '../datasets')
+sys.path.insert(0, '..')
 
-from visualizer import plot_binary_precision_recall_curve
-
-sys.path.insert(0, '../eda')
-
-from analysis import create_histo
+from datasets.visualizer import plot_binary_precision_recall_curve
+from eda.analysis import create_histo
 
 def get_filenames_from_idx(chromatograms_filename, idx_filenames=[]):
     idxs = {}

@@ -155,9 +155,16 @@ def get_parser():
                         metavar="FILE",
                         required=True)
 
+    parser.add_argument("-p", "--path",
+                        dest="path",
+                        help="relative path to project root",
+                        metavar="PATH",
+                        required=True)
+
     return parser
 
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
+    sys.path.insert(0, args.path)
     run_experiment(args.filename)

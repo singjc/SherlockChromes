@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 
-from .modelzoo1d.deeplab_1d import DeepLab1d
-from .modelzoo1d.transformer import TransformerBlock
+from models.modelzoo1d.deeplab_1d import DeepLab1d
+from models.modelzoo1d.transformer import TransformerBlock
 
 class BaselineSegmentationNet(nn.Module):
     def __init__(self):

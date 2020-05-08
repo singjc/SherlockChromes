@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .dain import DAIN_Layer
+from models.modelzoo1d.dain import DAIN_Layer
 
 class DynamicDepthSeparableConv1d(nn.Module):
     def __init__(

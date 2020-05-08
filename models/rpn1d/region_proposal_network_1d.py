@@ -6,12 +6,11 @@ import torch.nn.functional as F
 import os
 import sys
 
-from .anchor_generation_1d import generate_anchors_1d
-from .anchor_target_layer_1d import anchor_target_layer_1d
-from .proposal_layer_1d import proposal_layer_1d
-
 from datasets.chromatograms_dataset import ChromatogramsDataset
 from models.modelzoo1d.depth_separable_conv_1d import DepthSeparableConv1d
+from models.rpn1d.anchor_generation_1d import generate_anchors_1d
+from models.rpn1d.anchor_target_layer_1d import anchor_target_layer_1d
+from models.rpn1d.proposal_layer_1d import proposal_layer_1d
 
 class RegionProposalNetwork1d(nn.Module):
     def __init__(
