@@ -264,19 +264,20 @@ class DDSTSTransformer(nn.Module):
         return_attn=False,
         probs=True):
         super(DDSTSTransformer, self).__init__()
-        self.normalize = normalize
-        self.return_normalized = self.normalize and return_normalized
+        self.return_normalized = normalize and return_normalized
         self.use_templates = use_templates
         self.cat_templates = self.use_templates and cat_templates
         self.return_attn = self.use_templates and return_attn
         self.return_list = self.return_normalized or self.return_attn
         self.probs = probs
 
-        if self.normalize:
+        if normalize:
             self.normalization_layer = DAIN_Layer(
                 mode=normalization_mode,
                 input_dim=in_channels
             )
+        else:
+            self.normalization_layer = nn.Identity()
 
         self.init_encoder = nn.Conv1d(
             in_channels,
@@ -331,16 +332,12 @@ class DDSTSTransformer(nn.Module):
     def forward(self, x, templates=None, templates_label=None):
         b, _, _ = x.size()
 
-        if self.normalize:
-            x = self.normalization_layer(x)
-
+        x = self.normalization_layer(x)
         out = self.init_encoder(x)
         out = self.t_blocks(out)
 
         if self.use_templates:
-            if self.normalize:
-                templates = self.normalization_layer(templates)
-
+            templates = self.normalization_layer(templates)
             templates = self.init_encoder(templates)
             templates = self.t_blocks(templates)
             out_weighted, attn_matrix = self.templates_attn(

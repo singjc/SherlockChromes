@@ -127,14 +127,15 @@ class SemiSupervisedLearner1d(nn.Module):
         self.segmentator = copy.deepcopy(model)
         self.wu = wu
         self.threshold = threshold
-        self.normalize = augmentator_normalize
         self.device = model_device
 
-        if self.normalize:
+        if augmentator_normalize:
             self.normalization_layer = DAIN_Layer(
                 mode=augmentator_normalization_mode,
                 input_dim=augmentator_num_channels
             )
+        else:
+            self.normalization_layer = nn.Identity()
 
         self.weak_augmentator = ChromatogramScaler(
             num_channels=augmentator_num_channels,
@@ -193,11 +194,8 @@ class SemiSupervisedLearner1d(nn.Module):
     def forward(self, unlabeled_batch, labeled_batch=None, labels=None):
         b_ul, c_ul, l_ul = unlabeled_batch.size()
 
-        if self.normalize:
-            unlabeled_batch = self.normalization_layer(unlabeled_batch)
-
-            if labeled_batch is not None:
-                labeled_batch = self.normalization_layer(labeled_batch)
+        if labeled_batch is not None:
+            labeled_batch = self.normalization_layer(labeled_batch)
 
         if self.training:
             assert labeled_batch is not None, 'missing labeled data!'
@@ -211,8 +209,12 @@ class SemiSupervisedLearner1d(nn.Module):
                 self.loss(self.segmentator(labeled_batch), labels)
             )
 
-            strongly_augmented = self.strong_augmentator(unlabeled_batch)
-            weakly_augmented = self.weak_augmentator(unlabeled_batch)
+            strongly_augmented = self.normalization_layer(
+                self.strong_augmentator(unlabeled_batch)
+            )
+            weakly_augmented = self.normalization_layer(
+                self.weak_augmentator(unlabeled_batch)
+            )
             weak_output = self.to_out(self.segmentator(weakly_augmented))
             pseudo_labels = (weak_output >= 0.5).float()
             quality_modulator =  (
@@ -341,18 +343,16 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
     def forward(
         self,
         unlabeled_batch,
-        template,
-        template_label,
+        templates,
+        template_labels,
         labeled_batch=None,
         labels=None):
         b_ul, c_ul, l_ul = unlabeled_batch.size()
 
-        if self.normalize:
-            unlabeled_batch = self.normalization_layer(unlabeled_batch)
-            template = self.normalization_layer(template)
+        templates = self.normalization_layer(templates)
 
-            if labeled_batch is not None:
-                labeled_batch = self.normalization_layer(labeled_batch)
+        if labeled_batch is not None:
+            labeled_batch = self.normalization_layer(labeled_batch)
 
         if self.training:
             assert labeled_batch is not None, 'missing labeled data!'
@@ -364,15 +364,19 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
                 
             labeled_loss = torch.mean(
                 self.loss(
-                    self.segmentator(labeled_batch, template, template_label),
+                    self.segmentator(labeled_batch, templates, template_labels),
                     labels
                 )
             )
 
-            strongly_augmented = self.strong_augmentator(unlabeled_batch)
-            weakly_augmented = self.weak_augmentator(unlabeled_batch)
+            strongly_augmented = self.normalization_layer(
+                self.strong_augmentator(unlabeled_batch)
+            )
+            weakly_augmented = self.normalization_layer(
+                self.weak_augmentator(unlabeled_batch)
+            )
             weak_output = self.to_out(
-                self.segmentator(weakly_augmented, template, template_label)
+                self.segmentator(weakly_augmented, templates, template_labels)
             )
             pseudo_labels = (weak_output >= 0.5).float()
             quality_modulator =  (
@@ -436,7 +440,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
                 quality_modulator * 
                 self.loss(
                     self.segmentator(
-                        strongly_augmented, template, template_label),
+                        strongly_augmented, templates, template_labels),
                     pseudo_labels
                 )
             )
@@ -450,4 +454,4 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
 
             return labeled_loss + self.wu * unlabeled_loss
         else:
-            return self.segmentator(unlabeled_batch, template, template_label)
+            return self.segmentator(unlabeled_batch, templates, template_labels)
