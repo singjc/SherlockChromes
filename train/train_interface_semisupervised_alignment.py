@@ -34,6 +34,7 @@ def main(
         'normalize',
         'normalization_mode',
         'regularizer_mode',
+        'normalization_channels',
         'regularizer_sigma_min',
         'regularizer_sigma_max',
         'regularizer_p_min',

@@ -178,6 +178,7 @@ class SemiSupervisedLearner1d(nn.Module):
         augmentator_m_T=1,
         normalize=False,
         normalization_mode='full',
+        normalization_channels=6,
         regularizer_mode='none',
         regularizer_sigma_min=4,
         regularizer_sigma_max=16,
@@ -195,14 +196,6 @@ class SemiSupervisedLearner1d(nn.Module):
         self.wu = wu
         self.threshold = threshold
         self.device = model_device
-
-        if normalize:
-            self.normalization_layer = DAIN_Layer(
-                mode=normalization_mode,
-                input_dim=augmentator_mz_bins
-            )
-        else:
-            self.normalization_layer = nn.Identity()
 
         self.weak_augmentator = ChromatogramScaler(
             mz_bins=augmentator_mz_bins,
@@ -238,6 +231,14 @@ class SemiSupervisedLearner1d(nn.Module):
                 p=augmentator_p
             )
         )
+
+        if normalize:
+            self.normalization_layer = DAIN_Layer(
+                mode=normalization_mode,
+                input_dim=normalization_channels
+            )
+        else:
+            self.normalization_layer = nn.Identity()
 
         self.regularizer_mode = regularizer_mode
         self.regularizer_sigma_min = regularizer_sigma_min
@@ -399,6 +400,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
         augmentator_m_T=1,
         normalize=False,
         normalization_mode='full',
+        normalization_channels=6,
         regularizer_mode='none',
         regularizer_sigma_min=4,
         regularizer_sigma_max=16,
@@ -430,6 +432,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
             augmentator_m_T=augmentator_m_T,
             normalize=normalize,
             normalization_mode=normalization_mode,
+            normalization_channels=normalization_channels,
             regularizer_mode=regularizer_mode,
             regularizer_sigma_min=regularizer_sigma_min,
             regularizer_sigma_max=regularizer_sigma_max,
