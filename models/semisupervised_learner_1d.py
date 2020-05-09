@@ -200,16 +200,24 @@ class SemiSupervisedLearner1d(nn.Module):
 
         self.weak_augmentator = ChromatogramScaler(
             mz_bins=augmentator_mz_bins,
-            scale_independently=augmentator_scale_independently,
+            scale_independently=False,
             scale_precursors=augmentator_scale_precursors,
             lower=augmentator_lower,
             upper=augmentator_upper,
-            p=augmentator_p,
+            p=1,
             device=self.device
         )
 
         self.strong_augmentator = nn.Sequential(
-            self.weak_augmentator,
+            ChromatogramScaler(
+                mz_bins=augmentator_mz_bins,
+                scale_independently=augmentator_scale_independently,
+                scale_precursors=augmentator_scale_precursors,
+                lower=augmentator_lower,
+                upper=augmentator_upper,
+                p=augmentator_p,
+                device=self.device
+            ),
             ChromatogramJitterer(
                 mz_bins=augmentator_mz_bins,
                 length=augmentator_length,
