@@ -191,7 +191,8 @@ class SemiSupervisedLearner1d(nn.Module):
         loss_logits=False,
         loss_reduction='none',
         model_device='cpu',
-        debug=False):
+        debug=False,
+        save_normalized=False):
         super(SemiSupervisedLearner1d, self).__init__()
         self.segmentator = copy.deepcopy(model)
         self.wu = wu
@@ -271,6 +272,8 @@ class SemiSupervisedLearner1d(nn.Module):
             self.to_out = nn.Identity()
 
         self.debug = debug
+        self.save_normalized = save_normalized
+        self.normalized = None
 
     def generate_zebra_mask(
         self,
@@ -387,7 +390,12 @@ class SemiSupervisedLearner1d(nn.Module):
 
             return labeled_loss + self.wu * unlabeled_loss
         else:
-            return self.segmentator(self.normalization_layer(unlabeled_batch))
+            normalized = self.normalization_layer(unlabeled_batch)
+
+            if self.save_normalized:
+                self.normalized = normalized
+
+            return self.segmentator(normalized)
 
 class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
     def __init__(
@@ -422,7 +430,8 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
         loss_logits=False,
         loss_reduction='none',
         model_device='cpu',
-        debug=False):
+        debug=False,
+        save_normalized=False):
         super(SemiSupervisedAlignmentLearner1d, self).__init__(
             model,
             wu=wu,
@@ -454,7 +463,8 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
             loss_logits=loss_logits,
             loss_reduction=loss_reduction,
             model_device=model_device,
-            debug=debug
+            debug=debug,
+            save_normalized=save_normalized
         )
 
     def forward(
@@ -571,8 +581,9 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
 
             return labeled_loss + self.wu * unlabeled_loss
         else:
-            return self.segmentator(
-                self.normalization_layer(unlabeled_batch),
-                templates,
-                template_labels
-            )
+            normalized = self.normalization_layer(unlabeled_batch)
+
+            if self.save_normalized:
+                self.normalized = normalized
+
+            return self.segmentator(normalized, templates, template_labels)

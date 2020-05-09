@@ -73,7 +73,7 @@ class DynamicDepthSeparableConv1d(nn.Module):
         return out
 
 class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
-    def __init__(self, c, heads=8, kernel_sizes=[3, 15]):
+    def __init__(self, c, heads=8, kernel_sizes=[3, 15], save_attn=False):
         super().__init__()
         self.heads = heads
         self.kernel_sizes = kernel_sizes
@@ -96,6 +96,8 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
         # c-vector
         if self.heads > 1:
             self.unify_heads = nn.Conv1d(heads * c, c, 1, bias=False)
+
+        self.attn = None
 
     def forward(self, x):
         b, c, l = x.size()
@@ -127,10 +129,19 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
         if self.heads > 1:
             out = self.unify_heads(out)
 
+        if self.save_attn:
+            self.attn = dot
+
         return out
 
 class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
-    def __init__(self, qk_c, v_c, heads=8, kernel_sizes=[3, 15]):
+    def __init__(
+        self,
+        qk_c,
+        v_c,
+        heads=8,
+        kernel_sizes=[3, 15],
+        save_attn=False):
         super().__init__()
         self.heads = heads
         self.kernel_sizes = kernel_sizes
@@ -153,6 +164,8 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         # v_c-vector
         if self.heads > 1:
             self.unify_heads = nn.Conv1d(heads * v_c, v_c, 1, bias=False)
+
+        self.attn = None
 
     def forward(self, queries, keys, values):
         if len(values.size()) == 2:
@@ -208,7 +221,10 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         if self.heads > 1:
             out = self.unify_heads(out)
 
-        return out, dot
+        if self.save_attn:
+            self.attn = dot
+
+        return out
 
 class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
     def __init__(
@@ -217,12 +233,14 @@ class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
         heads,
         depth_multiplier=4,
         dropout=0.1,
-        kernel_sizes=[3, 15]):
+        kernel_sizes=[3, 15],
+        save_attn=False):
         super().__init__()
         self.attention = DynamicDepthSeparableTimeSeriesSelfAttention(
             c,
             heads=heads,
-            kernel_sizes=kernel_sizes
+            kernel_sizes=kernel_sizes,
+            save_attn=save_attn
         )
 
         # Instance norm instead of layer norm
@@ -246,7 +264,7 @@ class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
 
         return x
 
-class DDSTSTransformer(nn.Module):
+class DDSCTransformer(nn.Module):
     def __init__(
         self,
         in_channels=6,
@@ -258,17 +276,15 @@ class DDSTSTransformer(nn.Module):
         kernel_sizes=[3, 15],
         normalize=False,
         normalization_mode='full',
-        return_normalized=False,
+        save_normalized=False,
         use_templates=False,
         cat_templates=False,
-        return_attn=False,
+        save_attn=False,
         probs=True):
-        super(DDSTSTransformer, self).__init__()
-        self.return_normalized = normalize and return_normalized
+        super(DDSCTransformer, self).__init__()
+        self.save_normalized = save_normalized
         self.use_templates = use_templates
         self.cat_templates = self.use_templates and cat_templates
-        self.return_attn = self.use_templates and return_attn
-        self.return_list = self.return_normalized or self.return_attn
         self.probs = probs
 
         if normalize:
@@ -296,7 +312,8 @@ class DDSTSTransformer(nn.Module):
                     heads=heads,
                     depth_multiplier=depth_multiplier,
                     dropout=dropout,
-                    kernel_sizes=kernel_sizes
+                    kernel_sizes=kernel_sizes,
+                    save_attn=save_attn
                 )
             )
         self.t_blocks = nn.Sequential(*t_blocks)
@@ -309,7 +326,8 @@ class DDSTSTransformer(nn.Module):
                     qk_c=transformer_channels,
                     v_c=1,
                     heads=heads,
-                    kernel_sizes=kernel_sizes
+                    kernel_sizes=kernel_sizes,
+                    save_attn=save_attn
                 )
             )
 
@@ -329,10 +347,16 @@ class DDSTSTransformer(nn.Module):
 
         self.to_probs = nn.Sigmoid()
 
+        self.normalized = None
+
     def forward(self, x, templates=None, templates_label=None):
         b, _, _ = x.size()
 
         x = self.normalization_layer(x)
+
+        if self.save_normalized:
+            self.normalized = x
+
         out = self.init_encoder(x)
         out = self.t_blocks(out)
 
@@ -340,8 +364,7 @@ class DDSTSTransformer(nn.Module):
             templates = self.normalization_layer(templates)
             templates = self.init_encoder(templates)
             templates = self.t_blocks(templates)
-            out_weighted, attn_matrix = self.templates_attn(
-                out, templates, templates_label)
+            out_weighted = self.templates_attn(out, templates, templates_label)
 
             if self.cat_templates:
                 out = torch.cat([out, out_weighted], dim=1)
@@ -353,19 +376,4 @@ class DDSTSTransformer(nn.Module):
         if self.probs:
             out = self.to_probs(out)
 
-        if self.return_list:
-            all_outs = [out.view(b, -1)]
-
-        if self.return_list and self.return_normalized:
-            all_outs.append(x)
-        elif self.return_list:
-            all_outs.append(None)
-        
-        if self.return_list and self.return_attn:
-            all_outs.append(attn_matrix)
-        elif self.return_list:
-            all_outs.append(None)
-
-        if self.return_list:
-            return all_outs
         return out.view(b, -1)

@@ -17,7 +17,7 @@ sys.path.insert(0, '..')
 from datasets.chromatograms_dataset import ChromatogramsDataset
 from datasets.samplers import GroupBySequenceSampler
 from datasets.transforms import ToTensor
-from models.modelzoo1d.ddsct import DDSTSTransformer
+from models.modelzoo1d.ddsct import DDSCTransformer
 from train.collate_fns import PadChromatogramsFor1DCNN
 
 class LRFinder(object):
