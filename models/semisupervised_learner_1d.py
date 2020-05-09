@@ -14,87 +14,146 @@ from optimizers.focal_loss import FocalLossBinary
 class ChromatogramScaler(nn.Module):
     def __init__(
         self,
-        num_channels=6,
+        mz_bins=6,
         scale_independently=False,
         scale_precursors=False,
         lower=0.875,
         upper=1.125,
+        p=0.5,
         device='cpu'):
         super(ChromatogramScaler, self).__init__()
-        self.num_channels = num_channels
+        self.mz_bins = mz_bins
         self.scale_independently = scale_independently
         self.scale_precursors = scale_precursors
         self.lower = lower
         self.upper = upper
+        self.p = p
         self.device = device
 
     def forward(self, chromatogram_batch):
+        if torch.rand(1).item() < self.p:
+            return chromatogram_batch
+
         if self.scale_independently:
             scaling_factors = (
                 torch.FloatTensor(6, 1).uniform_(self.lower, self.upper)
             ).to(self.device)
             
-            if self.num_channels == 84:
-                sf_ri = (
-                    scaling_factors.repeat_interleave(11, dim=0)
+            if self.mz_bins > 6:
+                scaling_factors = (
+                    scaling_factors.repeat_interleave(self.mz_bins // 6, dim=0)
                 ).to(self.device)
         else:
             scaling_factors = (
                 torch.FloatTensor(1).uniform_(self.lower, self.upper)
             ).to(self.device)
 
-        if self.num_channels < 15:
-            chromatogram_batch[:, 0:6] = (
-                chromatogram_batch[:, 0:6].to(self.device) * scaling_factors)
-        elif self.num_channels == 84:
-            chromatogram_batch[:, 0:66] = (
-                chromatogram_batch[:, 0:66].to(self.device) * sf_ri)
-
-        if self.num_channels == 14:
-            chromatogram_batch[:, 7:13] = (
-                chromatogram_batch[:, 7:13].to(self.device) * scaling_factors)
-        elif self.num_channels == 84:
-            chromatogram_batch[:, 67:73] = (
-                chromatogram_batch[:, 67:73].to(self.device) * scaling_factors)
+        chromatogram_batch[:, 0:self.mz_bins] = (
+            chromatogram_batch[:, 0:self.mz_bins] * scaling_factors)
 
         if self.scale_precursors:
-            if self.num_channels == 14:
-                scaling_factor = (
-                    torch.FloatTensor(1).uniform_(self.lower, self.upper)
-                ).to(self.device)
-                chromatogram_batch[:, 13] = (
-                    chromatogram_batch[:, 13].to(self.device) * scaling_factor)
-            elif self.num_channels == 84:
-                scaling_factors = (
-                    torch.FloatTensor(1).uniform_(self.lower, self.upper)
-                ).to(self.device).unsqueeze(1)
-                chromatogram_batch[:, 73:]
+            scaling_factor = (
+                torch.FloatTensor(1).uniform_(self.lower, self.upper)
+            ).to(self.device)
+            chromatogram_batch[:, self.mz_bins + 7:] = (
+                chromatogram_batch[:, self.mz_bins + 7:] * scaling_factor)
 
         return chromatogram_batch
 
-class ChromatogramShuffler(nn.Module):
-    def __init__(self, num_channels=6):
-        super(ChromatogramShuffler, self).__init__()
-        self.num_channels = num_channels
+class ChromatogramJitterer(nn.Module):
+    def __init__(
+        self,
+        mz_bins=6,
+        length=175,
+        mean=0,
+        std=1,
+        p=0.5,
+        device='cpu'):
+        super(ChromatogramJitterer, self).__init__()
+        self.mz_bins = mz_bins
+        self.length = length
+        self.mean = mean
+        self.std = std
+        self.p = p
+        self.device = device
 
     def forward(self, chromatogram_batch):
+        if torch.rand(1).item() < self.p:
+            return chromatogram_batch
+
+        noise = (
+            torch.FloatTensor(
+                self.mz_bins, self.length
+            ).normal_(self.mean, self.std)
+        ).to(self.device)
+
+        chromatogram_batch[:, 0:self.mz_bins]+= noise
+        
+        return chromatogram_batch
+
+class ChromatogramShuffler(nn.Module):
+    def __init__(self, mz_bins=6, p=0.5):
+        super(ChromatogramShuffler, self).__init__()
+        self.mz_bins = mz_bins
+        self.p = p
+
+    def forward(self, chromatogram_batch):
+        if torch.rand(1).item() < self.p:
+            return chromatogram_batch
+
         shuffled_indices = torch.randperm(6)
 
-        if self.num_channels < 15:
-            chromatogram_batch[:, 0:6] = (
-                chromatogram_batch[:, 0:6][:, shuffled_indices])
-        elif self.num_channels == 84:
-            N = 11
+        N = self.mz_bins // 6
+        start, end = self.mz_bins + 1, self.mz_bins + 7
+
+        if N == 1:
+            chromatogram_batch[:, 0:self.mz_bins] = (
+                chromatogram_batch[:, 0:self.mz_bins][:, shuffled_indices])
+        else:
             b, M, n = chromatogram_batch.size()
             chromatogram_batch.reshape(
                 b, M, -1, n)[:, shuffled_indices].reshape(b, -1, n)
 
-        if self.num_channels == 14:
-            chromatogram_batch[:, 7:13] = (
-                chromatogram_batch[:, 7:13][:, shuffled_indices])
-        elif self.num_channels == 84:
-            chromatogram_batch[:, 67:73] = (
-                chromatogram_batch[:, 67:73][:, shuffled_indices])
+        chromatogram_batch[:, start:end] = (
+            chromatogram_batch[:, start:end][:, shuffled_indices])         
+
+        return chromatogram_batch
+
+class ChromatogramSpectraMasker(nn.Module):
+    def __init__(self, mz_bins=6, F=1, m_F=1, p=0.5)
+        super(ChromatogramSpectraMasker, self).__init__()
+        self.v = mz_bins
+        self.F = F
+        self.m_F = m_F
+        self.p = p
+
+    def forward(self, chromatogram_batch):
+        if torch.rand(1).item() < self.p:
+            return chromatogram_batch
+
+        for i in range(self.m_F):
+            f = torch.randint(0, self.F + 1, (1,)).item()
+            f_0 = torch.randint(0, self.v - f, (1,)).item()
+            chromatogram_batch[:, f_0:f] = 0
+
+        return chromatogram_batch
+
+class ChromatogramTimeMasker(nn.Module):
+    def __init__(self, length=175, T=5, m_T=1, p=0.5)
+        super(ChromatogramTimeMasker, self).__init__()
+        self.tau = length
+        self.T = T
+        self.m_T = m_T
+        self.p = p
+
+    def forward(self, chromatogram_batch):
+        if torch.rand(1).item() < self.p:
+            return chromatogram_batch
+
+        for i in range(self.m_T):
+            t = torch.randint(0, self.T + 1, (1,)).item()
+            t_0 = torch.randint(0, self.tau - t, (1,)).item()
+            chromatogram_batch[:, :, t_0:t] = 0
 
         return chromatogram_batch
 
@@ -104,13 +163,21 @@ class SemiSupervisedLearner1d(nn.Module):
         model,
         wu=1,
         threshold=0.95,
-        augmentator_num_channels=6,
-        augmentator_normalize=False,
-        augmentator_normalization_mode='full',
+        augmentator_p=0.5,
+        augmentator_mz_bins=6,
         augmentator_scale_independently=False,
         augmentator_scale_precursors=False,
         augmentator_lower=0.875,
         augmentator_upper=1.125,
+        augmentator_length=175,
+        augmentator_mean=0,
+        augmentator_std=1,
+        augmentator_F=1,
+        augmentator_m_F=1,
+        augmentator_T=5,
+        augmentator_m_T=1,
+        normalize=False,
+        normalization_mode='full',
         regularizer_mode='none',
         regularizer_sigma_min=4,
         regularizer_sigma_max=16,
@@ -129,26 +196,47 @@ class SemiSupervisedLearner1d(nn.Module):
         self.threshold = threshold
         self.device = model_device
 
-        if augmentator_normalize:
+        if normalize:
             self.normalization_layer = DAIN_Layer(
-                mode=augmentator_normalization_mode,
-                input_dim=augmentator_num_channels
+                mode=normalization_mode,
+                input_dim=augmentator_mz_bins
             )
         else:
             self.normalization_layer = nn.Identity()
 
         self.weak_augmentator = ChromatogramScaler(
-            num_channels=augmentator_num_channels,
+            mz_bins=augmentator_mz_bins,
             scale_independently=augmentator_scale_independently,
             scale_precursors=augmentator_scale_precursors,
             lower=augmentator_lower,
             upper=augmentator_upper,
+            p=augmentator_p,
             device=self.device
         )
 
         self.strong_augmentator = nn.Sequential(
             self.weak_augmentator,
-            ChromatogramShuffler(num_channels=augmentator_num_channels)
+            ChromatogramJitterer(
+                mz_bins=augmentator_mz_bins,
+                length=augmentator_length,
+                mean=augmentator_mean,
+                std=augmentator_std,
+                p=augmentator_p,
+                device=self.device
+            ),
+            ChromatogramShuffler(mz_bins=augmentator_mz_bins, p=augmentator_p),
+            ChromatogramSpectraMasker(
+                mz_bins=augmentator_mz_bins,
+                F=augmentator_F,
+                m_F=augmentator_m_F,
+                p=augmentator_p
+            ),
+            ChromatogramTimeMasker(
+                length=augmentator_length,
+                T=augmentator_T,
+                m_T=augmentator_m_T,
+                p=augmentator_p
+            )
         )
 
         self.regularizer_mode = regularizer_mode
@@ -296,13 +384,21 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
         model,
         wu=1,
         threshold=0.85,
-        augmentator_num_channels=6,
-        augmentator_normalize=False,
-        augmentator_normalization_mode='full',
+        augmentator_p=0.5,
+        augmentator_mz_bins=6,
         augmentator_scale_independently=False,
         augmentator_scale_precursors=False,
         augmentator_lower=0.875,
         augmentator_upper=1.125,
+        augmentator_length=175,
+        augmentator_mean=0,
+        augmentator_std=1,
+        augmentator_F=1,
+        augmentator_m_F=1,
+        augmentator_T=5,
+        augmentator_m_T=1,
+        normalize=False,
+        normalization_mode='full',
         regularizer_mode='none',
         regularizer_sigma_min=4,
         regularizer_sigma_max=16,
@@ -319,13 +415,21 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
             model,
             wu=wu,
             threshold=threshold,
-            augmentator_num_channels=augmentator_num_channels,
-            augmentator_normalize=augmentator_normalize,
-            augmentator_normalization_mode=augmentator_normalization_mode,
+            augmentator_p=augmentator_p,
+            augmentator_mz_bins=augmentator_mz_bins,
             augmentator_scale_independently=augmentator_scale_independently,
             augmentator_scale_precursors=augmentator_scale_precursors,
             augmentator_lower=augmentator_lower,
             augmentator_upper=augmentator_upper,
+            augmentator_length=augmentator_length,
+            augmentator_mean=augmentator_mean,
+            augmentator_std=augmentator_std,
+            augmentator_F=augmentator_F,
+            augmentator_m_F=augmentator_m_F,
+            augmentator_T=augmentator_T,
+            augmentator_m_T=augmentator_m_T,
+            normalize=normalize,
+            normalization_mode=normalization_mode,
             regularizer_mode=regularizer_mode,
             regularizer_sigma_min=regularizer_sigma_min,
             regularizer_sigma_max=regularizer_sigma_max,
