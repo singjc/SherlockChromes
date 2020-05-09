@@ -120,7 +120,7 @@ class ChromatogramShuffler(nn.Module):
         return chromatogram_batch
 
 class ChromatogramSpectraMasker(nn.Module):
-    def __init__(self, mz_bins=6, F=1, m_F=1, p=0.5)
+    def __init__(self, mz_bins=6, F=1, m_F=1, p=0.5):
         super(ChromatogramSpectraMasker, self).__init__()
         self.v = mz_bins
         self.F = F
@@ -139,7 +139,7 @@ class ChromatogramSpectraMasker(nn.Module):
         return chromatogram_batch
 
 class ChromatogramTimeMasker(nn.Module):
-    def __init__(self, length=175, T=5, m_T=1, p=0.5)
+    def __init__(self, length=175, T=5, m_T=1, p=0.5):
         super(ChromatogramTimeMasker, self).__init__()
         self.tau = length
         self.T = T
