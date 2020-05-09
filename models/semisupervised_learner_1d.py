@@ -139,8 +139,9 @@ class ChromatogramSpectraMasker(nn.Module):
         return chromatogram_batch
 
 class ChromatogramTimeMasker(nn.Module):
-    def __init__(self, length=175, T=5, m_T=1, p=0.5):
+    def __init__(self, mz_bins=6, length=175, T=5, m_T=1, p=0.5):
         super(ChromatogramTimeMasker, self).__init__()
+        self.mz_bins = mz_bins
         self.tau = length
         self.T = T
         self.m_T = m_T
@@ -153,7 +154,7 @@ class ChromatogramTimeMasker(nn.Module):
         for i in range(self.m_T):
             t = torch.randint(0, self.T + 1, (1,)).item()
             t_0 = torch.randint(0, self.tau - t, (1,)).item()
-            chromatogram_batch[:, :, t_0:t] = 0
+            chromatogram_batch[:, 0:self.mz_bins, t_0:t] = 0
 
         return chromatogram_batch
 
@@ -225,6 +226,7 @@ class SemiSupervisedLearner1d(nn.Module):
                 p=augmentator_p
             ),
             ChromatogramTimeMasker(
+                mz_bins=augmentator_mz_bins,
                 length=augmentator_length,
                 T=augmentator_T,
                 m_T=augmentator_m_T,
