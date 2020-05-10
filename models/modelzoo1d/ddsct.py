@@ -73,18 +73,34 @@ class DynamicDepthSeparableConv1d(nn.Module):
         return out
 
 class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
-    def __init__(self, c, heads=8, kernel_sizes=[3, 15], save_attn=False):
+    def __init__(
+        self,
+        c,
+        heads=8,
+        kernel_sizes=[3, 15],
+        shared_encoder=False,
+        save_attn=False):
         super().__init__()
         self.heads = heads
         self.kernel_sizes = kernel_sizes
+        self.save_attn = save_attn
 
         # These compute the queries, keys, and values for all 
         # heads (as a single concatenated vector)
-        self.to_queries_and_keys = DynamicDepthSeparableConv1d(
+        self.to_queries = DynamicDepthSeparableConv1d(
             c,
             c * heads,
             kernel_sizes=kernel_sizes
         )
+
+        if shared_encoder:
+            self.to_keys = self.to_queries
+        else:
+            self.to_keys = DynamicDepthSeparableConv1d(
+                c,
+                c * heads,
+                kernel_sizes=kernel_sizes
+            )
 
         self.to_values = DynamicDepthSeparableConv1d(
             c,
@@ -97,15 +113,14 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
         if self.heads > 1:
             self.unify_heads = nn.Conv1d(heads * c, c, 1, bias=False)
 
-        self.save_attn = save_attn
         self.attn = None
 
     def forward(self, x):
         b, c, l = x.size()
         h = self.heads
 
-        queries = self.to_queries_and_keys(x).view(b, h, c, l)
-        keys = self.to_queries_and_keys(x).view(b, h, c, l)
+        queries = self.to_queries(x).view(b, h, c, l)
+        keys = self.to_keys(x).view(b, h, c, l)
         values = self.to_values(x).view(b, h, c, l)
 
         # Fold heads into the batch dimension
@@ -142,18 +157,29 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         v_c,
         heads=8,
         kernel_sizes=[3, 15],
+        shared_encoder=False,
         save_attn=False):
         super().__init__()
         self.heads = heads
         self.kernel_sizes = kernel_sizes
+        self.save_attn = save_attn
 
         # These compute the queries, keys, and values for all 
         # heads (as a single concatenated vector)
-        self.to_queries_and_keys = DynamicDepthSeparableConv1d(
+        self.to_queries = DynamicDepthSeparableConv1d(
             qk_c,
             qk_c * heads,
             kernel_sizes=kernel_sizes
         )
+
+        if shared_encoder:
+            self.to_keys = self.to_queries
+        else:
+            self.to_keys = DynamicDepthSeparableConv1d(
+                qk_c,
+                qk_c * heads,
+                kernel_sizes=kernel_sizes
+            )
 
         self.to_values = DynamicDepthSeparableConv1d(
             v_c,
@@ -166,7 +192,6 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         if self.heads > 1:
             self.unify_heads = nn.Conv1d(heads * v_c, v_c, 1, bias=False)
 
-        self.save_attn = save_attn
         self.attn = None
 
     def forward(self, queries, keys, values):
@@ -177,8 +202,8 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         kv_b, v_c, _ = values.size()
         h = self.heads
 
-        queries = self.to_queries_and_keys(queries).view(q_b, h, qk_c, l)
-        keys = self.to_queries_and_keys(keys).view(kv_b, h, qk_c, l)
+        queries = self.to_queries(queries).view(q_b, h, qk_c, l)
+        keys = self.to_keys(keys).view(kv_b, h, qk_c, l)
         values = self.to_values(values).view(kv_b, h, v_c, l)
 
         # Fold heads into the batch dimension
