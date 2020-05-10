@@ -261,12 +261,14 @@ class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
         depth_multiplier=4,
         dropout=0.1,
         kernel_sizes=[3, 15],
+        shared_encoder=False,
         save_attn=False):
         super().__init__()
         self.attention = DynamicDepthSeparableTimeSeriesSelfAttention(
             c,
             heads=heads,
             kernel_sizes=kernel_sizes,
+            shared_encoder=shared_encoder,
             save_attn=save_attn
         )
 
