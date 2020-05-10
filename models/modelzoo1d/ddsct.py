@@ -78,7 +78,7 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
         c,
         heads=8,
         kernel_sizes=[3, 15],
-        shared_encoder=False,
+        share_encoder=False,
         save_attn=False):
         super().__init__()
         self.heads = heads
@@ -93,7 +93,7 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
             kernel_sizes=kernel_sizes
         )
 
-        if shared_encoder:
+        if share_encoder:
             self.to_keys = self.to_queries
         else:
             self.to_keys = DynamicDepthSeparableConv1d(
@@ -157,7 +157,7 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         v_c,
         heads=8,
         kernel_sizes=[3, 15],
-        shared_encoder=False,
+        share_encoder=False,
         save_attn=False):
         super().__init__()
         self.heads = heads
@@ -172,7 +172,7 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
             kernel_sizes=kernel_sizes
         )
 
-        if shared_encoder:
+        if share_encoder:
             self.to_keys = self.to_queries
         else:
             self.to_keys = DynamicDepthSeparableConv1d(
@@ -261,14 +261,14 @@ class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
         depth_multiplier=4,
         dropout=0.1,
         kernel_sizes=[3, 15],
-        shared_encoder=False,
+        share_encoder=False,
         save_attn=False):
         super().__init__()
         self.attention = DynamicDepthSeparableTimeSeriesSelfAttention(
             c,
             heads=heads,
             kernel_sizes=kernel_sizes,
-            shared_encoder=shared_encoder,
+            share_encoder=share_encoder,
             save_attn=save_attn
         )
 
@@ -303,7 +303,7 @@ class DDSCTransformer(nn.Module):
         dropout=0.1,
         depth=6,
         kernel_sizes=[3, 15],
-        shared_encoder=False,
+        share_encoder=False,
         normalize=False,
         normalization_mode='full',
         save_normalized=False,
@@ -343,7 +343,7 @@ class DDSCTransformer(nn.Module):
                     depth_multiplier=depth_multiplier,
                     dropout=dropout,
                     kernel_sizes=kernel_sizes,
-                    shared_encoder=shared_encoder,
+                    share_encoder=share_encoder,
                     save_attn=save_attn
                 )
             )
@@ -358,7 +358,7 @@ class DDSCTransformer(nn.Module):
                     v_c=1,
                     heads=heads,
                     kernel_sizes=kernel_sizes,
-                    shared_encoder=shared_encoder,
+                    share_encoder=share_encoder,
                     save_attn=save_attn
                 )
             )
