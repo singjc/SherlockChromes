@@ -301,6 +301,7 @@ class DDSCTransformer(nn.Module):
         dropout=0.1,
         depth=6,
         kernel_sizes=[3, 15],
+        shared_encoder=False,
         normalize=False,
         normalization_mode='full',
         save_normalized=False,
@@ -340,6 +341,7 @@ class DDSCTransformer(nn.Module):
                     depth_multiplier=depth_multiplier,
                     dropout=dropout,
                     kernel_sizes=kernel_sizes,
+                    shared_encoder=shared_encoder,
                     save_attn=save_attn
                 )
             )
@@ -354,6 +356,7 @@ class DDSCTransformer(nn.Module):
                     v_c=1,
                     heads=heads,
                     kernel_sizes=kernel_sizes,
+                    shared_encoder=shared_encoder,
                     save_attn=save_attn
                 )
             )
