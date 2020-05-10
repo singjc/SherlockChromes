@@ -97,6 +97,7 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
         if self.heads > 1:
             self.unify_heads = nn.Conv1d(heads * c, c, 1, bias=False)
 
+        self.save_attn = save_attn
         self.attn = None
 
     def forward(self, x):
@@ -165,6 +166,7 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         if self.heads > 1:
             self.unify_heads = nn.Conv1d(heads * v_c, v_c, 1, bias=False)
 
+        self.save_attn = save_attn
         self.attn = None
 
     def forward(self, queries, keys, values):
