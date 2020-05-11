@@ -112,6 +112,8 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
         # c-vector
         if self.heads > 1:
             self.unify_heads = nn.Conv1d(heads * c, c, 1, bias=False)
+        else:
+            self.unify_heads = nn.Identity()
 
         self.attn = None
 
@@ -142,8 +144,7 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
         out = torch.bmm(values, dot).view(b, h * c, l)
 
         # Unify heads
-        if self.heads > 1:
-            out = self.unify_heads(out)
+        out = self.unify_heads(out)
 
         if self.save_attn:
             self.attn = dot
@@ -191,6 +192,8 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         # v_c-vector
         if self.heads > 1:
             self.unify_heads = nn.Conv1d(heads * v_c, v_c, 1, bias=False)
+        else:
+            self.unify_heads = nn.Identity()
 
         self.attn = None
 
@@ -217,9 +220,9 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
 
         if kv_b > 1:
             dot = torch.matmul(
-                keys.transpose(1, 2).contiguous().view(kv_b * h * l, qk_c),
+                keys.transpose(1, 2).contiguous().view(kv_b * h, l, qk_c),
                 queries
-            ).view(q_b * h, kv_b * h, l, l)
+            )
             # dot now has size (q_b*h, kv_b*h, l, l) containing raw weights
 
             dot = F.softmax(dot, dim=2)
@@ -245,8 +248,7 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         out = out.view(q_b, h * v_c, l)
 
         # Unify heads
-        if self.heads > 1:
-            out = self.unify_heads(out)
+        out = self.unify_heads(out)
 
         if self.save_attn:
             self.attn = dot
