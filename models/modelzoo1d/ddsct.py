@@ -51,6 +51,9 @@ class DynamicDepthSeparableConv1d(nn.Module):
             
             self.dynamic_depthwise.append(conv)
 
+    def get_gate(self):
+        return self.dynamic_gate
+
     def forward(self, x):
         out = self.pointwise(x)
 
@@ -116,6 +119,9 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
             self.unify_heads = nn.Identity()
 
         self.attn = None
+
+    def get_attn(self):
+        return self.attn
 
     def forward(self, x):
         b, c, l = x.size()
@@ -196,6 +202,9 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
             self.unify_heads = nn.Identity()
 
         self.attn = None
+
+    def get_attn(self):
+        return self.attn
 
     def forward(self, queries, keys, values):
         if len(values.size()) == 2:
@@ -382,6 +391,12 @@ class DDSCTransformer(nn.Module):
         self.to_probs = nn.Sigmoid()
 
         self.normalized = None
+
+    def get_normalized(self):
+        return self.normalized
+
+    def set_output_probs(self, val):
+        self.probs = val
 
     def forward(self, x, templates=None, templates_label=None):
         b, _, _ = x.size()

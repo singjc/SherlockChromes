@@ -275,6 +275,17 @@ class SemiSupervisedLearner1d(nn.Module):
         self.save_normalized = save_normalized
         self.normalized = None
 
+    def get_normalized(self):
+        return self.normalized
+
+    def get_segmentator(self):
+        model = self.segmentator
+
+        if 'normalization_layer' in [n for n, m in model.named_modules()]:
+            model.normalization_layer = self.normalization_layer
+
+        return model
+
     def generate_zebra_mask(
         self,
         length,

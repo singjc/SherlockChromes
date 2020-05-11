@@ -578,8 +578,8 @@ if __name__ == "__main__":
                     alpha=args.calibration_loss_alpha,
                     gamma=args.calibration_loss_gamma)
             else:
-                if hasattr(model, 'probs'):
-                    model.probs = True
+                if hasattr(model, 'set_output_probs'):
+                    model.set_output_probs(True)
 
             output_array = create_output_array(
                 dataset,
