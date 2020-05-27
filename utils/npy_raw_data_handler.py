@@ -1,23 +1,27 @@
 import argparse
+import bisect
 import csv
 import numpy as np
 import os
 import sqlite3
 import time
 
-from general_utils import calc_bin_idx, get_subsequence_at
+from general_utils import calc_bin_idx, get_subsequence_idxs
 
 def get_specs_from_sql(con, cursor, repl):
     query = \
         f"""SELECT
         PRECURSOR_ID,
-        MODIFIED_SEQUENCE || '_' || CHARGE AS PEPTIDE_NAME,
+        MODIFIED_SEQUENCE,
+        CHARGE,
         PRECURSOR_MZ,
         group_concat(PRODUCT_MZ, '|') AS PRODUCT_MZS,
         group_concat(LIBRARY_INTENSITY, '|') AS LIBRARY_INTENSITIES,
         DECOY,
 		EXP_RT,
-        DELTA_RT
+        DELTA_RT,
+        LEFT_WIDTH,
+        RIGHT_WIDTH
             FROM (
                 SELECT 
                 prec.ID AS PRECURSOR_ID,
@@ -29,6 +33,8 @@ def get_specs_from_sql(con, cursor, repl):
                 prec.DECOY AS DECOY,
                 feat2.EXP_RT AS EXP_RT,
                 feat2.DELTA_RT AS DELTA_RT
+                feat2.LEFT_WIDTH AS LEFT_WIDTH,
+                feat2.RIGHT_WIDTH AS RIGHT_WIDTH
                 FROM PRECURSOR AS prec
                 LEFT JOIN PRECURSOR_PEPTIDE_MAPPING AS prec_to_pep
                 ON prec.ID = prec_to_pep.PRECURSOR_ID
@@ -42,7 +48,9 @@ def get_specs_from_sql(con, cursor, repl):
                     SELECT
                     PRECURSOR_ID,
                     EXP_RT,
-                    DELTA_RT
+                    DELTA_RT,
+                    LEFT_WIDTH,
+                    RIGHT_WIDTH
                     FROM FEATURE as feat1
                     LEFT JOIN (
                         SELECT
@@ -50,7 +58,9 @@ def get_specs_from_sql(con, cursor, repl):
                         FROM RUN
                         WHERE FILENAME LIKE '%{repl}%') as run
                     ON feat1.RUN_ID = run.ID
-                    WHERE NOT run.ID IS NULL
+                    LEFT JOIN SCORE_MS2 as score 
+					ON feat1.ID = score.FEATURE_ID
+                    WHERE NOT run.ID IS NULL AND score.RANK = 1
                     GROUP BY PRECURSOR_ID) as feat2
                 ON prec.ID = feat2.PRECURSOR_ID
                 ORDER BY PRECURSOR_ID, TRANSITION_ID ASC)
@@ -65,9 +75,10 @@ def extract_target_strip(
     target_mz,
     min_mz=0,
     bin_resolution=0.01,
-    half_span=5):
+    lower_span=55,
+    upper_span=155):
     bin_idx = calc_bin_idx(target_mz, min_mz, bin_resolution)
-    strip = lcms_map[bin_idx - half_span:bin_idx + half_span + 1]
+    strip = lcms_map[bin_idx - lower_span:bin_idx + upper_span]
 
     return strip
 
@@ -79,6 +90,9 @@ def create_chromatogram(
     lib_rt,
     prod_mzs,
     lib_intensities,
+    charge,
+    osw_label_left,
+    osw_label_right,
     num_traces=6,
     min_swath_win=399.5,
     swath_win_size=25,
@@ -103,23 +117,29 @@ def create_chromatogram(
     chromatogram.append(
         np.repeat(
             lib_intensities,
-            ms1_rt_array.shape[-1])
-        .reshape(
-            len(lib_intensities),
-            ms1_rt_array.shape[-1]))
+            ms1_rt_array.shape[-1]).reshape(len(lib_intensities), -1))
+
+    # TODO: Also create channels for fragment charges
+    chromatogram.append(
+        np.repeat(charge, ms1_rt_array.shape[-1]).reshape(1, -1))
 
     chromatogram.append(extract_target_strip(ms1_map, prec_mz, min_mz=400))
 
     chromatogram = np.concatenate(chromatogram, axis=0)
 
+    lib_rt_idx, osw_label_left_idx, osw_label_right_idx = None, None, None
+
+    lib_rt_idx, ss_left_idx, ss_right_idx = get_subsequence_idxs(
+        ms1_rt_array, lib_rt, analysis_win_size)
+
     if analysis_win_size >= 0:
-        subsequence_left, subsequence_right, lib_rt_idx = get_subsequence_at(
-            ms1_rt_array, lib_rt, analysis_win_size)
+        chromatogram = chromatogram[:, ss_left_idx:ss_right_idx]
+        ms1_rt_array = ms1_rt_array[ss_left_idx:ss_right_idx]
 
-        chromatogram = chromatogram[:, subsequence_left:subsequence_right]
+    osw_label_left_idx = bisect.bisect_left(ms1_rt_array, osw_label_left)
+    osw_label_right_idx = bisect.bisect_left(ms1_rt_array, osw_label_right)
 
-        return chromatogram, lib_rt_idx
-    return chromatogram, None
+    return chromatogram, lib_rt_idx, osw_label_left_idx, osw_label_right_idx
 
 def create_repl_chromatograms_array(
     work_dir,
@@ -128,7 +148,8 @@ def create_repl_chromatograms_array(
     num_traces=6,
     min_swath_win=399.5,
     swath_win_size=25,
-    analysis_win_size=175):
+    analysis_win_size=175,
+    create_label_arrays=False):
     repl = repl.split('.')[0]
 
     ms1_map = np.load(f'{repl}_ms1_array.npy')
@@ -141,20 +162,38 @@ def create_repl_chromatograms_array(
     specs = get_specs_from_sql(con, cursor, repl)
 
     chromatograms_array = []
-    out_csv = [['ID', 'PREC_ID', 'Filename', 'Lib RT IDX', 'Window Size']]
+    out_csv = [
+        [
+            'ID',
+            'Precursor ID',
+            'Filename',
+            'Library RT IDX',
+            'Window Size',
+            'Label Left IDX',
+            'Label Right IDX'
+        ]
+    ]
+
+    if create_label_arrays:
+        segmentation_labels_array, classification_labels_array = [], []
 
     idx = 0
     for i in range(len(specs)):
         (
             prec_id,
-            mod_seq_and_charge,
+            mod_seq,
+            charge,
             prec_mz,
             prod_mzs,
             lib_intensities,
             decoy,
             exp_rt,
-            delta_rt
+            delta_rt,
+            left_width,
+            right_width
         ) = specs[i]
+
+        mod_seq_and_charge = f'{mod_seq}_{charge}'
 
         if exp_rt and delta_rt:
             lib_rt = exp_rt - delta_rt
@@ -165,18 +204,23 @@ def create_repl_chromatograms_array(
         prod_mzs = [float(x) for x in prod_mzs.split('|')]
         lib_intensities = [float(x) for x in lib_intensities.split('|')]
 
-        chromatogram, lib_rt_idx = create_chromatogram(
-            ms1_map,
-            ms2_map,
-            ms1_rt_array,
-            prec_mz,
-            lib_rt,
-            prod_mzs,
-            lib_intensities,
-            num_traces,
-            min_swath_win,
-            swath_win_size,
-            analysis_win_size
+        chromatogram, lib_rt_idx, osw_label_left_idx, osw_label_right_idx = (
+            create_chromatogram(
+                ms1_map,
+                ms2_map,
+                ms1_rt_array,
+                prec_mz,
+                lib_rt,
+                prod_mzs,
+                lib_intensities,
+                charge,
+                left_width,
+                right_width,
+                num_traces,
+                min_swath_win,
+                swath_win_size,
+                analysis_win_size
+            )
         )
 
         filename = f'{repl}_{mod_seq_and_charge}'
@@ -185,7 +229,32 @@ def create_repl_chromatograms_array(
             filename = f'DECOY_{filename}'
 
         chromatograms_array.append(chromatogram)
-        out_csv.append([idx, prec_id, filename, lib_rt_idx, analysis_win_size])
+
+        if create_label_arrays:
+            left = lib_rt_idx + (analysis_win_size // 2)
+            right = lib_rt_idx + (analysis_win_size // 2) + 1
+            ms1_rt_array_subsequence = ms1_rt_array[left:right]
+            segmentation_labels_array.append(
+                np.where(
+                    np.logical_and(
+                        ms1_rt_array >= ms1_rt_array[osw_label_left_idx],
+                        ms1_rt_array <= ms1_rt_array[osw_label_right_idx]
+                    ),
+                    1,
+                    0
+                )
+            )
+            classification_labels_array.append(decoy)
+
+        out_csv.append([
+            idx,
+            prec_id,
+            filename,
+            lib_rt_idx,
+            analysis_win_size,
+            osw_label_left_idx,
+            osw_label_right_idx
+        ])
         idx+= 1
 
     chromatograms_array = np.stack(chromatograms_array, axis=0)
@@ -199,6 +268,31 @@ def create_repl_chromatograms_array(
         os.path.join(work_dir, f'{repl}_chromatograms_array'),
         chromatograms_array
     )
+
+    if create_label_arrays:
+        segmentation_labels_array = np.stack(segmentation_labels_array, axis=0)
+
+        print(
+            f'Saving segmentation labels array for {repl} of shape '
+            f'{segmentation_labels_array.shape}'
+        )
+
+        np.save(
+            os.path.join(work_dir, f'{repl}_segmentation_labels_array'),
+            segmentation_labels_array
+        )
+
+        classificaton_labels_array = np.array(classification_labels_array)
+
+        print(
+            f'Saving classification labels array for {repl} of shape '
+            f'{classificaton_labels_array.shape}'
+        )
+
+        np.save(
+            os.path.join(work_dir, f'{repl}_classification_labels_array'),
+            classification_labels_array
+        )
 
     with open(os.path.join(work_dir, f'{repl}_chromatograms.csv'), 'w') as out:
         writer = csv.writer(out, lineterminator='\n')

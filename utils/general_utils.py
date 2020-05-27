@@ -13,10 +13,14 @@ def calc_bin_idx(mz, min_mz, bin_resolution):
 
     return bin_idx
 
-def get_subsequence_at(sequence, value, subsequence_size):
+def get_subsequence_idxs(sequence, value, subsequence_size=-1):
+    value_idx = bisect.bisect_left(sequence, value)
+
+    if subsequence_size < 0:
+        return value_idx, None, None
+
     length = len(sequence)
     half_span = subsequence_size // 2
-    value_idx = bisect.bisect_left(sequence, value)
     subsequence_left, subsequence_right = (
         value_idx - half_span, value_idx + half_span + 1)
 
@@ -27,7 +31,7 @@ def get_subsequence_at(sequence, value, subsequence_size):
         subsequence_left = length - subsequence_size
         value_idx = length - half_span - 1
 
-    return subsequence_left, subsequence_right, value_idx
+    return value_idx, subsequence_left, subsequence_right
 
 def overlaps(
     pred_min,

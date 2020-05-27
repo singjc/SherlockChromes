@@ -52,11 +52,12 @@ class ChromatogramScaler(nn.Module):
             chromatogram_batch[:, 0:self.mz_bins] * scaling_factors)
 
         if self.scale_precursors:
+            prec_start = -(self.mz_bins // 6)
             scaling_factor = (
                 torch.FloatTensor(1).uniform_(self.lower, self.upper)
             ).to(self.device)
-            chromatogram_batch[:, self.mz_bins + 7:] = (
-                chromatogram_batch[:, self.mz_bins + 7:] * scaling_factor)
+            chromatogram_batch[:, prec_start:] = (
+                chromatogram_batch[:, prec_start:] * scaling_factor)
 
         return chromatogram_batch
 
