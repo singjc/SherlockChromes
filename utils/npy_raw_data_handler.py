@@ -78,7 +78,25 @@ def extract_target_strip(
     lower_span=55,
     upper_span=155):
     bin_idx = calc_bin_idx(target_mz, min_mz, bin_resolution)
-    strip = lcms_map[bin_idx - lower_span:bin_idx + upper_span]
+    lower, upper = bin_idx - lower_span, bin_idx + upper_span
+    strip = lcms_map[lower:upper]
+    tgt_height = lower_span + upper_span
+
+    if strip.shape[0] != tgt_height:
+        width = strip.shape[-1]
+        padded_strip = []
+
+        if lower < 0:
+            padded_strip.append(np.zeros((-lower, width)))
+        
+        padded_strip.append(strip)
+
+        curr_height = sum([item.shape[0] for item in padded_strip])
+
+        if curr_height < tgt_height:
+            padded_strip.append(np.zeros((tgt_height - curr_height, width)))
+
+        strip = np.concatenate(padded_strip, axis=0)
 
     return strip
 
