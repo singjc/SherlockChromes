@@ -32,17 +32,17 @@ def get_specs_from_sql(con, cursor, repl):
                 trans.LIBRARY_INTENSITY AS LIBRARY_INTENSITY,
                 prec.DECOY AS DECOY,
                 feat2.EXP_RT AS EXP_RT,
-                feat2.DELTA_RT AS DELTA_RT
+                feat2.DELTA_RT AS DELTA_RT,
                 feat2.LEFT_WIDTH AS LEFT_WIDTH,
                 feat2.RIGHT_WIDTH AS RIGHT_WIDTH
                 FROM PRECURSOR AS prec
                 LEFT JOIN PRECURSOR_PEPTIDE_MAPPING AS prec_to_pep
                 ON prec.ID = prec_to_pep.PRECURSOR_ID
-                LEFT JOIN PEPTIDE as pep 
+                LEFT JOIN PEPTIDE AS pep 
                 ON prec_to_pep.PEPTIDE_ID = pep.ID
                 LEFT JOIN TRANSITION_PRECURSOR_MAPPING AS trans_to_prec
                 ON prec.ID = trans_to_prec.PRECURSOR_ID
-                LEFT JOIN TRANSITION as trans 
+                LEFT JOIN TRANSITION AS trans 
                 ON trans_to_prec.TRANSITION_ID = trans.ID
                 LEFT JOIN (
                     SELECT
@@ -51,17 +51,17 @@ def get_specs_from_sql(con, cursor, repl):
                     DELTA_RT,
                     LEFT_WIDTH,
                     RIGHT_WIDTH
-                    FROM FEATURE as feat1
+                    FROM FEATURE AS feat1
                     LEFT JOIN (
                         SELECT
                         ID
                         FROM RUN
-                        WHERE FILENAME LIKE '%{repl}%') as run
+                        WHERE FILENAME LIKE '%{repl}%') AS run
                     ON feat1.RUN_ID = run.ID
-                    LEFT JOIN SCORE_MS2 as score 
+                    LEFT JOIN SCORE_MS2 AS score 
 					ON feat1.ID = score.FEATURE_ID
                     WHERE NOT run.ID IS NULL AND score.RANK = 1
-                    GROUP BY PRECURSOR_ID) as feat2
+                    GROUP BY PRECURSOR_ID) AS feat2
                 ON prec.ID = feat2.PRECURSOR_ID
                 ORDER BY PRECURSOR_ID, TRANSITION_ID ASC)
         GROUP BY PRECURSOR_ID;"""
