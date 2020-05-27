@@ -21,20 +21,22 @@ def get_specs_from_sql(con, cursor, repl):
 		EXP_RT,
         DELTA_RT,
         LEFT_WIDTH,
-        RIGHT_WIDTH
+        RIGHT_WIDTH,
+        SCORE
             FROM (
                 SELECT 
                 prec.ID AS PRECURSOR_ID,
-                MODIFIED_SEQUENCE,
+                pep.MODIFIED_SEQUENCE,
                 prec.CHARGE AS CHARGE,
-                PRECURSOR_MZ,
-                PRODUCT_MZ,
+                prec.PRECURSOR_MZ,
+                trans.PRODUCT_MZ,
                 trans.LIBRARY_INTENSITY AS LIBRARY_INTENSITY,
                 prec.DECOY AS DECOY,
                 feat2.EXP_RT AS EXP_RT,
                 feat2.DELTA_RT AS DELTA_RT,
                 feat2.LEFT_WIDTH AS LEFT_WIDTH,
-                feat2.RIGHT_WIDTH AS RIGHT_WIDTH
+                feat2.RIGHT_WIDTH AS RIGHT_WIDTH,
+                feat2.SCORE AS SCORE
                 FROM PRECURSOR AS prec
                 LEFT JOIN PRECURSOR_PEPTIDE_MAPPING AS prec_to_pep
                 ON prec.ID = prec_to_pep.PRECURSOR_ID
@@ -46,11 +48,12 @@ def get_specs_from_sql(con, cursor, repl):
                 ON trans_to_prec.TRANSITION_ID = trans.ID
                 LEFT JOIN (
                     SELECT
-                    PRECURSOR_ID,
-                    EXP_RT,
-                    DELTA_RT,
-                    LEFT_WIDTH,
-                    RIGHT_WIDTH
+                    feat1.PRECURSOR_ID AS PRECURSOR_ID,
+                    feat1.EXP_RT AS EXP_RT,
+                    feat1.DELTA_RT AS DELTA_RT,
+                    feat1.LEFT_WIDTH AS LEFT_WIDTH,
+                    feat1.RIGHT_WIDTH AS RIGHT_WIDTH,
+                    score.SCORE AS SCORE
                     FROM FEATURE AS feat1
                     LEFT JOIN (
                         SELECT
@@ -186,12 +189,13 @@ def create_repl_chromatograms_array(
     out_csv = [
         [
             'ID',
-            'Precursor ID',
+            'External Precursor ID',
             'Filename',
-            'Library RT IDX',
+            'External Library RT IDX',
             'Window Size',
-            'Label Left IDX',
-            'Label Right IDX'
+            'External Label Left IDX',
+            'External Label Right IDX',
+            'External Score'
         ]
     ]
 
@@ -211,7 +215,8 @@ def create_repl_chromatograms_array(
             exp_rt,
             delta_rt,
             left_width,
-            right_width
+            right_width,
+            score
         ) = specs[i]
 
         mod_seq_and_charge = f'{mod_seq}_{charge}'
@@ -274,7 +279,8 @@ def create_repl_chromatograms_array(
             lib_rt_idx,
             analysis_win_size,
             osw_label_left_idx,
-            osw_label_right_idx
+            osw_label_right_idx,
+            score
         ])
         idx+= 1
 
