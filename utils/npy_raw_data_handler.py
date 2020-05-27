@@ -157,6 +157,9 @@ def create_chromatogram(
     osw_label_left_idx = bisect.bisect_left(ms1_rt_array, osw_label_left)
     osw_label_right_idx = bisect.bisect_left(ms1_rt_array, osw_label_right)
 
+    if osw_label_left_idx == osw_label_right_idx:
+        osw_label_left_idx = osw_label_right_idx = None
+
     return chromatogram, lib_rt_idx, osw_label_left_idx, osw_label_right_idx
 
 def create_repl_chromatograms_array(
