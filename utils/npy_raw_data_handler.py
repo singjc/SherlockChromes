@@ -111,20 +111,26 @@ def create_chromatogram(
     lib_rt,
     prod_mzs,
     lib_intensities,
-    charge,
+    prec_charge,
     osw_label_left,
     osw_label_right,
     min_swath_win=399.5,
     swath_win_size=25,
     monoisotope_only=False,
+    prod_charges=[],
     num_traces=6,
     analysis_win_size=175):
     ms2_map_idx = calc_bin_idx(prec_mz, min_swath_win, swath_win_size)
 
     chromatogram = []
 
-    for mz in prod_mzs:
+    if not prod_charges:
+        prod_charges = [None for mz in prod_mzs]
+
+    for mz, charge in zip(prod_mzs, prod_charges):
         if not monoisotope_only:
+            charge = charge if charge else 1
+            
             for i in range(3, 1, -1):
                 delta = 1 / charge * i
                 chromatogram.append(
@@ -155,7 +161,7 @@ def create_chromatogram(
 
     if not monoisotope_only:
             for i in range(3, 1, -1):
-                delta = 1 / charge * i
+                delta = 1 / prec_charge * i
                 chromatogram.append(
                     extract_target_strip(ms1_map, prec_mz + delta, min_mz=400))
 
@@ -228,7 +234,7 @@ def create_repl_chromatograms_array(
         (
             prec_id,
             mod_seq,
-            charge,
+            prec_charge,
             prec_mz,
             prod_mzs,
             lib_intensities,
@@ -240,12 +246,12 @@ def create_repl_chromatograms_array(
             score
         ) = specs[i]
 
-        mod_seq_and_charge = f'{mod_seq}_{charge}'
+        mod_seq_and_prec_charge = f'{mod_seq}_{prec_charge}'
 
         if exp_rt and delta_rt:
             lib_rt = exp_rt - delta_rt
         else:
-            print(f'Precursor {prec_id}: {mod_seq_and_charge} missing lib_rt')
+            print(f'Precursor {prec_id}: {mod_seq_and_prec_charge} missing lib_rt')
             continue
 
         prod_mzs = [float(x) for x in prod_mzs.split('|')]
@@ -260,17 +266,17 @@ def create_repl_chromatograms_array(
                 lib_rt,
                 prod_mzs,
                 lib_intensities,
-                charge,
+                prec_charge,
                 left_width,
                 right_width,
-                num_traces,
-                min_swath_win,
-                swath_win_size,
-                analysis_win_size
+                min_swath_win=min_swath_win,
+                swath_win_size=swath_win_size,
+                num_traces=num_traces,
+                analysis_win_size=analysis_win_size
             )
         )
 
-        filename = f'{repl}_{mod_seq_and_charge}'
+        filename = f'{repl}_{mod_seq_and_prec_charge}'
 
         if decoy == 1:
             filename = f'DECOY_{filename}'
