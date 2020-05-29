@@ -78,8 +78,8 @@ def extract_target_strip(
     target_mz,
     min_mz=0,
     bin_resolution=0.01,
-    lower_span=55,
-    upper_span=155):
+    lower_span=5,
+    upper_span=5):
     bin_idx = calc_bin_idx(target_mz, min_mz, bin_resolution)
     lower, upper = bin_idx - lower_span, bin_idx + upper_span
     strip = lcms_map[lower:upper]
@@ -114,16 +114,29 @@ def create_chromatogram(
     charge,
     osw_label_left,
     osw_label_right,
-    num_traces=6,
     min_swath_win=399.5,
     swath_win_size=25,
+    monoisotope_only=False,
+    num_traces=6,
     analysis_win_size=175):
     ms2_map_idx = calc_bin_idx(prec_mz, min_swath_win, swath_win_size)
 
     chromatogram = []
 
     for mz in prod_mzs:
+        if not monoisotope_only:
+            for i in range(3, 1, -1):
+                delta = 1 / charge * i
+                chromatogram.append(
+                    extract_target_strip(ms2_map[ms2_map_idx], mz + delta))
+
         chromatogram.append(extract_target_strip(ms2_map[ms2_map_idx], mz))
+
+        if not monoisotope_only:
+            for i in range(4, 0, -1):
+                delta = 1 / i
+                chromatogram.append(
+                    extract_target_strip(ms2_map[ms2_map_idx], mz - delta))
 
     if len(prod_mzs) < num_traces:
         for i in range(num_traces - len(prod_mzs)):
@@ -140,11 +153,19 @@ def create_chromatogram(
             lib_intensities,
             ms1_rt_array.shape[-1]).reshape(len(lib_intensities), -1))
 
-    # TODO: Also create channels for fragment charges
-    chromatogram.append(
-        np.repeat(charge, ms1_rt_array.shape[-1]).reshape(1, -1))
+    if not monoisotope_only:
+            for i in range(3, 1, -1):
+                delta = 1 / charge * i
+                chromatogram.append(
+                    extract_target_strip(ms1_map, prec_mz + delta, min_mz=400))
 
     chromatogram.append(extract_target_strip(ms1_map, prec_mz, min_mz=400))
+
+    if not monoisotope_only:
+            for i in range(4, 0, -1):
+                delta = 1 / i
+                chromatogram.append(
+                    extract_target_strip(ms1_map, prec_mz - delta, min_mz=400))
 
     chromatogram = np.concatenate(chromatogram, axis=0)
 
@@ -173,7 +194,7 @@ def create_repl_chromatograms_array(
     min_swath_win=399.5,
     swath_win_size=25,
     analysis_win_size=175,
-    create_label_arrays=False):
+    create_label_arrays=True):
     repl = repl.split('.')[0]
 
     ms1_map = np.load(f'{repl}_ms1_array.npy')

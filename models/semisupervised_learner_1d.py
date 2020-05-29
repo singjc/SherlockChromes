@@ -15,16 +15,16 @@ class ChromatogramScaler(nn.Module):
     def __init__(
         self,
         mz_bins=6,
+        augment_precursor=False,
         scale_independently=False,
-        scale_precursors=False,
         lower=0.875,
         upper=1.125,
         p=0.5,
         device='cpu'):
         super(ChromatogramScaler, self).__init__()
         self.mz_bins = mz_bins
+        self.augment_precursor = augment_precursor
         self.scale_independently = scale_independently
-        self.scale_precursors = scale_precursors
         self.lower = lower
         self.upper = upper
         self.p = p
@@ -51,7 +51,7 @@ class ChromatogramScaler(nn.Module):
         chromatogram_batch[:, 0:self.mz_bins] = (
             chromatogram_batch[:, 0:self.mz_bins] * scaling_factors)
 
-        if self.scale_precursors:
+        if self.augment_precursor:
             prec_start = -(self.mz_bins // 6)
             scaling_factor = (
                 torch.FloatTensor(1).uniform_(self.lower, self.upper)
@@ -65,6 +65,7 @@ class ChromatogramJitterer(nn.Module):
     def __init__(
         self,
         mz_bins=6,
+        augment_precursor=False,
         length=175,
         mean=0,
         std=1,
@@ -72,6 +73,7 @@ class ChromatogramJitterer(nn.Module):
         device='cpu'):
         super(ChromatogramJitterer, self).__init__()
         self.mz_bins = mz_bins
+        self.augment_precursor = augment_precursor
         self.length = length
         self.mean = mean
         self.std = std
@@ -89,6 +91,16 @@ class ChromatogramJitterer(nn.Module):
         ).to(self.device)
 
         chromatogram_batch[:, 0:self.mz_bins]+= noise
+
+        if self.augment_precursor:
+            N = self.mz_bins // 6
+            noise = (
+                torch.FloatTensor(
+                    N, self.length
+                ).normal_(self.mean, self.std)
+            ).to(self.device) 
+
+            chromatogram_batch[:, -N:]+= noise
         
         return chromatogram_batch
 
@@ -140,9 +152,17 @@ class ChromatogramSpectraMasker(nn.Module):
         return chromatogram_batch
 
 class ChromatogramTimeMasker(nn.Module):
-    def __init__(self, mz_bins=6, length=175, T=5, m_T=1, p=0.5):
+    def __init__(
+        self,
+        mz_bins=6,
+        augment_precursor=False,
+        length=175,
+        T=5,
+        m_T=1,
+        p=0.5):
         super(ChromatogramTimeMasker, self).__init__()
         self.mz_bins = mz_bins
+        self.augment_precursor = augment_precursor
         self.tau = length
         self.T = T
         self.m_T = m_T
@@ -157,6 +177,10 @@ class ChromatogramTimeMasker(nn.Module):
             t_0 = torch.randint(0, self.tau - t, (1,)).item()
             chromatogram_batch[:, 0:self.mz_bins, t_0:t] = 0
 
+            if self.augment_precursor:
+                N = self.mz_bins // 6
+                chromatogram_batch[:, -N:, t_0:t] = 0
+
         return chromatogram_batch
 
 class SemiSupervisedLearner1d(nn.Module):
@@ -167,8 +191,8 @@ class SemiSupervisedLearner1d(nn.Module):
         threshold=0.95,
         augmentator_p=0.5,
         augmentator_mz_bins=6,
+        augmentator_augment_precursor=False,
         augmentator_scale_independently=False,
-        augmentator_scale_precursors=False,
         augmentator_lower=0.875,
         augmentator_upper=1.125,
         augmentator_length=175,
@@ -202,8 +226,8 @@ class SemiSupervisedLearner1d(nn.Module):
 
         self.weak_augmentator = ChromatogramScaler(
             mz_bins=augmentator_mz_bins,
+            augment_precursor=augmentator_augment_precursor,
             scale_independently=False,
-            scale_precursors=augmentator_scale_precursors,
             lower=augmentator_lower,
             upper=augmentator_upper,
             p=1,
@@ -213,8 +237,8 @@ class SemiSupervisedLearner1d(nn.Module):
         self.strong_augmentator = nn.Sequential(
             ChromatogramScaler(
                 mz_bins=augmentator_mz_bins,
+                augment_precursor=augmentator_augment_precursor,
                 scale_independently=augmentator_scale_independently,
-                scale_precursors=augmentator_scale_precursors,
                 lower=augmentator_lower,
                 upper=augmentator_upper,
                 p=augmentator_p,
@@ -222,6 +246,7 @@ class SemiSupervisedLearner1d(nn.Module):
             ),
             ChromatogramJitterer(
                 mz_bins=augmentator_mz_bins,
+                augment_precursor=augmentator_augment_precursor,
                 length=augmentator_length,
                 mean=augmentator_mean,
                 std=augmentator_std,
@@ -237,6 +262,7 @@ class SemiSupervisedLearner1d(nn.Module):
             ),
             ChromatogramTimeMasker(
                 mz_bins=augmentator_mz_bins,
+                augment_precursor=augmentator_augment_precursor,
                 length=augmentator_length,
                 T=augmentator_T,
                 m_T=augmentator_m_T,
@@ -417,8 +443,8 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
         threshold=0.85,
         augmentator_p=0.5,
         augmentator_mz_bins=6,
+        augmentator_augment_precursor=False,
         augmentator_scale_independently=False,
-        augmentator_scale_precursors=False,
         augmentator_lower=0.875,
         augmentator_upper=1.125,
         augmentator_length=175,
@@ -450,8 +476,8 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
             threshold=threshold,
             augmentator_p=augmentator_p,
             augmentator_mz_bins=augmentator_mz_bins,
+            augmentator_augment_precursor=augmentator_augment_precursor,
             augmentator_scale_independently=augmentator_scale_independently,
-            augmentator_scale_precursors=augmentator_scale_precursors,
             augmentator_lower=augmentator_lower,
             augmentator_upper=augmentator_upper,
             augmentator_length=augmentator_length,
