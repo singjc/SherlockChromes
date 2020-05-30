@@ -8,7 +8,7 @@ import sqlite3
 import tarfile
 import time
 
-from general_utils import get_subsequence_at
+from general_utils import get_subsequence_idxs
 from sql_data_access import SqlDataAccess
 
 def get_run_id_from_folder_name(
@@ -257,7 +257,7 @@ def create_data_from_transition_ids(
             extra_meta['ms1_end'] = free_idx
 
         if window_size >= 0:
-            subsection_left, subsection_right, _ = get_subsequence_at(
+            subsection_left, subsection_right, _ = get_subsequence_idxs(
                 times, exp_rt, window_size)
 
             chromatogram = chromatogram[:, subsection_left:subsection_right]
