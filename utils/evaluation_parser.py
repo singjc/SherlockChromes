@@ -349,7 +349,6 @@ def parse_amended_model_evaluation_file(
 
 def decoys_per_target_metric(
     target_filename,
-    decoy_filename,
     train_chromatogram_filename=None,
     exclusion_idx_filenames=[],
     logits=False):
@@ -366,20 +365,13 @@ def decoys_per_target_metric(
             if line[1] in excluded_filenames:
                 continue
 
-            osw_targets.append(float(line[6]))
-            mod_targets.append(float(line[7]))
-
-    with open(decoy_filename, 'r') as decoy_file:
-        next(decoy_file)
-        for line in decoy_file:
-            line = line.rstrip('\r\n').split(',')
-
-            if line[1] in excluded_filenames:
-                continue
-                
-            osw_decoys.append(float(line[6]))
-            mod_decoys.append(float(line[7]))
-    
+            if 'DECOY' in line[1]:
+                osw_decoys.append(float(line[6]))
+                mod_decoys.append(float(line[7]))
+            else:
+                osw_targets.append(float(line[6]))
+                mod_targets.append(float(line[7]))
+                    
     osw_targets = np.array(osw_targets)
     osw_decoys = np.array(osw_decoys)
     mod_targets = np.array(mod_targets)

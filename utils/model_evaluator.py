@@ -214,14 +214,15 @@ def create_results_file(
             [
                 'ID',
                 'Filename',
-                'Label BBox Start',
-                'Label BBox End',
-                'Pred BBox Start',
-                'Pred BBox End',
-                'OSW Score',
-                'Model Score',
-                'Lib RT',
+                'External Precursor ID',
+                'External Library RT/RT IDX',
                 'Window Size',
+                'External Label Left IDX',
+                'External Label Right IDX',
+                'External Score'
+                'Model Predicted Left IDX',
+                'Model Predicted Right IDX',
+                'Model Score',
                 'High Quality'
             ]
         ]
@@ -282,14 +283,15 @@ def create_results_file(
         model_bounding_boxes.append([
                 row['ID'],
                 row['Filename'],
-                row['BB Start'],
-                row['BB End'],
+                row['External Precursor ID'],
+                row['External Library RT/RT IDX'],
+                row['Window Size'],
+                row['External Label Left IDX'],
+                row['External Label Right IDX'],
+                osw_score,
                 left_width,
                 right_width,
-                osw_score,
                 score,
-                row['Lib RT'],
-                row['Window Size'],
                 high_quality])
 
     np.save(os.path.join(out_dir, 'label_' + npy_name), label_output_array)

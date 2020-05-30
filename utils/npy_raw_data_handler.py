@@ -81,7 +81,8 @@ def extract_target_strip(
     lower_span=5,
     upper_span=5):
     bin_idx = calc_bin_idx(target_mz, min_mz, bin_resolution)
-    lower, upper = bin_idx - lower_span, bin_idx + upper_span
+    lower = max(bin_idx - lower_span, 0)
+    upper = bin_idx + upper_span
     strip = lcms_map[lower:upper]
     tgt_height = lower_span + upper_span
 
@@ -89,8 +90,8 @@ def extract_target_strip(
         width = strip.shape[-1]
         padded_strip = []
 
-        if lower < 0:
-            padded_strip.append(np.zeros((-lower, width)))
+        if lower == 0:
+            padded_strip.append(np.zeros((-(bin_idx - lower_span), width)))
         
         padded_strip.append(strip)
 
@@ -216,9 +217,9 @@ def create_repl_chromatograms_array(
     out_csv = [
         [
             'ID',
-            'External Precursor ID',
             'Filename',
-            'External Library RT IDX',
+            'External Precursor ID',
+            'External Library RT/RT IDX',
             'Window Size',
             'External Label Left IDX',
             'External Label Right IDX',
@@ -301,8 +302,8 @@ def create_repl_chromatograms_array(
 
         out_csv.append([
             idx,
-            prec_id,
             filename,
+            prec_id,
             lib_rt_idx,
             analysis_win_size,
             osw_label_left_idx,

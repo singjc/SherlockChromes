@@ -27,15 +27,13 @@ def get_run_id_from_folder_name(
 
 def get_mod_seqs_and_charges(
     con,
-    cursor,
-    decoy=0):
+    cursor):
     query = \
-        """SELECT precursor.ID, peptide.MODIFIED_SEQUENCE, precursor.CHARGE 
+        """SELECT precursor.ID, peptide.MODIFIED_SEQUENCE, precursor.CHARGE, precursor.DECOY
         FROM PRECURSOR precursor LEFT JOIN PRECURSOR_PEPTIDE_MAPPING mapping
         ON precursor.ID = mapping.PRECURSOR_ID LEFT JOIN PEPTIDE peptide
         ON mapping.PEPTIDE_ID = peptide.ID
-        WHERE precursor.DECOY = {0}
-        ORDER BY precursor.ID ASC""".format(decoy)
+        ORDER BY precursor.ID ASC"""
     res = cursor.execute(query)
     tmp = res.fetchall()
 
@@ -44,8 +42,7 @@ def get_mod_seqs_and_charges(
 def get_feature_info_from_run(
     con,
     cursor,
-    run_id,
-    decoy=0):
+    run_id):
     query = \
         """SELECT p.ID, f.EXP_RT, f.DELTA_RT, f.LEFT_WIDTH, f.RIGHT_WIDTH, s.SCORE
         FROM PRECURSOR p
@@ -53,8 +50,7 @@ def get_feature_info_from_run(
 		AND (f.RUN_ID = {0} OR f.RUN_ID IS NULL) 
 		LEFT JOIN SCORE_MS2 s ON f.ID = s.FEATURE_ID 
 		WHERE (s.RANK = 1 OR s.RANK IS NULL)
-        AND p.DECOY = {1} 
-        ORDER BY p.ID ASC""".format(run_id, decoy)
+        ORDER BY p.ID ASC""".format(run_id)
     res = cursor.execute(query)
     tmp = res.fetchall()
     
@@ -63,13 +59,12 @@ def get_feature_info_from_run(
 def get_transition_ids_and_library_intensities_from_prec_id(
     con,
     cursor,
-    prec_id,
-    decoy=0):
+    prec_id):
     query = \
         """SELECT ID, LIBRARY_INTENSITY 
         FROM TRANSITION LEFT JOIN TRANSITION_PRECURSOR_MAPPING
         ON TRANSITION.ID = TRANSITION_ID
-        WHERE PRECURSOR_ID = {0} AND DECOY = {1}""".format(prec_id, decoy)
+        WHERE PRECURSOR_ID = {0}""".format(prec_id)
     res = cursor.execute(query)
     tmp = res.fetchall()
 
@@ -154,7 +149,6 @@ def create_data_from_transition_ids(
     extra_features=[],
     csv_only=False,
     window_size=201,
-    decoy=0,
     mode='tar'):
     con = sqlite3.connect(os.path.join(sqMass_dir, sqMass_filename))
 
@@ -328,7 +322,6 @@ def get_cnn_data(
     osw_dir='.',
     osw_filename='merged.osw',
     sqMass_roots=[],
-    decoy=0,
     extra_features=['exp_rt', 'lib_int', 'ms1'],
     isotopes=[0],
     csv_only=False,
@@ -345,15 +338,10 @@ def get_cnn_data(
 
     prec_id_and_prec_mod_seqs_and_charges = get_mod_seqs_and_charges(
             con,
-            cursor,
-            decoy)
+            cursor)
 
-    if decoy == 0:
-        labels_filename = 'osw_labels'
-        csv_filename = 'chromatograms.csv'
-    elif decoy == 1:
-        labels_filename = 'osw_labels_decoy'
-        csv_filename = 'chromatograms_decoy.csv'
+    labels_filename = 'osw_labels'
+    csv_filename = 'chromatograms.csv'
 
     for sqMass_root in sqMass_roots:
         print(sqMass_root)
@@ -364,8 +352,7 @@ def get_cnn_data(
             feature_info = get_feature_info_from_run(
                 con,
                 cursor,
-                run_id,
-                decoy)
+                run_id)
 
             assert len(
                 prec_id_and_prec_mod_seqs_and_charges) == len(feature_info), print(len(prec_id_and_prec_mod_seqs_and_charges), len(feature_info))
@@ -373,15 +360,14 @@ def get_cnn_data(
         for i in range(len(prec_id_and_prec_mod_seqs_and_charges)):
             print(i)
             
-            prec_id, prec_mod_seq, prec_charge = (
+            prec_id, prec_mod_seq, prec_charge, decoy = (
                 prec_id_and_prec_mod_seqs_and_charges[i])
 
             transition_ids_and_library_intensities = (
                 get_transition_ids_and_library_intensities_from_prec_id(
                     con,
                     cursor,
-                    prec_id,
-                    decoy))
+                    prec_id))
             transition_ids = \
                 [str(x[0]) for x in transition_ids_and_library_intensities]
             library_intensities = \
@@ -431,8 +417,7 @@ def get_cnn_data(
                     exp_rt=exp_rt,
                     extra_features=extra_features,
                     csv_only=csv_only,
-                    window_size=window_size,
-                    decoy=decoy)
+                    window_size=window_size)
 
                 if not isinstance(labels, np.ndarray) and labels == -1:
                     continue
@@ -444,11 +429,12 @@ def get_cnn_data(
                 [
                     chromatogram_id,
                     chromatogram_filename,
+                    prec_id,
+                    exp_rt,
+                    window_size,
                     bb_start,
                     bb_end,
-                    score,
-                    exp_rt,
-                    window_size
+                    score
                 ]
             )
             chromatogram_id+= 1
@@ -473,8 +459,14 @@ def get_cnn_data(
         writer = csv.writer(f)
         writer.writerow(
             [
-                'ID', 'Filename', 'BB Start', 'BB End', 'OSW Score', 'Lib RT',
-                'Window Size'
+                'ID',
+                'Filename',
+                'External Precursor ID',
+                'External Library RT/RT IDX',
+                'Window Size',
+                'External Label Left IDX',
+                'External Label Right IDX',
+                'External Score'
             ]
         )
         writer.writerows(chromatograms_csv)
@@ -533,19 +525,17 @@ if __name__ == '__main__':
         elif args.mode == 'tar':
             out = tarfile.open(args.out + '.tar', 'w|')
 
-    for decoy in (0, 1):
-        get_cnn_data(
-            out=out,
-            osw_dir=args.osw_dir,
-            osw_filename=args.osw_in,
-            sqMass_roots=args.in_folder,
-            decoy=decoy,
-            extra_features=args.extra_features,
-            isotopes=args.isotopes,
-            csv_only=args.csv_only,
-            window_size=args.window_size,
-            use_rt=args.use_rt,
-            scored=args.scored,
-            mode=args.mode)
+    get_cnn_data(
+        out=out,
+        osw_dir=args.osw_dir,
+        osw_filename=args.osw_in,
+        sqMass_roots=args.in_folder,
+        extra_features=args.extra_features,
+        isotopes=args.isotopes,
+        csv_only=args.csv_only,
+        window_size=args.window_size,
+        use_rt=args.use_rt,
+        scored=args.scored,
+        mode=args.mode)
 
     print('It took {0:0.1f} seconds'.format(time.time() - start))
