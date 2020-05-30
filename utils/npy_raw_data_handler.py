@@ -146,8 +146,13 @@ def create_chromatogram(
                     extract_target_strip(ms2_map[ms2_map_idx], mz - delta))
 
     if len(prod_mzs) < num_traces:
+        shape = chromatogram[-1].shape
+
+        if not monoisotope_only:
+                shape = (70, chromatogram[-1].shape[-1])
+
         for i in range(num_traces - len(prod_mzs)):
-            chromatogram.append(np.zeros((chromatogram[-1].shape)))
+            chromatogram.append(np.zeros(shape))
 
     chromatogram.append(np.expand_dims(abs(ms1_rt_array - lib_rt), axis=0))
 
@@ -158,7 +163,7 @@ def create_chromatogram(
     chromatogram.append(
         np.repeat(
             lib_intensities,
-            ms1_rt_array.shape[-1]).reshape(len(lib_intensities), -1))
+            ms1_rt_array.shape[-1]).reshape(num_traces, -1))
 
     if not monoisotope_only:
             for i in range(3, 1, -1):
