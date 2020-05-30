@@ -257,7 +257,7 @@ def create_data_from_transition_ids(
             extra_meta['ms1_end'] = free_idx
 
         if window_size >= 0:
-            subsection_left, subsection_right, _ = get_subsequence_idxs(
+            _, subsection_left, subsection_right = get_subsequence_idxs(
                 times, exp_rt, window_size)
 
             chromatogram = chromatogram[:, subsection_left:subsection_right]
