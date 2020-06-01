@@ -2,6 +2,7 @@ import importlib
 import numpy as np
 import os
 import random
+import scipy.ndimage
 import sys
 import torch
 
@@ -14,8 +15,9 @@ from sklearn.metrics import (
     jaccard_score
 )
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader
 
+from datasets import Subset
 from optimizers.focal_loss import FocalLossBinary
 
 def get_data_loaders(
@@ -53,9 +55,9 @@ def get_data_loaders(
             fmt='%i'
         )
 
-    labeled_set = Subset(data, labeled_idx)
-    unlabeled_set = Subset(data, unlabeled_idx)
-    val_set = Subset(data, val_idx)
+    labeled_set = Subset(data, labeled_idx, False)
+    unlabeled_set = Subset(data, unlabeled_idx, False)
+    val_set = Subset(data, val_idx, True)
 
     if collate_fn:
         labeled_loader = DataLoader(
@@ -169,20 +171,31 @@ def train(
             model.eval()
             with torch.no_grad():
                 batch = batch.to(device=device)
-                labels = labels.to(device=device)
-                labels_for_metrics.append(labels.cpu().detach().numpy())
-                preds = model(batch)
-                outputs_for_metrics.append(preds.cpu().detach().numpy())
-                loss_out = loss(preds, labels)
+                labels = labels.to(device=device).cpu().detach().numpy()
+                labels_for_metrics.append(labels)
+                preds = model(batch).cpu().detach().numpy()
+                binarized_preds = np.where(preds >= 0.5, 1, 0)
+                global_preds = np.zeros(labels.shape)
+
+                for i in range(preds):
+                    regions_of_interest = scipy.ndimage.find_objects(
+                        scipy.ndimage.label(binarized_preds[i])[0])
+
+                    for roi in regions_of_interest:
+                        roi = roi[0]
+                        roi_length = roi.stop - roi.start
+
+                        if 2 < roi_length < 60:
+                            global_preds[i] = 1
+                            break
+
+                outputs_for_metrics.append(global_preds)
+                loss_out = loss(global_preds, labels)
                 losses.append(loss_out.cpu().detach().numpy())
 
-        labels_for_metrics = np.concatenate(labels_for_metrics).reshape(-1, 1)
-        outputs_for_metrics = (
-            np.concatenate(outputs_for_metrics) >= 0.5
-        ).reshape(-1, 1)
-        accuracy = accuracy_score(
-            labels_for_metrics, outputs_for_metrics
-        )
+        labels_for_metrics = np.concatenate(labels_for_metrics, axis=0)
+        outputs_for_metrics = np.concatenate(outputs_for_metrics, axis=0)
+        accuracy = accuracy_score(labels_for_metrics, outputs_for_metrics)
         balanced_accuracy = balanced_accuracy_score(
             labels_for_metrics, outputs_for_metrics
         )

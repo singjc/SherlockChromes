@@ -7,6 +7,27 @@ import torch
 
 from torch.utils.data import Dataset
 
+class Subset(Dataset):
+    """
+    Subset of a dataset at specified indices.
+
+    Args:
+        dataset (Dataset): The whole Dataset.
+        indices (sequence): Indices in the whole set selected for subset.
+        load_weak_labels (bool): Whether to load weak labels or not.
+    """
+    def __init__(self, dataset, indices, load_weak_labels):
+        self.dataset = dataset
+        self.indices = indices
+        self.load_weak_labels = load_weak_labels
+
+    def __getitem__(self, idx):
+        self.dataset.load_weak_labels = self.load_weak_labels
+        return self.dataset[self.indices[idx]]
+
+    def __len__(self):
+        return len(self.indices)
+
 class ChromatogramsDataset(Dataset):
     """Whole Chromatograms dataset with point labels."""
 
@@ -180,6 +201,76 @@ class HDF5ChromatogramsDataset(Dataset):
     def get_bb(self, idx):
         bb_start, bb_end = \
             self.chromatograms.iloc[idx, 2], self.chromatograms.iloc[idx, 3]
+        
+        return bb_start, bb_end
+
+class NpyChromatogramsDataset(Dataset):
+    """Whole Chromatograms npy dataset with point labels."""
+
+    def __init__(
+        self,
+        root_path,
+        chromatograms_csv,
+        chromatograms_npy,
+        labels=None,
+        weak_labels=None,
+        load_weak_labels=False,
+        transform=None):
+        """
+        Args:
+            root_path (string): Path to the root folder.
+            chromatograms_csv (string): Filename of CSV with chromatogram 
+                filenames.
+            chromatograms_npy (string): Filename of npy file with chromatogram
+                data.
+            labels (string, optional): Filename of the npy file with labels.
+            weak_labels (string, optional): Filename of the npy file with weak
+                labels.
+            transform (callable, optional): Optional transform to be applied
+                on a sample (e.g. padding).
+        """
+        self.root_dir = root_path
+        self.chromatograms_csv = pd.read_csv(os.path.join(self.root_dir,
+                                         chromatograms_csv))
+        self.chromatograms_npy = np.load(
+            os.path.join(self.root_dir, chromatograms_npy))
+
+        if labels:
+            self.labels = np.load(os.path.join(self.root_dir, labels))
+        else:
+            self.labels = False
+
+        if weak_labels:
+            self.weak_labels = np.load(
+                os.path.join(self.root_dir, weak_labels))
+        else:
+            self.weak_labels = False
+
+        self.load_weak_labels = load_weak_labels and weak_labels
+        self.transform = transform
+    
+    def __len__(self):
+        return len(self.chromatograms_csv)
+
+    def __getitem__(self, idx):
+        chromatogram_id = self.chromatograms_csv.iloc[idx, 0]
+        chromatogram = self.chromatograms_npy[chromatogram_id]
+
+        if self.load_weak_labels:
+            label = self.weak_labels[chromatogram_id].astype(float)
+        elif isinstance(self.labels, np.ndarray):
+            label = self.labels[chromatogram_id].astype(float)
+        else:
+            label = np.zeros(chromatogram.shape[1])
+
+        if self.transform:
+            chromatogram, label = self.transform((chromatogram, label))
+
+        return chromatogram, label
+
+    def get_bb(self, idx):
+        bb_start, bb_end = \
+            self.chromatograms_csv.iloc[idx, 5], self.chromatograms_csv.iloc[idx, 6]
         
         return bb_start, bb_end
 

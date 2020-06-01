@@ -83,10 +83,12 @@ def extract_target_strip(
     bin_idx = calc_bin_idx(target_mz, min_mz, bin_resolution)
     max_idx = lcms_map.shape[0] - 1
     lower = max(bin_idx - lower_span, 0)
-    upper = min(bin_idx + upper_span, max_idx)
+    upper = max(min(bin_idx + upper_span, max_idx), 0)
     strip = lcms_map[lower:upper]
     tgt_height = lower_span + upper_span
 
+    # Edge cases: Indices below or above actual data array
+    # Solution: Pad with individual components for regions below and above
     if strip.shape[0] != tgt_height:
         width = strip.shape[-1]
         padded_strip = []
@@ -292,19 +294,26 @@ def create_repl_chromatograms_array(
         chromatograms_array.append(chromatogram)
 
         if create_label_arrays:
-            left = lib_rt_idx + (analysis_win_size // 2)
-            right = lib_rt_idx + (analysis_win_size // 2) + 1
-            ms1_rt_array_subsequence = ms1_rt_array[left:right]
+            ms1_rt_array_subsequence = ms1_rt_array
+
+            if analysis_win_size > -1:
+                left = lib_rt_idx + (analysis_win_size // 2)
+                right = lib_rt_idx + (analysis_win_size // 2) + 1
+                ms1_rt_array_subsequence = ms1_rt_array[left:right]
+
             segmentation_labels_array.append(
                 np.where(
                     np.logical_and(
-                        ms1_rt_array >= ms1_rt_array[osw_label_left_idx],
-                        ms1_rt_array <= ms1_rt_array[osw_label_right_idx]
+                        ms1_rt_array_subsequence >= ms1_rt_array_subsequence[
+                            osw_label_left_idx],
+                        ms1_rt_array_subsequence <= ms1_rt_array_subsequence[
+                            osw_label_right_idx]
                     ),
                     1,
                     0
                 )
             )
+            
             classification_labels_array.append(decoy)
 
         out_csv.append([
@@ -344,7 +353,8 @@ def create_repl_chromatograms_array(
             segmentation_labels_array
         )
 
-        classificaton_labels_array = np.array(classification_labels_array)
+        classificaton_labels_array = np.array(
+            classification_labels_array).reshape((-1, 1))
 
         print(
             f'Saving classification labels array for {repl} of shape '

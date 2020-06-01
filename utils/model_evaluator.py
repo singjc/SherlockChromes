@@ -207,7 +207,7 @@ def create_results_file(
 
     assert len(chromatograms) == output_array.shape[0]
 
-    has_osw_score = 'OSW Score' in list(chromatograms.columns)
+    has_external_score = 'External Score' in list(chromatograms.columns)
 
     model_bounding_boxes = \
         [
@@ -265,20 +265,21 @@ def create_results_file(
             max_idx = np.argmax(output[regions_of_interest[best_region_idx]])
             max_idx+= start_idx
 
-            if (end_idx - start_idx >= 2 and
-                    end_idx - start_idx < 60 and
-                    start_idx < max_idx < end_idx and
-                    'DECOY_' not in row['Filename']):
-                    label_output_array[i, start_idx:end_idx] = np.ones(
-                        (end_idx - start_idx)
-                    )
+            roi_length = end_idx - start_idx
 
-                    high_quality = 1
+            if (2 < roi_length < 60 and
+                start_idx < max_idx < end_idx and
+                'DECOY_' not in row['Filename']):
+                label_output_array[i, start_idx:end_idx] = np.ones(
+                    (end_idx - start_idx)
+                )
 
-        osw_score = None
+                high_quality = 1
 
-        if has_osw_score:
-            osw_score = row['OSW Score']
+        external_score = None
+
+        if has_external_score:
+            external_score = row['External Score']
 
         model_bounding_boxes.append([
                 row['ID'],
@@ -288,7 +289,7 @@ def create_results_file(
                 row['Window Size'],
                 row['External Label Left IDX'],
                 row['External Label Right IDX'],
-                osw_score,
+                external_score,
                 left_width,
                 right_width,
                 score,
