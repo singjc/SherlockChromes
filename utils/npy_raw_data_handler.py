@@ -81,8 +81,9 @@ def extract_target_strip(
     lower_span=5,
     upper_span=5):
     bin_idx = calc_bin_idx(target_mz, min_mz, bin_resolution)
+    max_idx = lcms_map.shape[0] - 1
     lower = max(bin_idx - lower_span, 0)
-    upper = bin_idx + upper_span
+    upper = min(bin_idx + upper_span, max_idx)
     strip = lcms_map[lower:upper]
     tgt_height = lower_span + upper_span
 
@@ -91,14 +92,15 @@ def extract_target_strip(
         padded_strip = []
 
         if lower == 0:
-            padded_strip.append(np.zeros((-(bin_idx - lower_span), width)))
+            height = min(-(bin_idx - lower_span), tgt_height)
+            padded_strip.append(np.zeros((height, width)))
         
         padded_strip.append(strip)
 
-        curr_height = sum([item.shape[0] for item in padded_strip])
-
-        if curr_height < tgt_height:
-            padded_strip.append(np.zeros((tgt_height - curr_height, width)))
+        if upper == max_idx:
+            curr_height = sum([item.shape[0] for item in padded_strip])
+            height = tgt_height - curr_height
+            padded_strip.append(np.zeros((height, width)))
 
         strip = np.concatenate(padded_strip, axis=0)
 
@@ -157,7 +159,7 @@ def create_chromatogram(
     chromatogram.append(np.expand_dims(abs(ms1_rt_array - lib_rt), axis=0))
 
     if len(lib_intensities) < num_traces:
-        for i in range(num_traces - len(prod_mzs)):
+        for i in range(num_traces - len(lib_intensities)):
             lib_intensities.append(0)
 
     chromatogram.append(
