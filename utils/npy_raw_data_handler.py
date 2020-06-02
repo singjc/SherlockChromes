@@ -315,8 +315,10 @@ def create_repl_chromatograms_array(
                 ms1_rt_array_subsequence = (
                     ms1_rt_array[ss_left_idx:ss_right_idx])
 
-            segmentation_labels_array.append(
-                np.where(
+            segmentation_label = np.zeros((ms1_rt_array_subsequence.shape))
+
+            if osw_label_left_idx and osw_label_right_idx:
+                segmentation_label = np.where(
                     np.logical_and(
                         ms1_rt_array_subsequence >= ms1_rt_array_subsequence[
                             osw_label_left_idx],
@@ -326,8 +328,8 @@ def create_repl_chromatograms_array(
                     1,
                     0
                 )
-            )
-            
+
+            segmentation_labels_array.append(segmentation_label)
             classification_labels_array.append(decoy)
 
         out_csv.append([
