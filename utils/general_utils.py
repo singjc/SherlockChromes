@@ -1,8 +1,10 @@
 import bisect
 import csv
+import glob
 import math
 import numpy as np
 import os
+import pandas as pd
 import random
 import sqlite3
 
@@ -32,6 +34,32 @@ def get_subsequence_idxs(sequence, value, subsequence_size=-1):
         value_idx = length - half_span - 1
 
     return value_idx, subsequence_left, subsequence_right
+
+def merge_repl_files(pattern):
+    repl_names = sorted([f.split('.')[0] for f in glob.glob(f'{pattern}*gz')])
+
+    combined_csv = pd.concat(
+        [pd.read_csv(f'{f}_chromatograms.csv') for f in repl_names],
+        ignore_index=True
+    )
+    combined_csv.iloc[:, 0] = combined_csv.index
+    combined_csv.to_csv(f'{pattern}_csv.csv', index=False)
+
+    extensions = [
+        '_chromatograms_array',
+        '_segmentation_labels',
+        '_classification_labels'
+    ]
+
+    for extension in extensions:
+        combined_npy = []
+
+        for repl in repl_names:
+            combined_npy.append(
+                np.load(f'{repl}{extension}.npy')
+            )
+
+        np.save(f'{pattern}{extension}', np.concatenate(combined_npy))
 
 def overlaps(
     pred_min,
