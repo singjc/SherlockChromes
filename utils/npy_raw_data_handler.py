@@ -186,11 +186,12 @@ def create_chromatogram(
     chromatogram = np.concatenate(chromatogram, axis=0)
 
     lib_rt_idx, osw_label_left_idx, osw_label_right_idx = None, None, None
+    ss_left_idx, ss_right_idx = None, None
 
     lib_rt_idx, ss_left_idx, ss_right_idx = get_subsequence_idxs(
         ms1_rt_array, lib_rt, analysis_win_size)
 
-    if analysis_win_size >= 0:
+    if analysis_win_size > -1:
         chromatogram = chromatogram[:, ss_left_idx:ss_right_idx]
         ms1_rt_array = ms1_rt_array[ss_left_idx:ss_right_idx]
 
@@ -202,7 +203,14 @@ def create_chromatogram(
     elif osw_label_right_idx >= ms1_rt_array.shape[0]:
         osw_label_right_idx = ms1_rt_array.shape[0] - 1
 
-    return chromatogram, lib_rt_idx, osw_label_left_idx, osw_label_right_idx
+    return (
+        chromatogram,
+        lib_rt_idx,
+        ss_left_idx,
+        ss_right_idx,
+        osw_label_left_idx,
+        osw_label_right_idx
+    )
 
 def create_repl_chromatograms_array(
     work_dir,
@@ -269,8 +277,14 @@ def create_repl_chromatograms_array(
         prod_mzs = [float(x) for x in prod_mzs.split('|')]
         lib_intensities = [float(x) for x in lib_intensities.split('|')]
 
-        chromatogram, lib_rt_idx, osw_label_left_idx, osw_label_right_idx = (
-            create_chromatogram(
+        (
+            chromatogram,
+            lib_rt_idx,
+            ss_left_idx,
+            ss_right_idx,
+            osw_label_left_idx,
+            osw_label_right_idx
+        ) = create_chromatogram(
                 ms1_map,
                 ms2_map,
                 ms1_rt_array,
@@ -286,7 +300,6 @@ def create_repl_chromatograms_array(
                 num_traces=num_traces,
                 analysis_win_size=analysis_win_size
             )
-        )
 
         filename = f'{repl}_{mod_seq_and_prec_charge}'
 
@@ -299,9 +312,8 @@ def create_repl_chromatograms_array(
             ms1_rt_array_subsequence = ms1_rt_array
 
             if analysis_win_size > -1:
-                left = lib_rt_idx - (analysis_win_size // 2)
-                right = lib_rt_idx + (analysis_win_size // 2) + 1
-                ms1_rt_array_subsequence = ms1_rt_array[left:right]
+                ms1_rt_array_subsequence = (
+                    ms1_rt_array[ss_left_idx:ss_right_idx])
 
             segmentation_labels_array.append(
                 np.where(
