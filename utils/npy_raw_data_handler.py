@@ -199,6 +199,8 @@ def create_chromatogram(
 
     if osw_label_left_idx == osw_label_right_idx:
         osw_label_left_idx = osw_label_right_idx = None
+    elif osw_label_right_idx >= ms1_rt_array.shape[1]:
+        osw_label_right_idx = ms1_rt_array.shape[1] - 1
 
     return chromatogram, lib_rt_idx, osw_label_left_idx, osw_label_right_idx
 
