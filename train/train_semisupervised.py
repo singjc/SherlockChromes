@@ -23,6 +23,7 @@ from optimizers.focal_loss import FocalLossBinary
 def get_data_loaders(
     data,
     test_batch_proportion=0.1,
+    use_weak_labels=False,
     batch_size=1,
     u_ratio=7,
     sampling_fn=None,
@@ -55,7 +56,7 @@ def get_data_loaders(
             fmt='%i'
         )
 
-    labeled_set = Subset(data, labeled_idx, False)
+    labeled_set = Subset(data, labeled_idx, use_weak_labels)
     unlabeled_set = Subset(data, unlabeled_idx, False)
     val_set = Subset(data, val_idx, True)
 
@@ -106,6 +107,7 @@ def train(
     ) = get_data_loaders(
             data,
             kwargs['test_batch_proportion'],
+            kwargs['use_weak_labels'],
             kwargs['batch_size'],
             kwargs['uratio'],
             sampling_fn,

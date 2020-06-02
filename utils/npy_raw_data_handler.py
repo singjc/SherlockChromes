@@ -297,7 +297,7 @@ def create_repl_chromatograms_array(
             ms1_rt_array_subsequence = ms1_rt_array
 
             if analysis_win_size > -1:
-                left = lib_rt_idx + (analysis_win_size // 2)
+                left = lib_rt_idx - (analysis_win_size // 2)
                 right = lib_rt_idx + (analysis_win_size // 2) + 1
                 ms1_rt_array_subsequence = ms1_rt_array[left:right]
 
