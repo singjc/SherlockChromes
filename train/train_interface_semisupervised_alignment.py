@@ -18,6 +18,7 @@ def main(
     for kw in [
         'wu',
         'threshold',
+        'use_weak_labels',
         'augmentator_p',
         'augmentator_mz_bins',
         'augmentator_augment_precursor',

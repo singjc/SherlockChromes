@@ -189,6 +189,7 @@ class SemiSupervisedLearner1d(nn.Module):
         model,
         wu=1,
         threshold=0.95,
+        use_weak_labels=False,
         augmentator_p=0.5,
         augmentator_mz_bins=6,
         augmentator_augment_precursor=False,
@@ -222,6 +223,7 @@ class SemiSupervisedLearner1d(nn.Module):
         self.segmentator = copy.deepcopy(model)
         self.wu = wu
         self.threshold = threshold
+        self.use_weak_labels = use_weak_labels
         self.device = model_device
 
         self.weak_augmentator = ChromatogramScaler(
@@ -345,9 +347,13 @@ class SemiSupervisedLearner1d(nn.Module):
                 if b_ul % 2 != 0:
                     unlabeled_batch = unlabeled_batch[0:b_ul - 1]
 
+            self.segmentator.aggregate_output = self.use_weak_labels
+
             labeled_loss = torch.mean(
                 self.loss(self.segmentator(labeled_batch), labels)
             )
+
+            self.segmentator.aggregate_output = False
 
             strongly_augmented = self.normalization_layer(
                 self.strong_augmentator(unlabeled_batch)
@@ -441,6 +447,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
         model,
         wu=1,
         threshold=0.85,
+        use_weak_labels=False,
         augmentator_p=0.5,
         augmentator_mz_bins=6,
         augmentator_augment_precursor=False,
@@ -474,6 +481,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
             model,
             wu=wu,
             threshold=threshold,
+            use_weak_labels=use_weak_labels,
             augmentator_p=augmentator_p,
             augmentator_mz_bins=augmentator_mz_bins,
             augmentator_augment_precursor=augmentator_augment_precursor,
@@ -526,6 +534,8 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
             if self.regularizer_mode == 'cutmix':
                 if b_ul % 2 != 0:
                     unlabeled_batch = unlabeled_batch[0:b_ul - 1]
+
+            self.segmentator.aggregate_output = self.use_weak_labels
                 
             labeled_loss = torch.mean(
                 self.loss(
@@ -533,6 +543,8 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
                     labels
                 )
             )
+
+            self.segmentator.aggregate_output = False
 
             strongly_augmented = self.normalization_layer(
                 self.strong_augmentator(unlabeled_batch)
