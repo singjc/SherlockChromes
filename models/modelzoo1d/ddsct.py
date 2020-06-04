@@ -330,11 +330,11 @@ class DynamicDepthSeparableTimeSeriesClassifierAttention(nn.Module):
         keys = keys.view(b * h, c, l)
         values = values.view(b * h, c, l)
 
-        # Get dot product of queries and keys, and scale
+        # Get dot product of query and keys, and scale
         query = query / (c ** (1 / 4))
         keys = keys / (c ** (1 / 4))
 
-        dot = torch.matmul(keys.transpose(1, 2), queries)
+        dot = torch.matmul(keys.transpose(1, 2), query)
         # dot now has size (b*h, l, 1) containing raw weights
 
         dot = F.softmax(dot, dim=1)
