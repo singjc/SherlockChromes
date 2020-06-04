@@ -47,8 +47,8 @@ def merge_repl_files(pattern):
 
     extensions = [
         '_chromatograms_array',
-        '_segmentation_labels',
-        '_classification_labels'
+        '_segmentation_labels_array',
+        '_classification_labels_array'
     ]
 
     for extension in extensions:
@@ -627,3 +627,148 @@ def create_kfold_split_by_sequence(
 
     idx_splits = get_kfold_idx_from_sequences(
         seq_csv, seq_splits, inclusion_filenames, naked, out_dir, prefix)
+
+def create_kfold_train_and_validation_and_holdout_test_by_sequence(
+    in_dir,
+    seq_csv,
+    out_dir,
+    naked=True,
+    special_seq_csv=None,
+    n_splits=5,
+    holdout_proportion=0.1):
+    special_seq_filenames = {}
+
+    if special_seq_csv:
+        with open(special_seq_csv, 'r') as special:
+            next(special)
+            for line in special:
+                filename = line.split(',')[1]
+                special_seq_filenames[filename] = True
+
+    special_seqs, decoy_seqs, non_decoy_seqs, seq_to_idx = {}, {}, {}, {}
+    with open(os.path.join(in_dir, seq_csv), 'r') as seqs:
+        next(seqs)
+        for line in seqs:
+            line = line.split(',')
+            idx, filename = line[0], line[1]
+            seq = filename.split('_')[-2]
+
+            if naked:
+                seq = get_naked_seq(seq)
+
+            if seq in seq_to_idx:
+                seq_to_idx[seq].append(idx)
+            else:
+                seq_to_idx[seq] = [idx]
+
+            if filename in special_seq_filenames:
+                special_seqs[seq] = True
+            elif 'DECOY' in filename:
+                decoy_seqs[seq] = True
+            else:
+                non_decoy_seqs[seq] = True
+
+    special_seqs = list(special_seqs.keys())
+    decoy_seqs = list(decoy_seqs.keys())
+    non_decoy_seqs = list(non_decoy_seqs.keys())
+
+    random.shuffle(special_seqs)
+    random.shuffle(decoy_seqs)
+    random.shuffle(non_decoy_seqs)
+
+    n = len(special_seqs)
+    n_holdout = int(n * holdout_proportion)
+    n_non_holdout = n - n_holdout
+
+    non_holdout_special_seqs = special_seqs[:n_non_holdout]
+    holdout_special_seqs = special_seqs[n_non_holdout:]
+
+    n = len(decoy_seqs)
+    n_holdout = int(n * holdout_proportion)
+    n_non_holdout = n - n_holdout
+
+    non_holdout_decoy_seqs = decoy_seqs[:n_non_holdout]
+    holdout_decoy_seqs = decoy_seqs[n_non_holdout:]
+
+    n = len(non_decoy_seqs)
+    n_holdout = int(n * holdout_proportion)
+    n_non_holdout = n - n_holdout
+
+    non_holdout_non_decoy_seqs = non_decoy_seqs[:n_non_holdout]
+    holdout_non_decoy_seqs = non_decoy_seqs[n_non_holdout:]
+
+    with open(os.path.join(out_dir, 'special_holdout_test_idx.txt', 'w')) as f:
+        for seq in holdout_special_seqs:
+            for idx in seq_to_idx[seq]:
+                f.write(idx + '\n')
+
+    with open(os.path.join(out_dir, 'decoy_holdout_test_idx.txt', 'w')) as f:
+        for seq in holdout_decoy_seqs:
+            for idx in seq_to_idx[seq]:
+                f.write(idx + '\n')
+
+    with open(os.path.join(out_dir, 'non_decoy_holdout_test_idx.txt', 'w')) as f:
+        for seq in holdout_non_decoy_seqs:
+            for idx in seq_to_idx[seq]:
+                f.write(idx + '\n')
+
+    kf = KFold(n_splits=n_splits, shuffle=True)
+    seq_splits = {}
+    counter = 1
+    seq_list = np.array(non_holdout_special_seqs)
+
+    for train_idx, val_idx in kf.split(seq_list):
+        seq_splits[f'split_{counter}'] = {
+            'train_idx': {item: True for item in seq_list[train_idx]},
+            'val_idx': {item: True for item in seq_list[val_idx]}
+        }
+        counter+= 1
+
+    for split in seq_splits:
+        for split_part in seq_splits[split]:
+            with open(
+                os.path.join(
+                    out_dir, f'special_{split}_{split_part}.txt'), 'w') as f:
+                for seq in seq_splits[split][split_part]:
+                    for idx in seq_to_idx[seq]:
+                        f.write(idx + '\n')
+
+    seq_splits = {}
+    counter = 1
+    seq_list = np.array(non_holdout_decoy_seqs)
+
+    for train_idx, val_idx in kf.split(seq_list):
+        seq_splits[f'split_{counter}'] = {
+            'train_idx': {item: True for item in seq_list[train_idx]},
+            'val_idx': {item: True for item in seq_list[val_idx]}
+        }
+        counter+= 1
+
+    for split in seq_splits:
+        for split_part in seq_splits[split]:
+            with open(
+                os.path.join(
+                    out_dir, f'decoy_{split}_{split_part}.txt'), 'w') as f:
+                for seq in seq_splits[split][split_part]:
+                    for idx in seq_to_idx[seq]:
+                        f.write(idx + '\n')
+
+    seq_splits = {}
+    counter = 1
+    seq_list = np.array(non_holdout_non_decoy_seqs)
+
+    for train_idx, val_idx in kf.split(seq_list):
+        seq_splits[f'split_{counter}'] = {
+            'train_idx': {item: True for item in seq_list[train_idx]},
+            'val_idx': {item: True for item in seq_list[val_idx]}
+        }
+        counter+= 1
+
+    for split in seq_splits:
+        for split_part in seq_splits[split]:
+            with open(
+                os.path.join(
+                    out_dir, f'non_decoy_{split}_{split_part}.txt'), 'w') as f:
+                for seq in seq_splits[split][split_part]:
+                    for idx in seq_to_idx[seq]:
+                        f.write(idx + '\n')
