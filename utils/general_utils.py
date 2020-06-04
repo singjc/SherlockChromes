@@ -697,17 +697,20 @@ def create_kfold_train_and_validation_and_holdout_test_by_sequence(
     non_holdout_non_decoy_seqs = non_decoy_seqs[:n_non_holdout]
     holdout_non_decoy_seqs = non_decoy_seqs[n_non_holdout:]
 
-    with open(os.path.join(out_dir, 'special_holdout_test_idx.txt', 'w')) as f:
+    with open(
+        os.path.join(out_dir, 'special_holdout_test_idx.txt'), 'w') as f:
         for seq in holdout_special_seqs:
             for idx in seq_to_idx[seq]:
                 f.write(idx + '\n')
 
-    with open(os.path.join(out_dir, 'decoy_holdout_test_idx.txt', 'w')) as f:
+    with open(
+        os.path.join(out_dir, 'decoy_holdout_test_idx.txt'), 'w') as f:
         for seq in holdout_decoy_seqs:
             for idx in seq_to_idx[seq]:
                 f.write(idx + '\n')
 
-    with open(os.path.join(out_dir, 'non_decoy_holdout_test_idx.txt', 'w')) as f:
+    with open(
+        os.path.join(out_dir, 'non_decoy_holdout_test_idx.txt'), 'w') as f:
         for seq in holdout_non_decoy_seqs:
             for idx in seq_to_idx[seq]:
                 f.write(idx + '\n')
