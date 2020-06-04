@@ -247,7 +247,7 @@ class NpyChromatogramsDataset(Dataset):
                 chromatograms_filename,
                 dtype='float64',
                 mode='r',
-                shape=(num_features, cols)
+                shape=(rows, num_features, cols)
             )
         else:
             self.chromatograms_npy = np.load(chromatograms_filename)
