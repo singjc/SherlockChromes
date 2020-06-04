@@ -17,7 +17,7 @@ from sklearn.metrics import (
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader
 
-from datasets import Subset
+from datasets.chromatograms_dataset import Subset
 from optimizers.focal_loss import FocalLossBinary
 
 def get_data_loaders(

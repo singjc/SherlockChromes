@@ -215,7 +215,9 @@ class NpyChromatogramsDataset(Dataset):
         labels=None,
         weak_labels=None,
         load_weak_labels=False,
-        transform=None):
+        transform=None,
+        memmap=False,
+        num_features=497):
         """
         Args:
             root_path (string): Path to the root folder.
@@ -228,21 +230,55 @@ class NpyChromatogramsDataset(Dataset):
                 labels.
             transform (callable, optional): Optional transform to be applied
                 on a sample (e.g. padding).
+            memmap (bool, optional): To use memory mapping or not when loading.
         """
         self.root_dir = root_path
         self.chromatograms_csv = pd.read_csv(os.path.join(self.root_dir,
                                          chromatograms_csv))
-        self.chromatograms_npy = np.load(
-            os.path.join(self.root_dir, chromatograms_npy))
+
+        if memmap:
+            rows = len(self.chromatograms_csv)
+            cols = self.chromatograms_csv.iloc[0, 4]
+        
+        chromatograms_filename = os.path.join(self.root_dir, chromatograms_npy)
+
+        if memmap:
+            self.chromatograms_npy = np.memmap(
+                chromatograms_filename,
+                dtype='float64',
+                mode='r',
+                shape=(num_features, cols)
+            )
+        else:
+            self.chromatograms_npy = np.load(chromatograms_filename)
 
         if labels:
-            self.labels = np.load(os.path.join(self.root_dir, labels))
+            labels_filename = os.path.join(self.root_dir, labels)
+
+            if memmap:
+                self.labels = np.memmap(
+                    labels_filename,
+                    dtype='int64',
+                    mode='r',
+                    shape=(rows, cols)
+                )
+            else:
+                self.labels = np.load(labels_filename)
         else:
             self.labels = False
 
         if weak_labels:
-            self.weak_labels = np.load(
-                os.path.join(self.root_dir, weak_labels))
+            weak_labels_filename = os.path.join(self.root_dir, weak_labels)
+
+            if memmap:
+                self.weak_labels = np.memmap(
+                    weak_labels_filename,
+                    dtype='float64',
+                    mode='r',
+                    shape=(rows, 1)
+                )
+            else:
+                self.weak_labels = np.load(weak_labels_filename)
         else:
             self.weak_labels = False
 
