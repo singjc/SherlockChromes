@@ -353,7 +353,8 @@ def create_repl_chromatograms_array(
 
     np.save(
         os.path.join(work_dir, f'{repl}_chromatograms_array'),
-        chromatograms_array
+        chromatograms_array,
+        dtype='float32'
     )
 
     if create_label_arrays:
@@ -366,7 +367,8 @@ def create_repl_chromatograms_array(
 
         np.save(
             os.path.join(work_dir, f'{repl}_segmentation_labels_array'),
-            segmentation_labels_array
+            segmentation_labels_array,
+            dtype='float32'
         )
 
         classificaton_labels_array = np.array(
@@ -379,7 +381,8 @@ def create_repl_chromatograms_array(
 
         np.save(
             os.path.join(work_dir, f'{repl}_classification_labels_array'),
-            classification_labels_array
+            classification_labels_array,
+            dtype='int32'
         )
 
     with open(os.path.join(work_dir, f'{repl}_chromatograms.csv'), 'w') as out:

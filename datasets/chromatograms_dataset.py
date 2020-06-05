@@ -245,7 +245,7 @@ class NpyChromatogramsDataset(Dataset):
         if memmap:
             self.chromatograms_npy = np.memmap(
                 chromatograms_filename,
-                dtype='float64',
+                dtype='float32',
                 mode='r',
                 shape=(rows, num_features, cols)
             )
@@ -258,7 +258,7 @@ class NpyChromatogramsDataset(Dataset):
             if memmap:
                 self.labels = np.memmap(
                     labels_filename,
-                    dtype='int64',
+                    dtype='float32',
                     mode='r',
                     shape=(rows, cols)
                 )
@@ -273,7 +273,7 @@ class NpyChromatogramsDataset(Dataset):
             if memmap:
                 self.weak_labels = np.memmap(
                     weak_labels_filename,
-                    dtype='float64',
+                    dtype='int32',
                     mode='r',
                     shape=(rows, 1)
                 )

@@ -173,13 +173,13 @@ def train(
             model.eval()
             with torch.no_grad():
                 batch = batch.to(device=device)
-                labels = labels.to(device=device).cpu().detach().numpy()
-                labels_for_metrics.append(labels)
-                preds = model(batch).cpu().detach().numpy()
-                binarized_preds = np.where(preds >= 0.5, 1, 0)
+                labels = labels.to(device=device)
+                labels_for_metrics.append(labels.cpu())
+                preds = model(batch)
+                binarized_preds = np.where(preds.cpu() >= 0.5, 1, 0)
                 global_preds = np.zeros(labels.shape)
 
-                for i in range(preds):
+                for i in range(len(preds)):
                     regions_of_interest = scipy.ndimage.find_objects(
                         scipy.ndimage.label(binarized_preds[i])[0])
 
@@ -188,12 +188,15 @@ def train(
                         roi_length = roi.stop - roi.start
 
                         if 2 < roi_length < 60:
-                            global_preds[i] = 1
+                            global_preds[i][0] = 1
                             break
 
                 outputs_for_metrics.append(global_preds)
-                loss_out = loss(global_preds, labels)
-                losses.append(loss_out.cpu().detach().numpy())
+                loss_out = loss(
+                    torch.from_numpy(global_preds).to(device=device).float(),
+                    labels
+                )
+                losses.append(loss_out.item())
 
         labels_for_metrics = np.concatenate(labels_for_metrics, axis=0)
         outputs_for_metrics = np.concatenate(outputs_for_metrics, axis=0)
