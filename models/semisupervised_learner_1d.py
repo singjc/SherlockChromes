@@ -23,12 +23,16 @@ class ChromatogramScaler(nn.Module):
         device='cpu'):
         super(ChromatogramScaler, self).__init__()
         self.mz_bins = mz_bins
-        self.augment_precursor = augment_precursor
+        self.num_factors = 6
         self.scale_independently = scale_independently
         self.lower = lower
         self.upper = upper
         self.p = p
         self.device = device
+
+        if augment_precursor:
+            self.mz_bins+= self.mz_bins // 6
+            self.num_factors+= 1
 
     def forward(self, chromatogram_batch):
         if torch.rand(1).item() < self.p:
@@ -36,12 +40,14 @@ class ChromatogramScaler(nn.Module):
 
         if self.scale_independently:
             scaling_factors = (
-                torch.FloatTensor(6, 1).uniform_(self.lower, self.upper)
+                torch.FloatTensor(
+                    self.num_factors, 1).uniform_(self.lower, self.upper)
             ).to(self.device)
             
             if self.mz_bins > 6:
                 scaling_factors = (
-                    scaling_factors.repeat_interleave(self.mz_bins // 6, dim=0)
+                    scaling_factors.repeat_interleave(
+                        self.mz_bins // self.num_factors, dim=0)
                 ).to(self.device)
         else:
             scaling_factors = (
@@ -50,14 +56,6 @@ class ChromatogramScaler(nn.Module):
 
         chromatogram_batch[:, 0:self.mz_bins] = (
             chromatogram_batch[:, 0:self.mz_bins] * scaling_factors)
-
-        if self.augment_precursor:
-            prec_start = -(self.mz_bins // 6)
-            scaling_factor = (
-                torch.FloatTensor(1).uniform_(self.lower, self.upper)
-            ).to(self.device)
-            chromatogram_batch[:, prec_start:] = (
-                chromatogram_batch[:, prec_start:] * scaling_factor)
 
         return chromatogram_batch
 
@@ -73,12 +71,14 @@ class ChromatogramJitterer(nn.Module):
         device='cpu'):
         super(ChromatogramJitterer, self).__init__()
         self.mz_bins = mz_bins
-        self.augment_precursor = augment_precursor
         self.length = length
         self.mean = mean
         self.std = std
         self.p = p
         self.device = device
+
+        if augment_precursor:
+            self.mz_bins+= self.mz_bins // 6
 
     def forward(self, chromatogram_batch):
         if torch.rand(1).item() < self.p:
@@ -91,16 +91,6 @@ class ChromatogramJitterer(nn.Module):
         ).to(self.device)
 
         chromatogram_batch[:, 0:self.mz_bins]+= noise
-
-        if self.augment_precursor:
-            N = self.mz_bins // 6
-            noise = (
-                torch.FloatTensor(
-                    N, self.length
-                ).normal_(self.mean, self.std)
-            ).to(self.device) 
-
-            chromatogram_batch[:, -N:]+= noise
         
         return chromatogram_batch
 
@@ -117,7 +107,12 @@ class ChromatogramShuffler(nn.Module):
         shuffled_indices = torch.randperm(6)
 
         N = self.mz_bins // 6
-        start, end = self.mz_bins + 1, self.mz_bins + 7
+        start = self.mz_bins
+
+        if chromatogram_batch.size()[1] - start != 7:
+            start+= N
+
+        end = start + 6
 
         if N == 1:
             chromatogram_batch[:, 0:self.mz_bins] = (
@@ -133,12 +128,21 @@ class ChromatogramShuffler(nn.Module):
         return chromatogram_batch
 
 class ChromatogramSpectraMasker(nn.Module):
-    def __init__(self, mz_bins=6, F=1, m_F=1, p=0.5):
+    def __init__(
+        self,
+        mz_bins=6,
+        augment_precursor=False,
+        F=1,
+        m_F=1,
+        p=0.5):
         super(ChromatogramSpectraMasker, self).__init__()
         self.v = mz_bins
         self.F = F
         self.m_F = m_F
         self.p = p
+
+        if augment_precursor:
+            self.v+= self.v // 6
 
     def forward(self, chromatogram_batch):
         if torch.rand(1).item() < self.p:
@@ -162,11 +166,13 @@ class ChromatogramTimeMasker(nn.Module):
         p=0.5):
         super(ChromatogramTimeMasker, self).__init__()
         self.mz_bins = mz_bins
-        self.augment_precursor = augment_precursor
         self.tau = length
         self.T = T
         self.m_T = m_T
         self.p = p
+
+        if augment_precursor:
+            self.mz_bins+= self.mz_bins // 6
 
     def forward(self, chromatogram_batch):
         if torch.rand(1).item() < self.p:
@@ -176,10 +182,6 @@ class ChromatogramTimeMasker(nn.Module):
             t = torch.randint(0, self.T + 1, (1,)).item()
             t_0 = torch.randint(0, self.tau - t, (1,)).item()
             chromatogram_batch[:, 0:self.mz_bins, t_0:t] = 0
-
-            if self.augment_precursor:
-                N = self.mz_bins // 6
-                chromatogram_batch[:, -N:, t_0:t] = 0
 
         return chromatogram_batch
 

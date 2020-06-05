@@ -391,6 +391,100 @@ class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
 
         return x
 
+class TimeSeriesExtractor(nn.Module):
+    def __init__(
+        self,
+        data_height=420,
+        extraction_window=10,
+        num_ts=6,
+        in_channels=6,
+        out_channels=32,
+        kernel_sizes=[3, 15],
+        normalize=False,
+        normalization_mode='full',
+        save_normalized=False):
+        super(TimeSeriesExtractor, self).__init__()
+        self.data_height = data_height
+        self.extraction_window = extraction_window
+        self.num_ts = num_ts
+        self.out_channels = out_channels
+
+        self.time_series_generator = nn.Sequential(
+            DynamicDepthSeparableConv1d(
+                extraction_window,
+                extraction_window // 2,
+                kernel_sizes=kernel_sizes
+            ),
+            DynamicDepthSeparableConv1d(
+                extraction_window // 2,
+                extraction_window // 2,
+                kernel_sizes=kernel_sizes
+            ),
+            DynamicDepthSeparableConv1d(
+                extraction_window // 2,
+                1,
+                kernel_sizes=kernel_sizes
+            )
+        )
+
+        self.time_series_aggregator = nn.Sequential(
+            DynamicDepthSeparableConv1d(
+                data_height // extraction_window // num_ts,
+                data_height // extraction_window // num_ts // 2,
+                kernel_sizes=kernel_sizes
+            ),
+            DynamicDepthSeparableConv1d(
+                data_height // extraction_window // num_ts // 2,
+                data_height // extraction_window // num_ts // 2,
+                kernel_sizes=kernel_sizes
+            ),
+            DynamicDepthSeparableConv1d(
+                data_height // extraction_window // num_ts // 2,
+                1,
+                kernel_sizes=kernel_sizes
+            )
+        )
+
+        self.final_encoder = nn.Conv1d(
+            in_channels,
+            out_channels,
+            1,
+            bias=False
+        )
+
+        if normalize:
+            self.normalization_layer = DAIN_Layer(
+                mode=normalization_mode,
+                input_dim=self.extraction_window
+            )
+        else:
+            self.normalization_layer = nn.Identity()
+
+        self.normalized = None
+
+    def forward(self, x):
+        b, c, l = x.size()
+
+        out = x[:, :data_height].contiguous().view(
+            -1, self.extraction_window, l)
+        out = self.normalization_layer(out)
+
+        if self.save_normalized:
+            self.normalized = out
+
+        out = self.time_series_generator(out)
+        out = out.view(
+            -1,
+            self.data_height // self.extraction_window // self.num_ts,
+            l
+        )
+        out = self.time_series_aggregator(out)
+        out = out.view(-1, self.num_ts, l)
+        out = torch.cat([out, x[:, self.data_height:]], axis=1)
+        out = self.final_encoder(out)
+
+        return out
+
 class DDSCTransformer(nn.Module):
     def __init__(
         self,
@@ -425,12 +519,25 @@ class DDSCTransformer(nn.Module):
         else:
             self.normalization_layer = nn.Identity()
 
-        self.init_encoder = nn.Conv1d(
-            in_channels,
-            transformer_channels,
-            1,
-            bias=False
-        )
+        if in_channels > 14:
+            self.init_encoder = TimeSeriesExtractor(
+                data_height=490,
+                exraction_window=10,
+                num_ts=7,
+                in_channels=14,
+                out_channels=transformer_channels,
+                kernel_sizes=kernel_sizes,
+                normalize=normalize,
+                normalization_mode=normalization_mode,
+                save_normalized=save_normalized
+            )
+        else:
+            self.init_encoder = nn.Conv1d(
+                in_channels,
+                transformer_channels,
+                1,
+                bias=False
+            )
 
         # The sequence of transformer blocks that does all the 
         # heavy lifting

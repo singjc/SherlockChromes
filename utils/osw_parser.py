@@ -183,14 +183,14 @@ def create_data_from_transition_ids(
         num_expected_extra_features = 0
         free_idx = 0
 
-        if 'exp_rt' in extra_features:
-            num_expected_extra_features+= 1
+        if 'ms1' in extra_features:
+            num_expected_extra_features+= len(isotopes)
 
         if 'lib_int' in extra_features:
             num_expected_extra_features+= 6
 
-        if 'ms1' in extra_features:
-            num_expected_extra_features+= len(isotopes)
+        if 'exp_rt' in extra_features:
+            num_expected_extra_features+= 1
 
         chromatogram = np.zeros((num_expected_features, len_times))
         extra = np.zeros((num_expected_extra_features, len_times))
@@ -205,25 +205,6 @@ def create_data_from_transition_ids(
         if extra_features:
             extra_meta = {}
 
-        if 'exp_rt' in extra_features:
-            dist_from_exp_rt = np.absolute(
-                np.repeat(exp_rt, len_times) - np.array(times))
-
-            extra[free_idx:free_idx + 1] = dist_from_exp_rt
-            extra_meta['exp_rt'] = free_idx
-            free_idx+= 1
-
-        if 'lib_int' in extra_features:
-            lib_int_features = np.repeat(
-                library_intensities,
-                len_times).reshape(len(library_intensities), len_times)
-            
-            extra[free_idx:free_idx + lib_int_features.shape[0]] = (
-                lib_int_features)
-            extra_meta['lib_int_start'] = free_idx
-            free_idx+= 6
-            extra_meta['lib_int_end'] = free_idx
-        
         if 'ms1' in extra_features:
             ms1_transition_ids = \
                 get_ms1_chromatogram_ids_from_precursor_id_and_isotope(
@@ -255,6 +236,25 @@ def create_data_from_transition_ids(
             extra_meta['ms1_start'] = free_idx
             free_idx+= len(isotopes)
             extra_meta['ms1_end'] = free_idx
+        
+        if 'lib_int' in extra_features:
+            lib_int_features = np.repeat(
+                library_intensities,
+                len_times).reshape(len(library_intensities), len_times)
+            
+            extra[free_idx:free_idx + lib_int_features.shape[0]] = (
+                lib_int_features)
+            extra_meta['lib_int_start'] = free_idx
+            free_idx+= 6
+            extra_meta['lib_int_end'] = free_idx
+
+        if 'exp_rt' in extra_features:
+            dist_from_exp_rt = np.absolute(
+                np.repeat(exp_rt, len_times) - np.array(times))
+
+            extra[free_idx:free_idx + 1] = dist_from_exp_rt
+            extra_meta['exp_rt'] = free_idx
+            free_idx+= 1
 
         if window_size >= 0:
             _, subsection_left, subsection_right = get_subsequence_idxs(
@@ -325,7 +325,7 @@ def get_cnn_data(
     osw_dir='.',
     osw_filename='merged.osw',
     sqMass_roots=[],
-    extra_features=['exp_rt', 'lib_int', 'ms1'],
+    extra_features=['ms1', 'lib_int', 'exp_rt'],
     isotopes=[0],
     csv_only=False,
     window_size=201,
@@ -492,7 +492,7 @@ if __name__ == '__main__':
         '-extra_features',
         '--extra_features',
         type=str,
-        default='exp_rt,lib_int,ms1')
+        default='ms1,lib_int,exp_rt')
     parser.add_argument('-isotopes', '--isotopes', type=str, default='0')
     parser.add_argument(
         '-csv_only',
