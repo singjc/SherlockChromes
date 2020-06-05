@@ -285,13 +285,16 @@ def create_data_from_transition_ids(
                 bb_start, bb_end = None, None
 
         if mode == 'npy':
-            np.save(os.path.join(out, chromatogram_filename), chromatogram)
+            # np.save(os.path.join(out, chromatogram_filename), chromatogram)
             
-            if extra_features:
-                np.save(
-                    os.path.join(out, chromatogram_filename + '_Extra'),
-                    extra
-                )
+            # if extra_features:
+            #     np.save(
+            #         os.path.join(out, chromatogram_filename + '_Extra'),
+            #         extra
+            #     )
+            chromatogram = np.concatenate([chromatogram, extra], axis=0)
+
+            return row_labels, bb_start, bb_end, chromatogram
         elif mode == 'hdf5':
             out.create_dataset(chromatogram_filename, data=chromatogram)
 
@@ -315,7 +318,7 @@ def create_data_from_transition_ids(
                     info.size = len(data)
                     out.addfile(info, f)
 
-    return row_labels, bb_start, bb_end
+    return row_labels, bb_start, bb_end, None
 
 def get_cnn_data(
     out,
@@ -329,7 +332,7 @@ def get_cnn_data(
     use_rt=False,
     scored=False,
     mode='tar'):
-    label_matrix, chromatograms_csv = [], []
+    label_matrix, chromatograms_array, chromatograms_csv = [], [], []
 
     chromatogram_id = 0
 
@@ -340,8 +343,9 @@ def get_cnn_data(
             con,
             cursor)
 
-    labels_filename = 'osw_labels'
-    csv_filename = 'chromatograms.csv'
+    labels_filename = f'{out}_osw_labels_array'
+    chromatograms_filename = f'{out}_chromatograms_array'
+    csv_filename = f'{out}_chromatograms_csv.csv'
 
     for sqMass_root in sqMass_roots:
         print(sqMass_root)
@@ -403,7 +407,7 @@ def get_cnn_data(
             chromatogram_filename = '_'.join(chromatogram_filename)
 
             if scored:
-                labels, bb_start, bb_end = create_data_from_transition_ids(
+                labels, bb_start, bb_end, chromatogram = create_data_from_transition_ids(
                     sqMass_root,
                     'output.sqMass',
                     transition_ids,
@@ -443,8 +447,8 @@ def get_cnn_data(
 
     if not csv_only and scored:
         if mode == 'npy':
-            np.save(
-                os.path.join(out, labels_filename), np.vstack(label_matrix))
+            np.save(chromatograms_filename, np.vstack(chromatograms_array))
+            np.save(labels_filename, np.vstack(label_matrix))
         elif mode == 'hdf5':
             out.create_dataset(
                 labels_filename, data=np.vstack(label_matrix))
