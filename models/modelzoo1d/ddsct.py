@@ -479,7 +479,7 @@ class TimeSeriesExtractor(nn.Module):
             l
         )
         out = self.time_series_aggregator(out)
-        out = out.view(-1, self.num_ts, l)
+        out = out.view(b, self.num_ts, l)
         out = torch.cat([out, x[:, self.data_height:]], axis=1)
         out = self.final_encoder(out)
 
