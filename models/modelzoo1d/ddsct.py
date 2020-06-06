@@ -465,7 +465,7 @@ class TimeSeriesExtractor(nn.Module):
     def forward(self, x):
         b, c, l = x.size()
 
-        out = x[:, :data_height].contiguous().view(
+        out = x[:, :self.data_height].contiguous().view(
             -1, self.extraction_window, l)
         out = self.normalization_layer(out)
 
