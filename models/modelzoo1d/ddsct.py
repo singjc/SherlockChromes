@@ -522,7 +522,7 @@ class DDSCTransformer(nn.Module):
         if in_channels > 14:
             self.init_encoder = TimeSeriesExtractor(
                 data_height=490,
-                exraction_window=10,
+                extraction_window=10,
                 num_ts=7,
                 in_channels=14,
                 out_channels=transformer_channels,
