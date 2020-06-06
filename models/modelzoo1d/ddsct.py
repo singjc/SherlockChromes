@@ -412,16 +412,21 @@ class TimeSeriesExtractor(nn.Module):
         self.time_series_generator = nn.Sequential(
             DynamicDepthSeparableConv1d(
                 extraction_win,
-                extraction_win // 2,
+                8,
                 kernel_sizes=kernel_sizes
             ),
             DynamicDepthSeparableConv1d(
-                extraction_win // 2,
-                extraction_win // 2,
+                8,
+                16,
                 kernel_sizes=kernel_sizes
             ),
             DynamicDepthSeparableConv1d(
-                extraction_win // 2,
+                16,
+                32,
+                kernel_sizes=kernel_sizes
+            ),
+            DynamicDepthSeparableConv1d(
+                32,
                 1,
                 kernel_sizes=kernel_sizes
             )
@@ -430,16 +435,21 @@ class TimeSeriesExtractor(nn.Module):
         self.time_series_aggregator = nn.Sequential(
             DynamicDepthSeparableConv1d(
                 data_height // extraction_win // aggregation_win,
-                data_height // extraction_win // aggregation_win // 2,
+                8,
                 kernel_sizes=kernel_sizes
             ),
             DynamicDepthSeparableConv1d(
-                data_height // extraction_win // aggregation_win // 2,
-                data_height // extraction_win // aggregation_win // 2,
+                8,
+                16,
                 kernel_sizes=kernel_sizes
             ),
             DynamicDepthSeparableConv1d(
-                data_height // extraction_win // aggregation_win // 2,
+                16,
+                32,
+                kernel_sizes=kernel_sizes
+            ),
+            DynamicDepthSeparableConv1d(
+                32,
                 1,
                 kernel_sizes=kernel_sizes
             )
