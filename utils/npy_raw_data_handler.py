@@ -373,6 +373,9 @@ def create_repl_chromatograms_array(
 
         classificaton_labels_array = np.array(
             classification_labels_array).reshape((-1, 1))
+        
+        # Change labels from decoy to non-decoy as positive class
+        classification_labels_array = 1 - classification_labels_array
 
         print(
             f'Saving classification labels array for {repl} of shape '
