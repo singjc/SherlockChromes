@@ -395,7 +395,8 @@ class TimeSeriesExtractor(nn.Module):
     def __init__(
         self,
         data_height=420,
-        extraction_window=10,
+        extraction_win=10,
+        aggregation_win=7,
         num_ts=6,
         kernel_sizes=[3, 15],
         normalize=False,
@@ -403,23 +404,24 @@ class TimeSeriesExtractor(nn.Module):
         save_normalized=False):
         super(TimeSeriesExtractor, self).__init__()
         self.data_height = data_height
-        self.extraction_window = extraction_window
+        self.extraction_win = extraction_win
+        self.aggregation_win = aggregation_win
         self.num_ts = num_ts
         self.save_normalized = save_normalized
 
         self.time_series_generator = nn.Sequential(
             DynamicDepthSeparableConv1d(
-                extraction_window,
-                extraction_window // 2,
+                extraction_win,
+                extraction_win // 2,
                 kernel_sizes=kernel_sizes
             ),
             DynamicDepthSeparableConv1d(
-                extraction_window // 2,
-                extraction_window // 2,
+                extraction_win // 2,
+                extraction_win // 2,
                 kernel_sizes=kernel_sizes
             ),
             DynamicDepthSeparableConv1d(
-                extraction_window // 2,
+                extraction_win // 2,
                 1,
                 kernel_sizes=kernel_sizes
             )
@@ -427,17 +429,17 @@ class TimeSeriesExtractor(nn.Module):
 
         self.time_series_aggregator = nn.Sequential(
             DynamicDepthSeparableConv1d(
-                data_height // extraction_window // num_ts,
-                data_height // extraction_window // num_ts // 2,
+                data_height // extraction_win // aggregation_win,
+                data_height // extraction_win // aggregation_win // 2,
                 kernel_sizes=kernel_sizes
             ),
             DynamicDepthSeparableConv1d(
-                data_height // extraction_window // num_ts // 2,
-                data_height // extraction_window // num_ts // 2,
+                data_height // extraction_win // aggregation_win // 2,
+                data_height // extraction_win // aggregation_win // 2,
                 kernel_sizes=kernel_sizes
             ),
             DynamicDepthSeparableConv1d(
-                data_height // extraction_window // num_ts // 2,
+                data_height // extraction_win // aggregation_win // 2,
                 1,
                 kernel_sizes=kernel_sizes
             )
@@ -446,7 +448,7 @@ class TimeSeriesExtractor(nn.Module):
         if normalize:
             self.normalization_layer = DAIN_Layer(
                 mode=normalization_mode,
-                input_dim=self.extraction_window
+                input_dim=self.extraction_win
             )
         else:
             self.normalization_layer = nn.Identity()
@@ -457,7 +459,7 @@ class TimeSeriesExtractor(nn.Module):
         b, c, l = x.size()
 
         out = x[:, :self.data_height].contiguous().view(
-            -1, self.extraction_window, l)
+            -1, self.extraction_win, l)
         out = self.normalization_layer(out)
 
         if self.save_normalized:
@@ -466,7 +468,7 @@ class TimeSeriesExtractor(nn.Module):
         out = self.time_series_generator(out)
         out = out.view(
             -1,
-            self.data_height // self.extraction_window // self.num_ts,
+            self.data_height // self.extraction_win // self.aggregation_win,
             l
         )
         out = self.time_series_aggregator(out)
@@ -490,6 +492,10 @@ class DDSCTransformer(nn.Module):
         normalization_mode='full',
         save_normalized=False,
         extract_ts=False,
+        tse_data_height=420,
+        tse_extraction_win=10,
+        tse_aggregation_win=7,
+        tse_num_ts=6,
         use_templates=False,
         cat_templates=False,
         save_attn=False,
@@ -504,9 +510,10 @@ class DDSCTransformer(nn.Module):
 
         if extract_ts:
             self.time_series_extractor = TimeSeriesExtractor(
-                data_height=490,
-                extraction_window=10,
-                num_ts=7,
+                data_height=tse_data_height,
+                extraction_win=tse_extraction_win,
+                aggregation_win=tse_aggregation_win,
+                num_ts=tse_num_ts,
                 kernel_sizes=kernel_sizes,
                 normalize=normalize,
                 normalization_mode=normalization_mode,
