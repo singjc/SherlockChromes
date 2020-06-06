@@ -408,6 +408,7 @@ class TimeSeriesExtractor(nn.Module):
         self.extraction_window = extraction_window
         self.num_ts = num_ts
         self.out_channels = out_channels
+        self.save_normalized = save_normalized
 
         self.time_series_generator = nn.Sequential(
             DynamicDepthSeparableConv1d(
