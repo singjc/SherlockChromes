@@ -397,8 +397,6 @@ class TimeSeriesExtractor(nn.Module):
         data_height=420,
         extraction_window=10,
         num_ts=6,
-        in_channels=6,
-        out_channels=32,
         kernel_sizes=[3, 15],
         normalize=False,
         normalization_mode='full',
@@ -407,7 +405,6 @@ class TimeSeriesExtractor(nn.Module):
         self.data_height = data_height
         self.extraction_window = extraction_window
         self.num_ts = num_ts
-        self.out_channels = out_channels
         self.save_normalized = save_normalized
 
         self.time_series_generator = nn.Sequential(
@@ -446,13 +443,6 @@ class TimeSeriesExtractor(nn.Module):
             )
         )
 
-        self.final_encoder = nn.Conv1d(
-            in_channels,
-            out_channels,
-            1,
-            bias=False
-        )
-
         if normalize:
             self.normalization_layer = DAIN_Layer(
                 mode=normalization_mode,
@@ -482,7 +472,6 @@ class TimeSeriesExtractor(nn.Module):
         out = self.time_series_aggregator(out)
         out = out.view(b, self.num_ts, l)
         out = torch.cat([out, x[:, self.data_height:]], axis=1)
-        out = self.final_encoder(out)
 
         return out
 
@@ -500,6 +489,7 @@ class DDSCTransformer(nn.Module):
         normalize=False,
         normalization_mode='full',
         save_normalized=False,
+        extract_ts=False,
         use_templates=False,
         cat_templates=False,
         save_attn=False,
@@ -512,6 +502,19 @@ class DDSCTransformer(nn.Module):
         self.aggregate_output = aggregate_output
         self.probs = probs
 
+        if extract_ts:
+            self.time_series_extractor = TimeSeriesExtractor(
+                data_height=490,
+                extraction_window=10,
+                num_ts=7,
+                kernel_sizes=kernel_sizes,
+                normalize=normalize,
+                normalization_mode=normalization_mode,
+                save_normalized=save_normalized
+            )
+        else:
+            self.time_series_extractor = nn.Identity()
+
         if normalize:
             self.normalization_layer = DAIN_Layer(
                 mode=normalization_mode,
@@ -520,25 +523,12 @@ class DDSCTransformer(nn.Module):
         else:
             self.normalization_layer = nn.Identity()
 
-        if in_channels > 14:
-            self.init_encoder = TimeSeriesExtractor(
-                data_height=490,
-                extraction_window=10,
-                num_ts=7,
-                in_channels=14,
-                out_channels=transformer_channels,
-                kernel_sizes=kernel_sizes,
-                normalize=normalize,
-                normalization_mode=normalization_mode,
-                save_normalized=save_normalized
-            )
-        else:
-            self.init_encoder = nn.Conv1d(
-                in_channels,
-                transformer_channels,
-                1,
-                bias=False
-            )
+        self.init_encoder = nn.Conv1d(
+            in_channels,
+            transformer_channels,
+            1,
+            bias=False
+        )
 
         # The sequence of transformer blocks that does all the 
         # heavy lifting
@@ -605,6 +595,8 @@ class DDSCTransformer(nn.Module):
 
     def forward(self, x, templates=None, templates_label=None):
         b, _, _ = x.size()
+
+        x = self.time_series_extractor(x)
 
         x = self.normalization_layer(x)
 
