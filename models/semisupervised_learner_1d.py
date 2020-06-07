@@ -351,7 +351,12 @@ class SemiSupervisedLearner1d(nn.Module):
                     unlabeled_batch = torch.cat(
                         [unlabeled_batch, torch.zeros(1, c_ul, l_ul)], dim=0)
 
-            self.segmentator.aggregate_output = self.use_weak_labels
+            orig_setting = self.segmentator.output_mode
+
+            if self.use_weak_labels:
+                self.segmentator.output_mode = 'weak'
+            else:
+                self.segmentator.output_mode = 'strong'
 
             labeled_loss = torch.mean(
                 self.loss(self.segmentator(labeled_batch), labels)
@@ -366,7 +371,7 @@ class SemiSupervisedLearner1d(nn.Module):
                 self.weak_augmentator(unlabeled_batch)
             )
 
-            orig_setting = self.segmentator.output_mode
+            
             self.segmentator.output_mode = 'both'
 
             out_dict = self.to_out(self.segmentator(weakly_augmented))
@@ -384,6 +389,10 @@ class SemiSupervisedLearner1d(nn.Module):
                 (strong_output <= (1 - self.threshold))
             )
 
+            # Variables required for cutmix later on 
+            b_ul_half = b_ul // 2
+            lam = None
+
             if self.regularizer_mode != 'none':
                 regularizer_mask = torch.from_numpy(
                     self.generate_zebra_mask(
@@ -394,10 +403,6 @@ class SemiSupervisedLearner1d(nn.Module):
                         p_max=self.regularizer_p_max
                     )
                 ).float().to(self.device)
-                
-                # Variables required for cutmix later on 
-                b_ul_half = b_ul // 2
-                lam = None
 
                 if self.regularizer_mode == 'cutout':
                     strongly_augmented = strongly_augmented * regularizer_mask
