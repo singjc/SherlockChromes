@@ -131,7 +131,7 @@ def train(
 
     unlabeled_loader = iter(cycle(unlabeled_loader))
 
-    highest_dice, highest_iou, lowest_loss = 0, 0, 1
+    highest_bacc, highest_dice, highest_iou, lowest_loss = 0, 0, 0, 1
 
     model.to(device)
 
@@ -201,7 +201,7 @@ def train(
         labels_for_metrics = np.concatenate(labels_for_metrics, axis=0)
         outputs_for_metrics = np.concatenate(outputs_for_metrics, axis=0)
         accuracy = accuracy_score(labels_for_metrics, outputs_for_metrics)
-        balanced_accuracy = balanced_accuracy_score(
+        bacc = balanced_accuracy_score(
             labels_for_metrics, outputs_for_metrics
         )
         precision = precision_score(labels_for_metrics, outputs_for_metrics)
@@ -213,7 +213,7 @@ def train(
         print(
             f'Validation - Epoch: {epoch} '
             f'Accuracy: {accuracy:.8f} '
-            f'Balanced accuracy: {balanced_accuracy:.8f} '
+            f'Balanced accuracy: {bacc:.8f} '
             f'Precision: {precision:.8f} '
             f'Recall: {recall:.8f} '
             f'Dice: {dice:.8f} '
@@ -223,7 +223,23 @@ def train(
 
         save_path = ''
 
-        if dice > highest_dice:
+        if bacc > highest_bacc:
+            save_path = os.path.join(
+                kwargs['outdir_path'],
+                f"{kwargs['model_savename']}_model_{epoch}_bacc={bacc}.pth"
+            )
+
+            highest_bacc = bacc
+
+            if dice > highest_dice:
+                highest_dice = dice
+            
+            if iou > highest_iou:
+                highest_iou = iou
+            
+            if avg_loss < lowest_loss:
+                lowest_loss = avg_loss
+        elif dice > highest_dice:
             save_path = os.path.join(
                 kwargs['outdir_path'],
                 f"{kwargs['model_savename']}_model_{epoch}_dice={dice}.pth"
