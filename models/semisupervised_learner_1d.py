@@ -362,8 +362,6 @@ class SemiSupervisedLearner1d(nn.Module):
                 self.loss(self.segmentator(labeled_batch), labels)
             )
 
-            self.segmentator.aggregate_output = False
-
             strongly_augmented = self.normalization_layer(
                 self.strong_augmentator(unlabeled_batch)
             )
@@ -371,7 +369,6 @@ class SemiSupervisedLearner1d(nn.Module):
                 self.weak_augmentator(unlabeled_batch)
             )
 
-            
             self.segmentator.output_mode = 'both'
 
             out_dict = self.to_out(self.segmentator(weakly_augmented))
