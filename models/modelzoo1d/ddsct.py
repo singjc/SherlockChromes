@@ -509,13 +509,13 @@ class DDSCTransformer(nn.Module):
         use_templates=False,
         cat_templates=False,
         save_attn=False,
-        aggregate_output=False,
+        output_mode='strong',
         probs=True):
         super(DDSCTransformer, self).__init__()
         self.save_normalized = save_normalized
         self.use_templates = use_templates
         self.cat_templates = self.use_templates and cat_templates
-        self.aggregate_output = aggregate_output
+        self.output_mode = output_mode
         self.probs = probs
 
         if extract_ts:
@@ -633,13 +633,25 @@ class DDSCTransformer(nn.Module):
                 out = torch.cat([out, out_weighted], dim=1)
             else:
                 out = out_weighted
+        
+        out_dict = {}
 
-        if self.aggregate_output:
-            out = self.output_aggregator(out)
-        else:
-            out = self.to_logits(out)
+        if self.output_mode == 'weak' or self.output_mode == 'both':
+            out_dict['weak'] = self.output_aggregator(out)
+
+        if self.output_mode == 'strong' or self.output_mode == 'both':
+            out_dict['strong'] = self.to_logits(out)
 
         if self.probs:
-            out = self.to_probs(out)
+            for mode in out_dict:
+                out_dict[mode] = self.to_probs(out_dict[mode])
 
-        return out.view(b, -1)
+        for mode in out_dict:
+            out_dict[mode] = out_dict[mode].view(b, -1)
+
+        if self.output_mode == 'weak':
+            return out_dict['weak']
+        elif self.output_mode == 'strong':
+            return out_dict['strong']
+        elif self.output_mode == 'both':
+            return out_dict
