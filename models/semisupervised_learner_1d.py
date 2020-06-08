@@ -380,13 +380,13 @@ class SemiSupervisedLearner1d(nn.Module):
 
             weak_pseudo_labels = (weak_output >= 0.5).float()
             weak_quality_modulator = (
-                (weak_output >= self.threshold) + 
+                (weak_output >= self.threshold).float() + 
                 (weak_output <= (1 - self.threshold))
             )
 
             strong_pseudo_labels = (strong_output >= 0.5).float()
             strong_quality_modulator =  (
-                (strong_output >= self.threshold) + 
+                (strong_output >= self.threshold).float() + 
                 (strong_output <= (1 - self.threshold))
             )
 
