@@ -301,7 +301,7 @@ class SemiSupervisedLearner1d(nn.Module):
             self.weak_loss = nn.BCEWithLogitsLoss(reduction=loss_reduction)
             self.to_out = nn.Sigmoid()
         else:
-            self.weak_loss = nn.BCE(reduction=loss_reduction)
+            self.weak_loss = nn.BCELoss(reduction=loss_reduction)
             self.to_out = nn.Identity()
 
         self.debug = debug
