@@ -320,13 +320,15 @@ class DynamicDepthSeparableTimeSeriesClassifierAttention(nn.Module):
         h = self.heads
 
         query = self.to_query(
-            self.query_embed.weight.transpose(0, 1).unsqueeze(0)).view(
-                1, h, c, 1)
+            (self.query_embed.weight
+                .transpose(0, 1)
+                .unsqueeze(0)
+                .repeat(b, 1, 1))).view(b, h, c, 1)
         keys = self.to_keys(x).view(b, h, c, l)
         values = self.to_values(x).view(b, h, c, l)
 
         # Fold heads into the batch dimension
-        query = query.view(h, c, 1)
+        query = query.view(b * h, c, 1)
         keys = keys.view(b * h, c, l)
         values = values.view(b * h, c, l)
 
