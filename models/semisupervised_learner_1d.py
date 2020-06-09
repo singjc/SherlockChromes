@@ -527,13 +527,17 @@ class SemiSupervisedLearner1d(nn.Module):
             if self.debug:
                 if self.use_weak_labels:
                     num_positive = torch.sum(labels).item()
+                    weak_unlabeled_loss_debug = weak_unlabeled_loss.item()
                 else:
                     num_positive = 'weak labels disabled'
+                    weak_unlabeled_loss_debug = 'weak labels disabled'
 
                 print(
                     f'Labeled Loss: {labeled_loss.item()}, '
                     f'Num Positive: {num_positive}, '
                     f'Unlabeled Loss: {unlabeled_loss.item()}, '
+                    f'Weak Unlabeled Loss: {weak_unlabeled_loss_debug}, '
+                    f'Strong Unlabeled Loss: {strong_unlabeled_loss.item()}, '
                     f'Weighted UL Loss: {self.wu * unlabeled_loss.item()}'
                 )
 
