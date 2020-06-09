@@ -585,22 +585,18 @@ class DDSCTransformer(nn.Module):
         elif self.use_templates:
             t_out_channels = 1
 
-        # Maps the final output sequence to class probabilities
-        self.to_logits = DynamicDepthSeparableConv1d(
-            t_out_channels,
-            1,
-            kernel_sizes=[1, 3])
-
         # Aggregates output to single value per batch item
-        self.output_aggregator = nn.Sequential(
-                DynamicDepthSeparableTimeSeriesClassifierAttention(
-                    c=t_out_channels,
-                    heads=heads,
-                    kernel_sizes=kernel_sizes,
-                    save_attn=save_attn
-                ),
-                nn.Conv1d(t_out_channels, 1, 1, bias=False)
+        self.output_aggregator = (
+            DynamicDepthSeparableTimeSeriesClassifierAttention(
+                c=t_out_channels,
+                heads=heads,
+                kernel_sizes=kernel_sizes,
+                save_attn=save_attn
+            )
         )
+
+        # Maps the final output state(s) to class probabilities
+        self.to_logits = nn.Conv1d(t_out_channels, 1, 1)
 
         self.to_probs = nn.Sigmoid()
 
@@ -639,7 +635,7 @@ class DDSCTransformer(nn.Module):
         out_dict = {}
 
         if self.output_mode == 'weak' or self.output_mode == 'both':
-            out_dict['weak'] = self.output_aggregator(out)
+            out_dict['weak'] = self.to_logits(self.output_aggregator(out))
 
         if self.output_mode == 'strong' or self.output_mode == 'both':
             out_dict['strong'] = self.to_logits(out)
