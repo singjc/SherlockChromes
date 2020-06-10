@@ -346,6 +346,43 @@ class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
 
         return x
 
+class DynamicDepthSeparableConv1dResBlock(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_sizes=[3, 15],
+        dilation=1,
+        bias=False,
+        intermediate_nonlinearity=False):
+        super(DynamicDepthSeparableConv1dResBlock, self).__init__()
+        self.network = nn.Sequential(
+            nn.BatchNorm1d(in_channels),
+            nn.ReLU(),
+            DynamicDepthSeparableConv1d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_sizes=kernel_sizes,
+                dilation=dilation,
+                bias=bias,
+                intermediate_nonlinearity=intermediate_nonlinearity
+            )
+        )
+
+        self.residual = (
+            nn.Identity() if in_channels == out_channels else nn.Conv1d(
+                in_channels,
+                out_channels,
+                1,
+                bias=False
+            )
+        )
+
+    def forward(self, x):
+        out = self.network(x) + self.residual(x)
+
+        return out
+
 class TimeSeriesExtractor(nn.Module):
     def __init__(
         self,
@@ -364,46 +401,49 @@ class TimeSeriesExtractor(nn.Module):
         self.num_ts = num_ts
         self.save_normalized = save_normalized
 
-        self.time_series_generator = nn.Sequential(
-            DynamicDepthSeparableConv1d(
-                extraction_win,
-                8,
-                kernel_sizes=kernel_sizes
-            ),
-            DynamicDepthSeparableConv1d(
-                8,
-                16,
-                kernel_sizes=kernel_sizes
-            ),
-            DynamicDepthSeparableConv1d(
-                16,
-                32,
-                kernel_sizes=kernel_sizes
-            ),
-            DynamicDepthSeparableConv1d(
-                32,
-                1,
-                kernel_sizes=kernel_sizes
+        if self.extraction_win > 1:
+            self.time_series_generator = nn.Sequential(
+                DynamicDepthSeparableConv1dResBlock(
+                    extraction_win,
+                    8,
+                    kernel_sizes=kernel_sizes
+                ),
+                DynamicDepthSeparableConv1dResBlock(
+                    8,
+                    16,
+                    kernel_sizes=kernel_sizes
+                ),
+                DynamicDepthSeparableConv1dResBlock(
+                    16,
+                    32,
+                    kernel_sizes=kernel_sizes
+                ),
+                DynamicDepthSeparableConv1dResBlock(
+                    32,
+                    1,
+                    kernel_sizes=kernel_sizes
+                )
             )
-        )
+        else:
+            self.time_series_generator = nn.Identity()
 
         self.time_series_aggregator = nn.Sequential(
-            DynamicDepthSeparableConv1d(
+            DynamicDepthSeparableConv1dResBlock(
                 data_height // extraction_win // aggregation_win,
                 8,
                 kernel_sizes=kernel_sizes
             ),
-            DynamicDepthSeparableConv1d(
+            DynamicDepthSeparableConv1dResBlock(
                 8,
                 16,
                 kernel_sizes=kernel_sizes
             ),
-            DynamicDepthSeparableConv1d(
+            DynamicDepthSeparableConv1dResBlock(
                 16,
                 32,
                 kernel_sizes=kernel_sizes
             ),
-            DynamicDepthSeparableConv1d(
+            DynamicDepthSeparableConv1dResBlock(
                 32,
                 1,
                 kernel_sizes=kernel_sizes
