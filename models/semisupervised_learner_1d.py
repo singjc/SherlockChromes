@@ -192,6 +192,7 @@ class SemiSupervisedLearner1d(nn.Module):
         wu=1,
         threshold=0.95,
         use_weak_labels=False,
+        paint_strong_labels=False,
         augmentator_p=0.5,
         augmentator_mz_bins=6,
         augmentator_augment_precursor=False,
@@ -226,6 +227,7 @@ class SemiSupervisedLearner1d(nn.Module):
         self.wu = wu
         self.threshold = threshold
         self.use_weak_labels = use_weak_labels
+        self.paint_strong_labels = self.use_weak_labels and paint_strong_labels
         self.device = model_device
 
         self.weak_augmentator = ChromatogramScaler(
@@ -382,7 +384,11 @@ class SemiSupervisedLearner1d(nn.Module):
                 (weak_output <= (1 - self.threshold))
             )
 
-            strong_pseudo_labels = (strong_output >= 0.5).float()
+            if self.paint_strong_labels:
+                strong_pseudo_labels = weak_pseudo_labels.repeat(1, l_ul)
+            else:
+                strong_pseudo_labels = (strong_output >= 0.5).float()
+                
             strong_quality_modulator =  (
                 (strong_output >= self.threshold).float() + 
                 (strong_output <= (1 - self.threshold))
