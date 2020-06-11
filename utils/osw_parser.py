@@ -421,7 +421,8 @@ def get_cnn_data(
                     exp_rt=exp_rt,
                     extra_features=extra_features,
                     csv_only=csv_only,
-                    window_size=window_size)
+                    window_size=window_size,
+                    mode=mode)
 
                 if not isinstance(labels, np.ndarray) and labels == -1:
                     continue
