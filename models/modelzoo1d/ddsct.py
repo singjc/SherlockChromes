@@ -405,21 +405,11 @@ class TimeSeriesExtractor(nn.Module):
             self.time_series_generator = nn.Sequential(
                 DynamicDepthSeparableConv1dResBlock(
                     extraction_win,
-                    8,
-                    kernel_sizes=kernel_sizes
-                ),
-                DynamicDepthSeparableConv1dResBlock(
-                    8,
                     16,
                     kernel_sizes=kernel_sizes
                 ),
                 DynamicDepthSeparableConv1dResBlock(
                     16,
-                    32,
-                    kernel_sizes=kernel_sizes
-                ),
-                DynamicDepthSeparableConv1dResBlock(
-                    32,
                     1,
                     kernel_sizes=kernel_sizes
                 )
@@ -435,16 +425,6 @@ class TimeSeriesExtractor(nn.Module):
             ),
             DynamicDepthSeparableConv1dResBlock(
                 8,
-                16,
-                kernel_sizes=kernel_sizes
-            ),
-            DynamicDepthSeparableConv1dResBlock(
-                16,
-                32,
-                kernel_sizes=kernel_sizes
-            ),
-            DynamicDepthSeparableConv1dResBlock(
-                32,
                 1,
                 kernel_sizes=kernel_sizes
             )
