@@ -357,7 +357,7 @@ class DynamicDepthSeparableConv1dResBlock(nn.Module):
         intermediate_nonlinearity=False):
         super(DynamicDepthSeparableConv1dResBlock, self).__init__()
         self.network = nn.Sequential(
-            nn.BatchNorm1d(in_channels),
+            nn.InstanceNorm1d(in_channels, affine=True),
             nn.ReLU(),
             DynamicDepthSeparableConv1d(
                 in_channels=in_channels,
