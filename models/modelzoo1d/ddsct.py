@@ -420,11 +420,11 @@ class TimeSeriesExtractor(nn.Module):
         self.time_series_aggregator = nn.Sequential(
             DynamicDepthSeparableConv1dResBlock(
                 data_height // extraction_win // aggregation_win,
-                8,
+                16,
                 kernel_sizes=kernel_sizes
             ),
             DynamicDepthSeparableConv1dResBlock(
-                8,
+                16,
                 1,
                 kernel_sizes=kernel_sizes
             )
