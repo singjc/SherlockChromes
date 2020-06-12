@@ -160,7 +160,7 @@ def create_data_from_transition_ids(
     if len(ms2_transition_ids) == 0:
         print(f'Skipped {chromatogram_filename}, no transitions found')
 
-        return -1, -1, -1
+        return -1, -1, -1, None
 
     ms2_transition_ids = [item[0] for item in ms2_transition_ids]
 
@@ -267,15 +267,15 @@ def create_data_from_transition_ids(
             if chromatogram.shape[1] != window_size:
                 print(f'Skipped {chromatogram_filename}, misshapen matrix')
 
-                return -1, -1, -1
+                return -1, -1, -1, None
             elif extra.shape[1] != window_size:
                 print(f'Skipped {chromatogram_filename}, misshapen matrix')
 
-                return -1, -1, -1
+                return -1, -1, -1, None
             elif len(row_labels) != window_size:
                 print(f'Skipped {chromatogram_filename}, misshapen matrix')
 
-                return -1, -1, -1
+                return -1, -1, -1, None
 
             label_idxs = np.where(row_labels == 1)[0]
 
