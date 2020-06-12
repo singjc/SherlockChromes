@@ -214,7 +214,6 @@ class SemiSupervisedLearner1d(nn.Module):
         regularizer_sigma_max=16,
         regularizer_p_min=0.5,
         regularizer_p_max=0.5,
-        modulation_mode='mask',
         loss_alpha=0.25,
         loss_gamma=2,
         loss_logits=False,
@@ -289,8 +288,6 @@ class SemiSupervisedLearner1d(nn.Module):
         self.regularizer_sigma_max = regularizer_sigma_max
         self.regularizer_p_min = regularizer_p_min
         self.regularizer_p_max = regularizer_p_max
-
-        self.modulation_mode = modulation_mode
 
         self.loss = FocalLossBinary(
             alpha=loss_alpha,
@@ -451,78 +448,42 @@ class SemiSupervisedLearner1d(nn.Module):
             strong_quality_modulator = (
                 strong_quality_modulator.reshape(1, -1).squeeze())
 
-            if self.modulation_mode == 'mean':
-                weak_quality_modulator = torch.mean(weak_quality_modulator)
-                strong_quality_modulator = torch.mean(strong_quality_modulator)
+            strong_quality_modulator = torch.mean(strong_quality_modulator)
 
             self.segmentator.output_mode = 'weak'
 
             if self.use_weak_labels and self.regularizer_mode == 'cutmix':
-                if self.modulation_mode == 'mean':
-                    weak_unlabeled_loss = lam * torch.mean(
+                weak_unlabeled_loss = lam * torch.mean(
+                    self.loss(
+                        self.segmentator(strongly_augmented),
+                        weak_pseudo_labels[:b_ul_half]
+                    )[weak_quality_modulator[:b_ul_half].bool()]
+                )
+                weak_unlabeled_loss = (weak_unlabeled_loss + 
+                    (1 - lam) * torch.mean(
                         self.loss(
                             self.segmentator(strongly_augmented),
-                            weak_pseudo_labels[:b_ul_half]
-                        )
+                            weak_pseudo_labels[b_ul_half:]
+                        )[weak_quality_modulator[b_ul_half:].bool()]
                     )
-                    weak_unlabeled_loss = (weak_quality_modulator * 
-                        (weak_unlabeled_loss + 
-                            (1 - lam) * torch.mean(
-                                self.loss(
-                                    self.segmentator(strongly_augmented),
-                                    weak_pseudo_labels[b_ul_half:]
-                                )
-                            )
-                        )
-                    )
-                else:
-                    weak_unlabeled_loss = lam * torch.mean(
-                        self.loss(
-                            self.segmentator(strongly_augmented),
-                            weak_pseudo_labels[:b_ul_half]
-                        )[weak_quality_modulator[:b_ul_half].bool()]
-                    )
-                    weak_unlabeled_loss = (weak_unlabeled_loss + 
-                        (1 - lam) * torch.mean(
-                            self.loss(
-                                self.segmentator(strongly_augmented),
-                                weak_pseudo_labels[b_ul_half:]
-                            )[weak_quality_modulator[b_ul_half:].bool()]
-                        )
-                    )
+                )
             elif self.use_weak_labels:
-                if self.modulation_mode == 'mean':
-                    weak_unlabeled_loss = weak_quality_modulator *  torch.mean(
-                        self.loss(
-                            self.segmentator(strongly_augmented),
-                            weak_pseudo_labels
-                        )
-                    )
-                else:
-                    weak_unlabeled_loss = torch.mean(
-                        self.loss(
-                            self.segmentator(strongly_augmented),
-                            weak_pseudo_labels
-                        )[weak_quality_modulator.bool()]
-                    )
+                weak_unlabeled_loss = torch.mean(
+                    self.loss(
+                        self.segmentator(strongly_augmented),
+                        weak_pseudo_labels
+                    )[weak_quality_modulator.bool()]
+                )
 
             self.segmentator.output_mode = 'strong'
 
-            if self.modulation_mode == 'mean':
-                strong_unlabeled_loss = strong_quality_modulator * torch.mean(
-                    self.loss(
-                        self.segmentator(strongly_augmented),
-                        strong_pseudo_labels
-                    )
+            strong_unlabeled_loss = strong_quality_modulator * torch.mean(
+                self.loss(
+                    self.segmentator(strongly_augmented),
+                    strong_pseudo_labels
                 )
-            else:
-                strong_unlabeled_loss = torch.mean(
-                    self.loss(
-                        self.segmentator(strongly_augmented),
-                        strong_pseudo_labels
-                    )[strong_quality_modulator.bool()]
-                )
-
+            )
+           
             self.segmentator.output_mode = orig_setting
 
             if self.use_weak_labels:
@@ -538,11 +499,7 @@ class SemiSupervisedLearner1d(nn.Module):
                     num_positive = 'weak labels disabled'
                     weak_unlabeled_loss_debug = 'weak labels disabled'
 
-                if self.modulation_mode != 'mean':
-                    weak_quality_modulator = torch.mean(
-                        weak_quality_modulator)
-                    strong_quality_modulator = torch.mean(
-                        strong_quality_modulator)
+                weak_quality_modulator = torch.mean(weak_quality_modulator)
 
                 print(
                     f'Labeled Loss: {labeled_loss.item()}, '
@@ -592,7 +549,6 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
         regularizer_sigma_max=16,
         regularizer_p_min=0.5,
         regularizer_p_max=0.5,
-        modulation_mode='mask',
         loss_alpha=0.25,
         loss_gamma=2,
         loss_logits=False,
@@ -626,7 +582,6 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
             regularizer_sigma_max=regularizer_sigma_max,
             regularizer_p_min=regularizer_p_min,
             regularizer_p_max=regularizer_p_max,
-            modulation_mode=modulation_mode,
             loss_alpha=loss_alpha,
             loss_gamma=loss_gamma,
             loss_logits=loss_logits,
@@ -733,8 +688,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
 
             quality_modulator = quality_modulator.reshape(1, -1).squeeze()
 
-            if self.modulation_mode == 'mean':
-                quality_modulator = torch.mean(quality_modulator)
+            quality_modulator = torch.mean(quality_modulator)
 
             unlabeled_loss = torch.mean(
                 quality_modulator * 
