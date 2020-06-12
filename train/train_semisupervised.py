@@ -143,7 +143,6 @@ def train(
             labeled_batch = labeled_batch.to(device=device)
             labels = labels.to(device=device)
             unlabeled_batch = unlabeled_batch.to(device=device)
-
             model.train()
 
             if ('scheduler_step_on_iter' in kwargs and
@@ -151,13 +150,13 @@ def train(
                 scheduler.step()
                 
             optimizer.zero_grad()
-
             loss_out = model(unlabeled_batch, labeled_batch, labels)
             loss_out.backward()
             optimizer.step()
             iters+= 1
             iter_loss = loss_out.item()
             avg_loss+= iter_loss
+            
             print(f'Training - Iter: {iters} Iter loss: {iter_loss:.8f}')
 
         if not ('scheduler_step_on_iter' in kwargs and
@@ -171,15 +170,27 @@ def train(
         losses = []
         for batch, labels in val_loader:
             model.eval()
+
             with torch.no_grad():
                 batch = batch.to(device=device)
                 labels = labels.to(device=device)
                 labels_for_metrics.append(labels.cpu())
                 preds = model(batch)
                 binarized_preds = np.where(preds.cpu() >= 0.5, 1, 0)
+                inverse_binarized_preds = (1 - binarized_preds)
                 global_preds = np.zeros(labels.shape)
 
                 for i in range(len(preds)):
+                    gaps = scipy.ndimage.find_objects(
+                        scipy.ndimage.label(inverse_binarized_preds[i])[0])
+
+                    for gap in gaps:
+                        gap = gap[0]
+                        gap_length = gap.stop - gap.start
+
+                        if gap_length < 3:
+                            binarized_preds[i][gap.start:gap.stop] = 1
+                            
                     regions_of_interest = scipy.ndimage.find_objects(
                         scipy.ndimage.label(binarized_preds[i])[0])
 

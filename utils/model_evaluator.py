@@ -229,6 +229,7 @@ def create_results_file(
 
     label_output_array = np.zeros((output_array.shape))
     binarized_output_array = np.where(output_array >= threshold, 1, 0)
+    inverse_binarized_output_array = (1 - binarized_output_array)
 
     for i in range(len(chromatograms)):
         print(i)
@@ -237,12 +238,23 @@ def create_results_file(
 
         output = output_array[i]
         binarized_output = binarized_output_array[i]
+        inverse_binarized_output = inverse_binarized_output_array[i]
 
         left_width, right_width = np.argmax(output), np.argmax(output)
 
         score = np.max(output)
 
         high_quality = 0
+
+        gaps = scipy.ndimage.find_objects(
+            scipy.ndimage.label(inverse_binarized_output_array[i])[0])
+
+        for gap in gaps:
+            gap = gap[0]
+            gap_length = gap.stop - gap.start
+
+            if gap_length < 3:
+                binarized_output[gap.start:gap.stop] = 1
 
         regions_of_interest = scipy.ndimage.find_objects(
             scipy.ndimage.label(binarized_output)[0])
