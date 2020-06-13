@@ -378,10 +378,10 @@ class SemiSupervisedLearner1d(nn.Module):
                     out_dict['strong']
                 )
 
-                weak_pseudo_labels = (weak_output >= 0.5).float()
+                weak_pseudo_labels = (self.to_out(weak_output) >= 0.5).float()
                 weak_quality_modulator = (
-                    (weak_output >= self.threshold).float() + 
-                    (weak_output <= (1 - self.threshold))
+                    (self.to_out(weak_output) >= self.threshold).float() + 
+                    (self.to_out(weak_output) <= (1 - self.threshold))
                 ).reshape(1, -1).squeeze()
                 
                 # Variable required for cutmix
@@ -393,11 +393,12 @@ class SemiSupervisedLearner1d(nn.Module):
             if self.paint_strong_labels:
                 strong_pseudo_labels = weak_pseudo_labels.repeat(1, l_ul)
             else:
-                strong_pseudo_labels = (strong_output >= 0.5).float()
-                
+                strong_pseudo_labels = (
+                    self.to_out(strong_output) >= 0.5).float()
+            
             strong_quality_modulator =  (
-                (strong_output >= self.threshold).float() + 
-                (strong_output <= (1 - self.threshold))
+                (self.to_out(strong_output) >= self.threshold).float() + 
+                (self.to_out(strong_output) <= (1 - self.threshold))
             )
 
             # Variable required for cutmix
@@ -456,10 +457,8 @@ class SemiSupervisedLearner1d(nn.Module):
                         )
                     )
 
-            strong_quality_modulator = (
+            strong_quality_modulator = torch.mean(
                 strong_quality_modulator.reshape(1, -1).squeeze())
-
-            strong_quality_modulator = torch.mean(strong_quality_modulator)
 
             if self.use_weak_labels:
                 self.model.output_mode = 'both'
@@ -471,7 +470,6 @@ class SemiSupervisedLearner1d(nn.Module):
             else:
                 self.model.output_mode = 'strong'
                 strong_output = self.model(strongly_augmented)
-
 
             if self.use_weak_labels and self.regularizer_mode == 'cutmix':
                 weak_unlabeled_loss_a = lam * torch.mean(
