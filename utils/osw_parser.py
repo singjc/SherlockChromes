@@ -424,8 +424,13 @@ def get_cnn_data(
                     window_size=window_size,
                     mode=mode)
 
-                if not isinstance(labels, np.ndarray) and labels == -1:
+                if not isinstance(labels, np.ndarray):
                     continue
+
+                if not isinstance(chromatogram, np.ndarray):
+                    continue
+
+                chromatograms_array.append(chromatogram)
 
             if not csv_only and scored:
                 label_matrix.append(labels)
