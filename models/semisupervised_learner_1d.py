@@ -525,9 +525,10 @@ class SemiSupervisedLearner1d(nn.Module):
                         weak_unlabeled_loss_debug = weak_unlabeled_loss
                     else:
                         weak_unlabeled_loss_debug = weak_unlabeled_loss.item()
-
-                    weak_quality_modulator_debug = torch.mean(
-                        weak_quality_modulator).item()
+                    
+                    weak_unlabeled_loss_debug = f'{weak_unlabeled_loss_debug:.8f}'
+                    weak_quality_modulator_debug = f'{torch.mean(
+                        weak_quality_modulator).item():.8f}'
                 else:
                     num_positive = 'weak labels disabled'
                     weak_unlabeled_loss_debug = 'weak labels disabled'
@@ -537,8 +538,8 @@ class SemiSupervisedLearner1d(nn.Module):
                     f'L Loss: {labeled_loss.item():.8f}, '
                     f'# Positive: {num_positive}, '
                     f'UL Loss: {unlabeled_loss.item():.8f}, '
-                    f'Weak Quality Modulator u: {weak_quality_modulator_debug:.8f}, '
-                    f'Weak UL Loss: {weak_unlabeled_loss_debug:.8f}, '
+                    f'Weak Quality Modulator u: {weak_quality_modulator_debug}, '
+                    f'Weak UL Loss: {weak_unlabeled_loss_debug}, '
                     f'Strong Quality Modulator u: {strong_quality_modulator.item():.8f}, '
                     f'Strong UL Loss: {strong_unlabeled_loss.item():.8f}, '
                     f'Weighted UL Loss: {self.wu * unlabeled_loss.item():.8f}'
