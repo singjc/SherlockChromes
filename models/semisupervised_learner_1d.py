@@ -531,9 +531,9 @@ class SemiSupervisedLearner1d(nn.Module):
                         weak_quality_modulator).item()
                     weak_quality_modulator_debug = f'{weak_quality_modulator_debug:.8f}'
                 else:
-                    num_positive = 'weak labels disabled'
-                    weak_unlabeled_loss_debug = 'weak labels disabled'
-                    weak_quality_modulator_debug = 'weak_labels_disabled'
+                    num_positive = 'n/a'
+                    weak_unlabeled_loss_debug = 'n/a'
+                    weak_quality_modulator_debug = 'n/a'
 
                 print(
                     f'L Loss: {labeled_loss.item():.8f}, '
