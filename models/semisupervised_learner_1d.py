@@ -377,15 +377,15 @@ class SemiSupervisedLearner1d(nn.Module):
                     out_dict['weak'],
                     out_dict['strong']
                 )
+
+                weak_pseudo_labels = (weak_output >= 0.5).float()
+                weak_quality_modulator = (
+                    (weak_output >= self.threshold).float() + 
+                    (weak_output <= (1 - self.threshold))
+                )
             else:
                 self.model.output_mode = 'strong'
                 strong_output = self.model(strongly_augmented)
-
-            weak_pseudo_labels = (weak_output >= 0.5).float()
-            weak_quality_modulator = (
-                (weak_output >= self.threshold).float() + 
-                (weak_output <= (1 - self.threshold))
-            )
 
             if self.paint_strong_labels:
                 strong_pseudo_labels = weak_pseudo_labels.repeat(1, l_ul)
