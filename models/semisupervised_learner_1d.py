@@ -510,7 +510,7 @@ class SemiSupervisedLearner1d(nn.Module):
             
             if self.debug:
                 if self.use_weak_labels:
-                    num_positive = torch.sum(labels).item()
+                    num_positive = int(torch.sum(labels).item())
 
                     if isinstance(weak_unlabeled_loss, float):
                         weak_unlabeled_loss_debug = weak_unlabeled_loss
@@ -523,14 +523,14 @@ class SemiSupervisedLearner1d(nn.Module):
                 weak_quality_modulator = torch.mean(weak_quality_modulator)
 
                 print(
-                    f'Labeled Loss: {labeled_loss.item()}, '
-                    f'Num Positive: {num_positive}, '
-                    f'Unlabeled Loss: {unlabeled_loss.item()}, '
-                    f'Weak Quality Modulator Mean: {weak_quality_modulator.item()}, '
-                    f'Weak Unlabeled Loss: {weak_unlabeled_loss_debug}, '
-                    f'Strong Quality Modulator Mean: {strong_quality_modulator.item()}, '
-                    f'Strong Unlabeled Loss: {strong_unlabeled_loss.item()}, '
-                    f'Weighted UL Loss: {self.wu * unlabeled_loss.item()}'
+                    f'L Loss: {labeled_loss.item():.8f}, '
+                    f'# Positive: {num_positive}, '
+                    f'UL Loss: {unlabeled_loss.item():.8f}, '
+                    f'Weak Quality Modulator u: {weak_quality_modulator.item():.8f}, '
+                    f'Weak UL Loss: {weak_unlabeled_loss_debug:.8f}, '
+                    f'Strong Quality Modulator u: {strong_quality_modulator.item():.8f}, '
+                    f'Strong UL Loss: {strong_unlabeled_loss.item():.8f}, '
+                    f'Weighted UL Loss: {self.wu * unlabeled_loss.item():.8f}'
                 )
 
             return labeled_loss + self.wu * unlabeled_loss
