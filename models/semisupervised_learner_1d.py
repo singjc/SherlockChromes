@@ -370,10 +370,16 @@ class SemiSupervisedLearner1d(nn.Module):
                 self.weak_augmentator(unlabeled_batch)
             )
 
-            self.segmentator.output_mode = 'both'
-
-            out_dict = self.segmentator(weakly_augmented)
-            weak_output, strong_output = out_dict['weak'], out_dict['strong']
+            if self.use_weak_labels:
+                self.segmentator.output_mode = 'both'
+                out_dict = self.segmentator(weakly_augmented)
+                weak_output, strong_output = (
+                    out_dict['weak'],
+                    out_dict['strong']
+                )
+            else:
+                self.segmentator.output_mode = 'strong'
+                strong_output = self.segmentator(strongly_augmented)
 
             weak_pseudo_labels = (weak_output >= 0.5).float()
             weak_quality_modulator = (
@@ -451,6 +457,7 @@ class SemiSupervisedLearner1d(nn.Module):
             strong_quality_modulator = torch.mean(strong_quality_modulator)
 
             if self.use_weak_labels:
+                self.segmentator.output_mode = 'both'
                 out_dict = self.segmentator(strongly_augmented)
                 weak_output, strong_output = (
                     out_dict['weak'],
@@ -458,7 +465,6 @@ class SemiSupervisedLearner1d(nn.Module):
                 )
             else:
                 self.segmentator.output_mode = 'strong'
-
                 strong_output = self.segmentator(strongly_augmented)
 
 
