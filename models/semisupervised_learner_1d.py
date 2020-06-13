@@ -382,7 +382,10 @@ class SemiSupervisedLearner1d(nn.Module):
                 weak_quality_modulator = (
                     (weak_output >= self.threshold).float() + 
                     (weak_output <= (1 - self.threshold))
-                )
+                ).reshape(1, -1).squeeze()
+                
+                # Variable required for cutmix
+                lam = None
             else:
                 self.model.output_mode = 'strong'
                 strong_output = self.model(strongly_augmented)
@@ -397,9 +400,8 @@ class SemiSupervisedLearner1d(nn.Module):
                 (strong_output <= (1 - self.threshold))
             )
 
-            # Variables required for cutmix later on 
+            # Variable required for cutmix
             b_ul_half = b_ul // 2
-            lam = None
 
             if self.regularizer_mode != 'none':
                 regularizer_mask = torch.from_numpy(
@@ -417,6 +419,12 @@ class SemiSupervisedLearner1d(nn.Module):
                     strong_quality_modulator = (
                         strong_quality_modulator * regularizer_mask)
                 elif self.regularizer_mode == 'cutmix':
+                    if self.use_weak_labels:
+                        lam = (
+                            torch.sum(regularizer_mask) / 
+                            regularizer_mask.nelement()
+                        )
+                    
                     strongly_augmented = (
                         (
                             strongly_augmented[0:b_ul_half].to(self.device) * 
@@ -427,7 +435,6 @@ class SemiSupervisedLearner1d(nn.Module):
                             (1 - regularizer_mask)
                         )
                     )
-                    lam = torch.sum(regularizer_mask) / regularizer_mask.nelement()
                     strong_pseudo_labels = (
                         (
                             strong_pseudo_labels[0:b_ul_half].to(self.device) *
@@ -449,8 +456,6 @@ class SemiSupervisedLearner1d(nn.Module):
                         )
                     )
 
-            weak_quality_modulator = (
-                weak_quality_modulator.reshape(1, -1).squeeze())
             strong_quality_modulator = (
                 strong_quality_modulator.reshape(1, -1).squeeze())
 
@@ -522,17 +527,19 @@ class SemiSupervisedLearner1d(nn.Module):
                         weak_unlabeled_loss_debug = weak_unlabeled_loss
                     else:
                         weak_unlabeled_loss_debug = weak_unlabeled_loss.item()
+
+                    weak_quality_modulator_debug = torch.mean(
+                        weak_quality_modulator).item()
                 else:
                     num_positive = 'weak labels disabled'
                     weak_unlabeled_loss_debug = 'weak labels disabled'
-
-                weak_quality_modulator = torch.mean(weak_quality_modulator)
+                    weak_quality_modulator_debug = 'weak_labels_disabled'
 
                 print(
                     f'L Loss: {labeled_loss.item():.8f}, '
                     f'# Positive: {num_positive}, '
                     f'UL Loss: {unlabeled_loss.item():.8f}, '
-                    f'Weak Quality Modulator u: {weak_quality_modulator.item():.8f}, '
+                    f'Weak Quality Modulator u: {weak_quality_modulator_debug:.8f}, '
                     f'Weak UL Loss: {weak_unlabeled_loss_debug:.8f}, '
                     f'Strong Quality Modulator u: {strong_quality_modulator.item():.8f}, '
                     f'Strong UL Loss: {strong_unlabeled_loss.item():.8f}, '
