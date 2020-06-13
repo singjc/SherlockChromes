@@ -222,7 +222,7 @@ class SemiSupervisedLearner1d(nn.Module):
         debug=False,
         save_normalized=False):
         super(SemiSupervisedLearner1d, self).__init__()
-        self.segmentator = copy.deepcopy(model)
+        self.model = copy.deepcopy(model)
         self.wu = wu
         self.threshold = threshold
         self.use_weak_labels = use_weak_labels
@@ -308,8 +308,8 @@ class SemiSupervisedLearner1d(nn.Module):
     def get_normalized(self):
         return self.normalized
 
-    def get_segmentator(self):
-        model = self.segmentator
+    def get_model(self):
+        model = self.model
 
         if ('normalization_layer' in [n for n, m in model.named_modules()] and
             isinstance(model.normalization_layer, nn.Identity)):
@@ -350,17 +350,17 @@ class SemiSupervisedLearner1d(nn.Module):
                     unlabeled_batch = torch.cat(
                         [unlabeled_batch, torch.zeros(1, c_ul, l_ul)], dim=0)
 
-            orig_setting = self.segmentator.output_mode
+            orig_setting = self.model.output_mode
 
             if self.use_weak_labels:
-                self.segmentator.output_mode = 'weak'
+                self.model.output_mode = 'weak'
                 labeled_loss = torch.mean(
-                    self.loss(self.segmentator(labeled_batch), labels)
+                    self.loss(self.model(labeled_batch), labels)
                 )
             else:
-                self.segmentator.output_mode = 'strong'
+                self.model.output_mode = 'strong'
                 labeled_loss = torch.mean(
-                    self.loss(self.segmentator(labeled_batch), labels)
+                    self.loss(self.model(labeled_batch), labels)
                 )
 
             strongly_augmented = self.normalization_layer(
@@ -371,15 +371,15 @@ class SemiSupervisedLearner1d(nn.Module):
             )
 
             if self.use_weak_labels:
-                self.segmentator.output_mode = 'both'
-                out_dict = self.segmentator(weakly_augmented)
+                self.model.output_mode = 'both'
+                out_dict = self.model(weakly_augmented)
                 weak_output, strong_output = (
                     out_dict['weak'],
                     out_dict['strong']
                 )
             else:
-                self.segmentator.output_mode = 'strong'
-                strong_output = self.segmentator(strongly_augmented)
+                self.model.output_mode = 'strong'
+                strong_output = self.model(strongly_augmented)
 
             weak_pseudo_labels = (weak_output >= 0.5).float()
             weak_quality_modulator = (
@@ -457,15 +457,15 @@ class SemiSupervisedLearner1d(nn.Module):
             strong_quality_modulator = torch.mean(strong_quality_modulator)
 
             if self.use_weak_labels:
-                self.segmentator.output_mode = 'both'
-                out_dict = self.segmentator(strongly_augmented)
+                self.model.output_mode = 'both'
+                out_dict = self.model(strongly_augmented)
                 weak_output, strong_output = (
                     out_dict['weak'],
                     out_dict['strong']
                 )
             else:
-                self.segmentator.output_mode = 'strong'
-                strong_output = self.segmentator(strongly_augmented)
+                self.model.output_mode = 'strong'
+                strong_output = self.model(strongly_augmented)
 
 
             if self.use_weak_labels and self.regularizer_mode == 'cutmix':
@@ -507,7 +507,7 @@ class SemiSupervisedLearner1d(nn.Module):
                 self.loss(strong_output, strong_pseudo_labels)
             )
            
-            self.segmentator.output_mode = orig_setting
+            self.model.output_mode = orig_setting
 
             if self.use_weak_labels:
                 unlabeled_loss = weak_unlabeled_loss + strong_unlabeled_loss
@@ -546,7 +546,7 @@ class SemiSupervisedLearner1d(nn.Module):
             if self.save_normalized:
                 self.normalized = normalized
 
-            return self.to_out(self.segmentator(normalized))
+            return self.to_out(self.model(normalized))
 
 class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
     def __init__(
@@ -640,16 +640,16 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
                 if b_ul % 2 != 0:
                     unlabeled_batch = unlabeled_batch[0:b_ul - 1]
 
-            self.segmentator.aggregate_output = self.use_weak_labels
+            self.model.aggregate_output = self.use_weak_labels
                 
             labeled_loss = torch.mean(
                 self.loss(
-                    self.segmentator(labeled_batch, templates, template_labels),
+                    self.model(labeled_batch, templates, template_labels),
                     labels
                 )
             )
 
-            self.segmentator.aggregate_output = False
+            self.model.aggregate_output = False
 
             strongly_augmented = self.normalization_layer(
                 self.strong_augmentator(unlabeled_batch)
@@ -658,7 +658,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
                 self.weak_augmentator(unlabeled_batch)
             )
             weak_output = self.to_out(
-                self.segmentator(weakly_augmented, templates, template_labels)
+                self.model(weakly_augmented, templates, template_labels)
             )
             pseudo_labels = (weak_output >= 0.5).float()
             quality_modulator =  (
@@ -720,7 +720,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
             unlabeled_loss = torch.mean(
                 quality_modulator * 
                 self.loss(
-                    self.segmentator(
+                    self.model(
                         strongly_augmented, templates, template_labels),
                     pseudo_labels
                 )
@@ -741,4 +741,4 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
                 self.normalized = normalized
 
             return self.to_out(
-                self.segmentator(normalized, templates, template_labels))
+                self.model(normalized, templates, template_labels))
