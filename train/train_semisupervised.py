@@ -131,7 +131,7 @@ def train(
 
     unlabeled_loader = iter(cycle(unlabeled_loader))
 
-    highest_bacc, highest_dice, highest_iou, lowest_loss = 0, 0, 0, 1
+    highest_bacc, highest_dice, highest_iou, lowest_loss = 0, 0, 0, 100
 
     model.to(device)
 
