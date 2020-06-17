@@ -275,17 +275,19 @@ class TimeSeriesAttentionPooling(nn.Module):
         c,
         save_attn=False):
         super(TimeSeriesAttentionPooling, self).__init__()
-        self.num_queries = num_queries
         self.save_attn = save_attn
 
         # This represents the queries for the weak binary global label
-        self.query_embeds = nn.Embedding(self.num_queries, c)
+        self.query_embeds = nn.Embedding(num_queries, c)
 
-        self.to_out_embed = DynamicDepthSeparableConv1d(
-            c,
-            c,
-            kernel_sizes=[self.num_queries]
-        )
+        if num_queries > 1:
+            self.to_out_embed = DynamicDepthSeparableConv1d(
+                c,
+                c,
+                kernel_sizes=[num_queries]
+            )
+        else:
+            self.to_out_embed = nn.Identity()
 
         self.attn = None
 
