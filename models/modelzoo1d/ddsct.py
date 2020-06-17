@@ -491,12 +491,13 @@ class DDSCTransformer(nn.Module):
         normalization_mode='full',
         save_normalized=False,
         extract_ts=False,
-        tse_data_height=420,
-        tse_extraction_win=10,
-        tse_aggregation_win=7,
-        tse_num_ts=6,
+        extractor_data_height=420,
+        extractor_extraction_win=10,
+        extractor_aggregation_win=7,
+        extractor_num_ts=6,
         use_templates=False,
         cat_templates=False,
+        aggregator_num_queries=1,
         save_attn=False,
         output_mode='strong',
         probs=True):
@@ -509,10 +510,10 @@ class DDSCTransformer(nn.Module):
 
         if extract_ts:
             self.time_series_extractor = TimeSeriesExtractor(
-                data_height=tse_data_height,
-                extraction_win=tse_extraction_win,
-                aggregation_win=tse_aggregation_win,
-                num_ts=tse_num_ts,
+                data_height=extractor_data_height,
+                extraction_win=extractor_extraction_win,
+                aggregation_win=extractor_aggregation_win,
+                num_ts=extractor_num_ts,
                 kernel_sizes=kernel_sizes,
                 normalize=normalize,
                 normalization_mode=normalization_mode,
@@ -574,6 +575,7 @@ class DDSCTransformer(nn.Module):
 
         # Aggregates output to single value per batch item
         self.output_aggregator = TimeSeriesAttentionPooling(
+            num_queries=aggregator_num_queries,
             c=t_out_channels,
             save_attn=save_attn
         )
