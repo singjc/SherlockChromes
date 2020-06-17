@@ -65,13 +65,16 @@ class DynamicDepthSeparableConv1d(nn.Module):
         for dynamic_conv in self.dynamic_depthwise:
             dynamic_out.append(dynamic_conv(out))
 
-        out = torch.sum(
-            torch.stack(
-                dynamic_out,
+        if self.num_kernels > 1:
+            out = torch.sum(
+                torch.stack(
+                    dynamic_out,
+                    dim=-1
+                ) * F.softmax(self.dynamic_gate, dim=-1),
                 dim=-1
-            ) * F.softmax(self.dynamic_gate, dim=-1),
-            dim=-1
-        )
+            )
+        else:
+            out = dynamic_out[0]
 
         return out
 
@@ -268,13 +271,21 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
 class TimeSeriesAttentionPooling(nn.Module):
     def __init__(
         self,
+        num_queries,
         c,
         save_attn=False):
         super(TimeSeriesAttentionPooling, self).__init__()
+        self.num_queries = num_queries
         self.save_attn = save_attn
 
-        # This represents the query for the weak binary global label
-        self.query_embed = nn.Embedding(1, c)
+        # This represents the queries for the weak binary global label
+        self.query_embeds = nn.Embedding(self.num_queries, c)
+
+        self.to_out_embed = DynamicDepthSeparableConv1d(
+            c,
+            c,
+            kernel_sizes=[self.num_queries]
+        )
 
         self.attn = None
 
@@ -284,21 +295,24 @@ class TimeSeriesAttentionPooling(nn.Module):
     def forward(self, x):
         b, c, l = x.size()
 
-        query = self.query_embed.weight.transpose(0, 1).unsqueeze(0)
+        queries = self.query_embeds.weight.transpose(0, 1).unsqueeze(0)
         keys = values = x
 
-        # Get dot product of query and keys, and scale
-        query = query / (c ** (1 / 4))
+        # Get dot product of queries and keys, and scale
+        queries = queries / (c ** (1 / 4))
         keys = keys / (c ** (1 / 4))
 
-        dot = torch.matmul(keys.transpose(1, 2), query)
-        # dot now has size (b, l, 1) containing raw weights
+        dot = torch.matmul(keys.transpose(1, 2), queries)
+        # dot now has size (b, l, num_queries) containing raw weights
 
         dot = F.softmax(dot, dim=1)
         # dot now has channel-wise self-attention probabilities
 
         # Apply the self attention to the values
         out = torch.matmul(values, dot)
+        # out now has size (b, c, num_queries)
+
+        out = self.to_out_embed(out)
         # out now has size (b, c, 1)
 
         if self.save_attn:
