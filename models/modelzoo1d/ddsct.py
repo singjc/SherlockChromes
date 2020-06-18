@@ -14,7 +14,8 @@ class DynamicDepthSeparableConv1d(nn.Module):
         kernel_sizes=[3, 15],
         dilation=1,
         bias=False,
-        intermediate_nonlinearity=False
+        intermediate_nonlinearity=False,
+        pad=True
     ):
         super(DynamicDepthSeparableConv1d, self).__init__()
         self.pointwise = nn.Conv1d(
@@ -39,11 +40,12 @@ class DynamicDepthSeparableConv1d(nn.Module):
 
         self.dynamic_depthwise = nn.ModuleList([])
         for kernel_size in self.kernel_sizes:
+            padding = ((kernel_size - 1) // 2 * dilation) if pad else 0
             conv = nn.Conv1d(
                 out_channels,
                 out_channels,
                 kernel_size,
-                padding=((kernel_size - 1) // 2 * dilation),
+                padding=padding,
                 dilation=dilation,
                 groups=out_channels,
                 bias=bias
@@ -285,7 +287,8 @@ class TimeSeriesAttentionPooling(nn.Module):
                 c,
                 c,
                 kernel_sizes=[num_queries],
-                bias=True
+                bias=True,
+                pad=False
             )
         else:
             self.to_out_embed = nn.Identity()
