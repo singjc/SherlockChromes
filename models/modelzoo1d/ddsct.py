@@ -117,7 +117,7 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
         # This unifies the outputs of the different heads into a single 
         # c-vector
         if self.heads > 1:
-            self.unify_heads = nn.Conv1d(heads * c, c, 1, bias=False)
+            self.unify_heads = nn.Conv1d(heads * c, c, 1)
         else:
             self.unify_heads = nn.Identity()
 
@@ -201,7 +201,7 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         # This unifies the outputs of the different heads into a single 
         # v_c-vector
         if self.heads > 1:
-            self.unify_heads = nn.Conv1d(heads * v_c, v_c, 1, bias=False)
+            self.unify_heads = nn.Conv1d(heads * v_c, v_c, 1)
         else:
             self.unify_heads = nn.Identity()
 
@@ -284,7 +284,8 @@ class TimeSeriesAttentionPooling(nn.Module):
             self.to_out_embed = DynamicDepthSeparableConv1d(
                 c,
                 c,
-                kernel_sizes=[num_queries]
+                kernel_sizes=[num_queries],
+                bias=True
             )
         else:
             self.to_out_embed = nn.Identity()
@@ -322,6 +323,24 @@ class TimeSeriesAttentionPooling(nn.Module):
 
         return out
 
+class Conv1dFeedForwardNetwork(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
+        super(Conv1dFeedForwardNetwork, self).__init__()
+        self.num_layers = num_layers
+        h = [hidden_dim] * (num_layers - 1)
+        self.layers = nn.ModuleList(
+            nn.Conv1d(
+                n,
+                k,
+                kernel_size=1
+            ) for n, k in zip([input_dim] + h, h + [output_dim]))
+
+    def forward(self, x):
+        for i, layer in enumerate(self.layers):
+            x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
+
+        return x
+
 class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
     def __init__(
         self,
@@ -346,10 +365,12 @@ class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
         self.norm2 = nn.InstanceNorm1d(c, affine=True)
 
         # 1D Convolutions instead of FC
-        self.feed_forward = nn.Sequential(
-            nn.Conv1d(c, depth_multiplier * c, 1, bias=False),
-            nn.ReLU(),
-            nn.Conv1d(depth_multiplier * c, c, 1, bias=False))
+        self.feed_forward = Conv1dFeedForwardNetwork(
+            c,
+            depth_multiplier * c,
+            c,
+            num_layers=2
+        )
 
         self.dropout = nn.Dropout2d(dropout)
         
@@ -501,6 +522,7 @@ class DDSCTransformer(nn.Module):
         cat_templates=False,
         aggregator_num_queries=1,
         save_attn=False,
+        output_num_layers=1,
         output_mode='strong',
         probs=True):
         super(DDSCTransformer, self).__init__()
@@ -535,8 +557,7 @@ class DDSCTransformer(nn.Module):
         self.init_encoder = nn.Conv1d(
             in_channels,
             transformer_channels,
-            1,
-            bias=False
+            1
         )
 
         # The sequence of transformer blocks that does all the 
@@ -582,9 +603,15 @@ class DDSCTransformer(nn.Module):
             save_attn=save_attn
         )
 
-        # Maps the final output state(s) to class probabilities
-        self.to_logits = nn.Conv1d(t_out_channels, 1, 1)
-
+        # Maps the final output state(s) to logits
+        self.to_logits = Conv1dFeedForwardNetwork(
+            t_out_channels,
+            t_out_channels,
+            1,
+            num_layers=output_num_layers
+        )
+        
+        # Maps the final logits to probabilities
         self.to_probs = nn.Sigmoid()
 
         self.normalized = None
