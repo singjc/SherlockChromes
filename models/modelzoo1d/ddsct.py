@@ -335,7 +335,7 @@ class Conv1dFeedForwardNetwork(nn.Module):
             nn.Conv1d(
                 n,
                 k,
-                kernel_size=1
+                1
             ) for n, k in zip([input_dim] + h, h + [output_dim]))
 
     def forward(self, x):
