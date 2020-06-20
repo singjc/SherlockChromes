@@ -53,23 +53,21 @@ def main(
         model,
         **model_kwargs)
 
-    optimizer = None
+    optimizer = train_kwargs.pop('optimizer', None)
 
-    if 'optimizer' in train_kwargs:
-        if train_kwargs['optimizer'] == 'SGD':
-            optimizer = optim.SGD(model.parameters(), **optimizer_kwargs)
-        elif train_kwargs['optimizer'] == 'AdamW':
-            optimizer = optim.AdamW(model.parameters(), **optimizer_kwargs)
+    if optimizer == 'SGD':
+        optimizer = optim.SGD(model.parameters(), **optimizer_kwargs)
+    elif optimizer == 'AdamW':
+        optimizer = optim.AdamW(model.parameters(), **optimizer_kwargs)
 
-    scheduler = None
+    scheduler = train_kwargs.pop('scheduler', None)
 
-    if 'scheduler' in train_kwargs:
-        if train_kwargs['scheduler'] == 'OneCycle':
-            scheduler = optim.lr_scheduler.OneCycleLR(
-                optimizer, **scheduler_kwargs)
-        elif train_kwargs['scheduler'] == 'CosineAnnealing':
-            scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                optimizer, **scheduler_kwargs)
+    if scheduler == 'OneCycle':
+        scheduler = optim.lr_scheduler.OneCycleLR(
+            optimizer, **scheduler_kwargs)
+    elif scheduler == 'CosineAnnealing':
+        scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer, **scheduler_kwargs)
 
     train(
         data,
