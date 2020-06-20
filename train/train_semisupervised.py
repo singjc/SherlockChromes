@@ -137,7 +137,7 @@ def train(
 
     model.to(device)
 
-    num_batches = len(labeled_loder)
+    num_batches = len(labeled_loader)
 
     for epoch in range(kwargs['max_epochs']):
         iters, avg_loss = 0, 0
