@@ -90,7 +90,8 @@ class ChromatogramJitterer(nn.Module):
             ).normal_(self.mean, self.std)
         ).to(self.device)
 
-        chromatogram_batch[:, 0:self.mz_bins]+= noise
+        chromatogram_batch[:, 0:self.mz_bins] = (
+            chromatogram_batch[:, 0:self.mz_bins] + noise)
         
         return chromatogram_batch
 
