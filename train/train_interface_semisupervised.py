@@ -58,7 +58,7 @@ def main(
     if 'optimizer' in train_kwargs:
         if train_kwargs['optimizer'] == 'SGD':
             optimizer = optim.SGD(model.parameters(), **optimizer_kwargs)
-        elif train_kwargs['optimizer'] == 'AdamW']:
+        elif train_kwargs['optimizer'] == 'AdamW':
             optimizer = optim.AdamW(model.parameters(), **optimizer_kwargs)
 
     scheduler = None
