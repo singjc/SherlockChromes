@@ -282,6 +282,9 @@ class TimeSeriesAttentionPooling(nn.Module):
         # This represents the queries for the weak binary global label
         self.query_embeds = nn.Embedding(num_queries, c)
 
+        # TODO: Implement Transformer decoder for multiple queries
+        # Currently unstable during training, probably due to difficulty
+        # finding orthogonal latent embeddings per query feature.
         if num_queries > 1:
             self.to_out_embed = DynamicDepthSeparableConv1d(
                 c,
