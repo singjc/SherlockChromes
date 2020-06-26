@@ -38,7 +38,7 @@ class DynamicDepthSeparableConv1d(nn.Module):
           torch.Tensor([1.0 / self.num_kernels for _ in self.kernel_sizes])
         )
 
-        self.dynamic_depthwise = nn.ModuleList([])
+        self.dynamic_depthwise = nn.ModuleList()
         for kernel_size in self.kernel_sizes:
             padding = ((kernel_size - 1) // 2 * dilation) if pad else 0
             conv = nn.Conv1d(
@@ -50,7 +50,6 @@ class DynamicDepthSeparableConv1d(nn.Module):
                 groups=out_channels,
                 bias=bias
             )
-            
             self.dynamic_depthwise.append(conv)
 
     def get_gate(self):
@@ -67,6 +66,7 @@ class DynamicDepthSeparableConv1d(nn.Module):
         for dynamic_conv in self.dynamic_depthwise:
             dynamic_out.append(dynamic_conv(out))
 
+        # Fallback to normal depth separable convolution if single kernel size
         if self.num_kernels > 1:
             out = torch.sum(
                 torch.stack(
@@ -80,7 +80,7 @@ class DynamicDepthSeparableConv1d(nn.Module):
 
         return out
 
-class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
+class DynamicDepthSeparableConv1dMultiheadAttention(nn.Module):
     def __init__(
         self,
         c,
@@ -88,7 +88,7 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
         kernel_sizes=[3, 15],
         share_encoder=False,
         save_attn=False):
-        super(DynamicDepthSeparableTimeSeriesSelfAttention, self).__init__()
+        super(DynamicDepthSeparableConv1dMultiheadAttention, self).__init__()
         self.heads = heads
         self.kernel_sizes = kernel_sizes
         self.save_attn = save_attn
@@ -128,31 +128,45 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
     def get_attn(self):
         return self.attn
 
-    def forward(self, x):
-        b, c, l = x.size()
+    def forward(self, q, k=None, v=None):
+        b, c, q_l = q.size()
         h = self.heads
 
-        queries = self.to_queries(x).view(b, h, c, l)
-        keys = self.to_keys(x).view(b, h, c, l)
-        values = self.to_values(x).view(b, h, c, l)
+        if k is None:
+            k = q
+            k_l = q_l
+        else:
+            _, _, k_l = k.size()
+
+        if v is None:
+            v = q
+            v_l = q_l
+        else:
+            _, _, v_l = k.size()
+
+        assert k_l == v_l, 'key and value length must be equal'
+
+        queries = self.to_queries(q).view(b, h, c, q_l)
+        keys = self.to_keys(k).view(b, h, c, k_l)
+        values = self.to_values(v).view(b, h, c, v_l)
 
         # Fold heads into the batch dimension
-        queries = queries.view(b * h, c, l)
-        keys = keys.view(b * h, c, l)
-        values = values.view(b * h, c, l)
+        queries = queries.view(b * h, c, q_l)
+        keys = keys.view(b * h, c, k_l)
+        values = values.view(b * h, c, v_l)
 
         # Get dot product of queries and keys, and scale
         queries = queries / (c ** (1 / 4))
         keys = keys / (c ** (1 / 4))
 
         dot = torch.bmm(keys.transpose(1, 2), queries)
-        # dot now has size (b*h, l, l) containing raw weights
+        # dot now has size (b*h, k_l, q_l) containing raw weights
 
         dot = F.softmax(dot, dim=1)
         # dot now has channel-wise self-attention probabilities
 
         # Apply the self attention to the values
-        out = torch.bmm(values, dot).view(b, h * c, l)
+        out = torch.bmm(values, dot).view(b, h * c, q_l)
 
         # Unify heads
         out = self.unify_heads(out)
@@ -162,7 +176,7 @@ class DynamicDepthSeparableTimeSeriesSelfAttention(nn.Module):
 
         return out
 
-class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
+class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
     def __init__(
         self,
         qk_c,
@@ -172,7 +186,7 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
         share_encoder=False,
         save_attn=False):
         super(
-            DynamicDepthSeparableTimeSeriesTemplateAttention, self).__init__()
+            DynamicDepthSeparableConv1dTemplateAttention, self).__init__()
         self.heads = heads
         self.kernel_sizes = kernel_sizes
         self.save_attn = save_attn
@@ -270,65 +284,6 @@ class DynamicDepthSeparableTimeSeriesTemplateAttention(nn.Module):
 
         return out
 
-class TimeSeriesAttentionPooling(nn.Module):
-    def __init__(
-        self,
-        num_queries,
-        c,
-        save_attn=False):
-        super(TimeSeriesAttentionPooling, self).__init__()
-        self.save_attn = save_attn
-
-        # This represents the queries for the weak binary global label
-        self.query_embeds = nn.Embedding(num_queries, c)
-
-        # TODO: Implement Transformer decoder for multiple queries
-        # Currently unstable during training, probably due to difficulty
-        # finding orthogonal latent embeddings per query feature.
-        if num_queries > 1:
-            self.to_out_embed = DynamicDepthSeparableConv1d(
-                c,
-                c,
-                kernel_sizes=[num_queries],
-                bias=True,
-                pad=False
-            )
-        else:
-            self.to_out_embed = nn.Identity()
-
-        self.attn = None
-
-    def get_attn(self):
-        return self.attn
-
-    def forward(self, x):
-        b, c, l = x.size()
-
-        queries = self.query_embeds.weight.transpose(0, 1).unsqueeze(0)
-        keys = values = x
-
-        # Get dot product of queries and keys, and scale
-        queries = queries / (c ** (1 / 4))
-        keys = keys / (c ** (1 / 4))
-
-        dot = torch.matmul(keys.transpose(1, 2), queries)
-        # dot now has size (b, l, num_queries) containing raw weights
-
-        dot = F.softmax(dot, dim=1)
-        # dot now has channel-wise self-attention probabilities
-
-        # Apply the self attention to the values
-        out = torch.matmul(values, dot)
-        # out now has size (b, c, num_queries)
-
-        out = self.to_out_embed(out)
-        # out now has size (b, c, 1)
-
-        if self.save_attn:
-            self.attn = dot
-
-        return out
-
 class Conv1dFeedForwardNetwork(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
         super(Conv1dFeedForwardNetwork, self).__init__()
@@ -347,18 +302,18 @@ class Conv1dFeedForwardNetwork(nn.Module):
 
         return x
 
-class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
+class DynamicDepthSeparableConv1dTransformerBlock(nn.Module):
     def __init__(
         self,
         c,
-        heads,
-        depth_multiplier=4,
-        dropout=0.1,
+        heads=8,
         kernel_sizes=[3, 15],
         share_encoder=False,
-        save_attn=False):
-        super(DynamicDepthSeparableTimeSeriesTransformerBlock, self).__init__()
-        self.attention = DynamicDepthSeparableTimeSeriesSelfAttention(
+        save_attn=False,
+        depth_multiplier=4,
+        dropout=0.1):
+        super(DynamicDepthSeparableConv1dTransformerBlock, self).__init__()
+        self.attention = DynamicDepthSeparableConv1dMultiheadAttention(
             c,
             heads=heads,
             kernel_sizes=kernel_sizes,
@@ -380,128 +335,86 @@ class DynamicDepthSeparableTimeSeriesTransformerBlock(nn.Module):
 
         self.dropout = nn.Dropout2d(dropout)
         
-    def forward(self, x):
-        attended = self.attention(x)
-        x = self.norm1(self.dropout(attended) + x)
-
-        fed_forward = self.feed_forward(x)
-        x = self.norm2(self.dropout(fed_forward) + x)
-
-        return x
-
-class DynamicDepthSeparableConv1dResBlock(nn.Module):
-    def __init__(
-        self,
-        in_channels,
-        out_channels,
-        kernel_sizes=[3, 15],
-        dilation=1,
-        bias=False,
-        intermediate_nonlinearity=False):
-        super(DynamicDepthSeparableConv1dResBlock, self).__init__()
-        self.network = nn.Sequential(
-            nn.InstanceNorm1d(in_channels, affine=True),
-            nn.ReLU(),
-            DynamicDepthSeparableConv1d(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_sizes=kernel_sizes,
-                dilation=dilation,
-                bias=bias,
-                intermediate_nonlinearity=intermediate_nonlinearity
-            )
-        )
-
-        self.residual = (
-            nn.Identity() if in_channels == out_channels else nn.Conv1d(
-                in_channels,
-                out_channels,
-                1,
-                bias=False
-            )
-        )
-
-    def forward(self, x):
-        out = self.network(x) + self.residual(x)
+    def forward(self, q, k=None, v=None):
+        out = q
+        attended = self.attention(q, k, v)
+        out = self.norm1(self.dropout(attended) + out)
+        fed_forward = self.feed_forward(out)
+        out = self.norm2(self.dropout(fed_forward) + out)
 
         return out
 
-class TimeSeriesExtractor(nn.Module):
+class TimeSeriesAttentionPooling(nn.Module):
     def __init__(
         self,
-        data_height=420,
-        extraction_win=10,
-        aggregation_win=7,
-        num_ts=6,
-        kernel_sizes=[3, 15],
-        normalize=False,
-        normalization_mode='full',
-        save_normalized=False):
-        super(TimeSeriesExtractor, self).__init__()
-        self.data_height = data_height
-        self.extraction_win = extraction_win
-        self.aggregation_win = aggregation_win
-        self.num_ts = num_ts
-        self.save_normalized = save_normalized
+        num_queries,
+        c,
+        heads=1,
+        save_attn=False):
+        super(TimeSeriesAttentionPooling, self).__init__()
+        self.num_queries = num_queries
+        self.heads = heads
+        self.save_attn = save_attn
 
-        if self.extraction_win > 1:
-            self.time_series_generator = nn.Sequential(
-                DynamicDepthSeparableConv1dResBlock(
-                    extraction_win,
-                    16,
-                    kernel_sizes=kernel_sizes
-                ),
-                DynamicDepthSeparableConv1dResBlock(
-                    16,
-                    1,
-                    kernel_sizes=kernel_sizes
-                )
-            )
-        else:
-            self.time_series_generator = nn.Identity()
+        # This represents the queries for the weak binary global label
+        self.query_embeds = nn.Embedding(self.num_queries, c)
 
-        self.time_series_aggregator = nn.Sequential(
-            DynamicDepthSeparableConv1dResBlock(
-                data_height // extraction_win // aggregation_win,
-                16,
-                kernel_sizes=kernel_sizes
-            ),
-            DynamicDepthSeparableConv1dResBlock(
-                16,
+        # These compute the queries for all heads as a single concatenated
+        # vector
+        if self.heads > 1:
+            self.to_queries = nn.Conv1d(
+                c,
+                c * heads,
                 1,
-                kernel_sizes=kernel_sizes
-            )
-        )
-
-        if normalize:
-            self.normalization_layer = DAIN_Layer(
-                mode=normalization_mode,
-                input_dim=self.extraction_win
+                bias=False
             )
         else:
-            self.normalization_layer = nn.Identity()
+            self.to_queries = nn.Identity()
 
-        self.normalized = None
+        # This unifies the outputs of the different heads into a single 
+        # c-vector
+        if self.heads > 1:
+            self.unify_heads = nn.Conv1d(heads * c, c, 1)
+        else:
+            self.unify_heads = nn.Identity()
+
+        self.attn = None
+
+    def get_attn(self):
+        return self.attn
 
     def forward(self, x):
         b, c, l = x.size()
-
-        out = x[:, :self.data_height].contiguous().view(
-            -1, self.extraction_win, l)
-        out = self.normalization_layer(out)
-
-        if self.save_normalized:
-            self.normalized = out
-
-        out = self.time_series_generator(out)
-        out = out.view(
-            -1,
-            self.data_height // self.extraction_win // self.aggregation_win,
-            l
+        h = self.heads
+        queries = self.to_queries(
+            self.query_embeds.weight
+            .transpose(0, 1)
+            .unsqueeze(0)
+            .repeat(b, 1, 1)
         )
-        out = self.time_series_aggregator(out)
-        out = out.view(b, self.num_ts, l)
-        out = torch.cat([out, x[:, self.data_height:]], axis=1)
+        keys = values = x.repeat(h, 1, 1)
+        
+        # Fold heads into the batch dimension
+        queries = queries.view(b * h, c, self.num_queries)
+
+        # Get dot product of queries and keys, and scale
+        queries = queries / (c ** (1 / 4))
+        keys = keys / (c ** (1 / 4))
+
+        dot = torch.bmm(keys.transpose(1, 2), queries)
+        # dot now has size (b*h, l, num_queries) containing raw weights
+
+        dot = F.softmax(dot, dim=1)
+        # dot now has channel-wise self-attention probabilities
+
+        # Apply the self attention to the values
+        out = torch.bmm(values, dot).view(b, h * c, self.num_queries)
+
+        out = self.unify_heads(out)
+        # out now has size (b, c, num_queries)
+
+        if self.save_attn:
+            self.attn = dot
 
         return out
 
@@ -509,25 +422,21 @@ class DDSCTransformer(nn.Module):
     def __init__(
         self,
         in_channels=6,
-        transformer_channels=32,
-        heads=8,
-        depth_multiplier=4,
-        dropout=0.1,
-        depth=6,
-        kernel_sizes=[3, 15],
-        share_encoder=False,
         normalize=False,
         normalization_mode='full',
         save_normalized=False,
-        extract_ts=False,
-        extractor_data_height=420,
-        extractor_extraction_win=10,
-        extractor_aggregation_win=7,
-        extractor_num_ts=6,
+        transformer_channels=32,
+        depth=6,
+        heads=8,
+        kernel_sizes=[3, 15],
+        share_encoder=False,
+        save_attn=False,
+        depth_multiplier=4,
+        dropout=0.1,
         use_templates=False,
         cat_templates=False,
-        aggregator_num_queries=1,
-        save_attn=False,
+        aggregator_num_classes=1,
+        aggregator_num_heads=1,
         output_num_layers=1,
         output_mode='strong',
         probs=True):
@@ -537,20 +446,6 @@ class DDSCTransformer(nn.Module):
         self.cat_templates = self.use_templates and cat_templates
         self.output_mode = output_mode
         self.probs = probs
-
-        if extract_ts:
-            self.time_series_extractor = TimeSeriesExtractor(
-                data_height=extractor_data_height,
-                extraction_win=extractor_extraction_win,
-                aggregation_win=extractor_aggregation_win,
-                num_ts=extractor_num_ts,
-                kernel_sizes=kernel_sizes,
-                normalize=normalize,
-                normalization_mode=normalization_mode,
-                save_normalized=save_normalized
-            )
-        else:
-            self.time_series_extractor = nn.Identity()
 
         if normalize:
             self.normalization_layer = DAIN_Layer(
@@ -571,14 +466,14 @@ class DDSCTransformer(nn.Module):
         t_blocks = []
         for i in range(depth):
             t_blocks.append(
-                DynamicDepthSeparableTimeSeriesTransformerBlock(
-                    c=transformer_channels,
+                DynamicDepthSeparableConv1dTransformerBlock(
+                    transformer_channels,
                     heads=heads,
-                    depth_multiplier=depth_multiplier,
-                    dropout=dropout,
                     kernel_sizes=kernel_sizes,
                     share_encoder=share_encoder,
-                    save_attn=save_attn
+                    save_attn=save_attn,
+                    depth_multiplier=depth_multiplier,
+                    dropout=dropout
                 )
             )
         self.t_blocks = nn.Sequential(*t_blocks)
@@ -587,7 +482,7 @@ class DDSCTransformer(nn.Module):
 
         if self.use_templates:
             self.templates_attn = (
-                DynamicDepthSeparableTimeSeriesTemplateAttention(
+                DynamicDepthSeparableConv1dTemplateAttention(
                     qk_c=transformer_channels,
                     v_c=1,
                     heads=heads,
@@ -604,8 +499,9 @@ class DDSCTransformer(nn.Module):
 
         # Aggregates output to single value per batch item
         self.output_aggregator = TimeSeriesAttentionPooling(
-            num_queries=aggregator_num_queries,
+            num_queries=aggregator_num_classes,
             c=t_out_channels,
+            heads=aggregator_num_heads,
             save_attn=save_attn
         )
 
@@ -630,9 +526,6 @@ class DDSCTransformer(nn.Module):
 
     def forward(self, x, templates=None, templates_label=None):
         b, _, _ = x.size()
-
-        x = self.time_series_extractor(x)
-
         x = self.normalization_layer(x)
 
         if self.save_normalized:
