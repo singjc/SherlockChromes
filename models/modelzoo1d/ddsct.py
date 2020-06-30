@@ -155,7 +155,7 @@ class DynamicDepthSeparableConv1dMultiheadAttention(nn.Module):
         keys = keys.view(b * h, c, k_l)
         values = values.view(b * h, c, v_l)
 
-        # Get dot product of queries and keys, and scale
+        # Scale and get dot product of queries and keys
         queries = queries / (c ** (1 / 4))
         keys = keys / (c ** (1 / 4))
 
@@ -172,7 +172,7 @@ class DynamicDepthSeparableConv1dMultiheadAttention(nn.Module):
         out = self.unify_heads(out)
 
         if self.save_attn:
-            self.attn = dot
+            self.attn = dot.view(b, h, k_l, q_l)
 
         return out
 
@@ -243,7 +243,7 @@ class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
         keys = keys.view(kv_b * h, qk_c, l)
         values = values.view(kv_b * h, v_c, l)
 
-        # Get dot product of queries and key, and scale
+        # Scale and get dot product of queries and key
         queries = queries / (qk_c ** (1 / 4))
         keys = keys / (v_c ** (1 / 4))
 
@@ -333,6 +333,7 @@ class DynamicDepthSeparableConv1dTransformerBlock(nn.Module):
             num_layers=2
         )
 
+        # 2D Dropout to simulate spatial dropout of entire channels
         self.dropout = nn.Dropout2d(dropout)
         
     def forward(self, q, k=None, v=None):
@@ -347,36 +348,18 @@ class DynamicDepthSeparableConv1dTransformerBlock(nn.Module):
 class TimeSeriesAttentionPooling(nn.Module):
     def __init__(
         self,
-        num_queries,
         c,
         heads=1,
+        num_queries=1,
         save_attn=False):
         super(TimeSeriesAttentionPooling, self).__init__()
-        self.num_queries = num_queries
         self.heads = heads
+        self.num_queries = num_queries
         self.save_attn = save_attn
 
-        # This represents the queries for the weak binary global label
-        self.query_embeds = nn.Embedding(self.num_queries, c)
-
-        # These compute the queries for all heads as a single concatenated
-        # vector
-        if self.heads > 1:
-            self.to_queries = nn.Conv1d(
-                c,
-                c * heads,
-                1,
-                bias=False
-            )
-        else:
-            self.to_queries = nn.Identity()
-
-        # This unifies the outputs of the different heads into a single 
-        # c-vector
-        if self.heads > 1:
-            self.unify_heads = nn.Conv1d(heads * c, c, 1)
-        else:
-            self.unify_heads = nn.Identity()
+        # This represents the queries for the weak binary global label(s)
+        self.query_embeds = nn.Parameter(
+            torch.randn(self.heads, c, self.num_queries) / (c ** (1 / 2)))
 
         self.attn = None
 
@@ -386,21 +369,18 @@ class TimeSeriesAttentionPooling(nn.Module):
     def forward(self, x):
         b, c, l = x.size()
         h = self.heads
-        queries = self.to_queries(
-            self.query_embeds.weight
-            .transpose(0, 1)
+        queries = (self.query_embeds
             .unsqueeze(0)
-            .repeat(b, 1, 1)
+            .repeat(b, 1, 1, 1)
+            .view(b * h, c, self.num_queries)
         )
-        keys = values = x.repeat(h, 1, 1)
-        
-        # Fold heads into the batch dimension
-        queries = queries.view(b * h, c, self.num_queries)
 
-        # Get dot product of queries and keys, and scale
+        # Repeat and fold heads into the batch dimension
+        keys = values = x.repeat(1, h, 1).view(b * h, c, l)
+
+        # Scale and get dot product of queries and keys
         queries = queries / (c ** (1 / 4))
         keys = keys / (c ** (1 / 4))
-
         dot = torch.bmm(keys.transpose(1, 2), queries)
         # dot now has size (b*h, l, num_queries) containing raw weights
 
@@ -408,13 +388,14 @@ class TimeSeriesAttentionPooling(nn.Module):
         # dot now has channel-wise self-attention probabilities
 
         # Apply the self attention to the values
-        out = torch.bmm(values, dot).view(b, h * c, self.num_queries)
+        out = torch.bmm(values, dot).view(b, h, c, self.num_queries)
 
-        out = self.unify_heads(out)
+        # Unify heads
+        out = torch.mean(out, dim=1)
         # out now has size (b, c, num_queries)
 
         if self.save_attn:
-            self.attn = dot
+            self.attn = dot.view(b, h, l, self.num_queries)
 
         return out
 
@@ -435,8 +416,8 @@ class DDSCTransformer(nn.Module):
         dropout=0.1,
         use_templates=False,
         cat_templates=False,
-        aggregator_num_classes=1,
         aggregator_num_heads=1,
+        aggregator_num_classes=1,
         output_num_layers=1,
         output_mode='strong',
         probs=True):
@@ -497,11 +478,11 @@ class DDSCTransformer(nn.Module):
         elif self.use_templates:
             t_out_channels = 1
 
-        # Aggregates output to single value per batch item
+        # Aggregates output to aggregator_num_classes value(s) per batch item
         self.output_aggregator = TimeSeriesAttentionPooling(
-            num_queries=aggregator_num_classes,
             c=t_out_channels,
             heads=aggregator_num_heads,
+            num_queries=aggregator_num_classes,
             save_attn=save_attn
         )
 
