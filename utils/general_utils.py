@@ -134,6 +134,9 @@ def parse_manual_annotation_file(manual_annotation_filename, rt_gap=3.4):
     return filename_to_annotation
 
 def get_naked_seq(seq):
+    if '_' in seq:
+        seq = seq.split('_')[0]
+
     mod_start = seq.rfind('(')
     mod_end = seq.find(')')
 
@@ -348,7 +351,7 @@ def get_seqs_from_csv(seq_csv, naked=True, exclusion_seqs=None):
     with open(seq_csv, 'r') as seq_file:
         next(seq_file)
         for line in seq_file:
-            seq = line.split(',')[1].split('_')[-2]
+            seq = '_'.join(line.split(',')[1].split('_')[-2:])
 
             if naked:
                 seq = get_naked_seq(seq)
@@ -424,7 +427,7 @@ def get_train_val_test_idx_from_sequences(
         next(seqs)
         for line in seqs:
             line = line.split(',')
-            idx, seq = int(line[0]), line[1].split('_')[-2]
+            idx, seq = int(line[0]), '_'.join(line[1].split('_')[-2:])
 
             if naked:
                 seq = get_naked_seq(seq)
@@ -554,7 +557,7 @@ def get_kfold_idx_from_sequences(
         for line in seqs:
             line = line.split(',')
             idx, filename = int(line[0]), line[1]
-            seq = filename.split('_')[-2]
+            seq = '_'.join(filename.split('_')[-2:])
 
             if inclusion_filenames and filename not in inclusion_filenames:
                 continue
@@ -651,7 +654,7 @@ def create_kfold_train_and_validation_and_holdout_test_by_sequence(
         for line in seqs:
             line = line.split(',')
             idx, filename = line[0], line[1]
-            seq = filename.split('_')[-2]
+            seq = '_'.join(filename.split('_')[-2:])
 
             if naked:
                 seq = get_naked_seq(seq)
@@ -667,6 +670,9 @@ def create_kfold_train_and_validation_and_holdout_test_by_sequence(
                 decoy_seqs[seq] = True
             else:
                 non_decoy_seqs[seq] = True
+
+    for seq in special_seqs:
+        non_decoy_seqs.pop(seq, None)
 
     special_seqs = list(special_seqs.keys())
     decoy_seqs = list(decoy_seqs.keys())
