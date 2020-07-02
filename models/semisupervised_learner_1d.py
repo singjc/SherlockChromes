@@ -328,7 +328,7 @@ class SemiSupervisedLearner1d(nn.Module):
         noise_image = np.random.normal(size=length)
         noise_image_smoothed = gaussian_filter1d(noise_image, sigma)
         threshold = (
-            erfinv(p*2 - 1) * (2**0.5) * noise_image_smoothed.std() + 
+            erfinv((p * 2) - 1) * (2 ** 0.5) * noise_image_smoothed.std() + 
             noise_image_smoothed.mean()
         )
 
@@ -347,7 +347,13 @@ class SemiSupervisedLearner1d(nn.Module):
             if self.regularizer_mode == 'cutmix':
                 if b_ul % 2 != 0:
                     unlabeled_batch = torch.cat(
-                        [unlabeled_batch, torch.zeros(1, c_ul, l_ul)], dim=0)
+                        [
+                            unlabeled_batch,
+                            torch.zeros(1, c_ul, l_ul).to(self.device)
+                        ],
+                        dim=0
+                    )
+                    b_ul+= 1
 
             orig_setting = self.model.output_mode
 
@@ -424,31 +430,31 @@ class SemiSupervisedLearner1d(nn.Module):
                     
                     strongly_augmented = (
                         (
-                            strongly_augmented[0:b_ul_half].to(self.device) * 
+                            strongly_augmented[0:b_ul_half] * 
                             regularizer_mask
                         ) +
                         (
-                            strongly_augmented[b_ul_half:].to(self.device) *
+                            strongly_augmented[b_ul_half:] *
                             (1 - regularizer_mask)
                         )
                     )
                     strong_pseudo_labels = (
                         (
-                            strong_pseudo_labels[0:b_ul_half].to(self.device) *
+                            strong_pseudo_labels[0:b_ul_half] *
                             regularizer_mask
                         ) +
                         (
-                            strong_pseudo_labels[b_ul_half:].to(self.device) *
+                            strong_pseudo_labels[b_ul_half:] *
                             (1 - regularizer_mask)
                         )
                     )
                     strong_quality_modulator = (
                         (
-                            strong_quality_modulator[0:b_ul_half].to(self.device) *
+                            strong_quality_modulator[0:b_ul_half] *
                             regularizer_mask
                         ) +
                         (
-                            strong_quality_modulator[b_ul_half:].to(self.device) *
+                            strong_quality_modulator[b_ul_half:] *
                             (1 - regularizer_mask)
                         )
                     )
