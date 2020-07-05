@@ -366,7 +366,7 @@ class TimeSeriesAttentionPooling(nn.Module):
     def get_attn(self):
         return self.attn
 
-    def forward(self, x):
+    def forward_pool(self, x):
         b, c, l = x.size()
         h = self.heads
         queries = (self.query_embeds
@@ -398,6 +398,35 @@ class TimeSeriesAttentionPooling(nn.Module):
             self.attn = dot.view(b, h, l, self.num_queries)
 
         return out
+    
+    def forward_unpool(self, x):
+        b, c, l = x.size()
+        h = self.heads
+        queries = x.repeat(1, h, 1).view(b * h, c, l)
+        keys = (self.query_embeds
+            .unsqueeze(0)
+            .repeat(b, 1, 1, 1)
+            .view(b * h, c, self.num_queries)
+        )
+
+        # Scale and get dot product of queries and keys
+        queries = queries / (c ** (1 / 4))
+        keys = keys / (c ** (1 / 4))
+        dot = torch.bmm(keys.transpose(1, 2), queries)
+        # dot now has size (b*h, num_queries, l) containing raw weights
+
+        dot = dot.view(b, h, self.num_queries, l)
+
+        # Unify heads
+        out = torch.mean(dot, dim=1)
+        # out now has size (b, num_queries, l)
+
+        return out
+
+    def forward(self, x, unpool=False):
+        if unpool:
+            return self.forward_unpool(x)
+        return self.forward_pool(x)
 
 class DDSCTransformer(nn.Module):
     def __init__(
@@ -417,15 +446,17 @@ class DDSCTransformer(nn.Module):
         use_templates=False,
         cat_templates=False,
         aggregator_num_heads=1,
-        aggregator_num_classes=1,
+        output_num_classes=1,
         output_num_layers=1,
         output_mode='strong',
+        output_is_unpooled=False,
         probs=True):
         super(DDSCTransformer, self).__init__()
         self.save_normalized = save_normalized
         self.use_templates = use_templates
         self.cat_templates = self.use_templates and cat_templates
         self.output_mode = output_mode
+        self.output_is_unpooled = output_is_unpooled
         self.probs = probs
 
         if normalize:
@@ -482,7 +513,7 @@ class DDSCTransformer(nn.Module):
         self.output_aggregator = TimeSeriesAttentionPooling(
             c=t_out_channels,
             heads=aggregator_num_heads,
-            num_queries=aggregator_num_classes,
+            num_queries=output_num_classes,
             save_attn=save_attn
         )
 
@@ -490,7 +521,7 @@ class DDSCTransformer(nn.Module):
         self.to_logits = Conv1dFeedForwardNetwork(
             t_out_channels,
             t_out_channels,
-            1,
+            output_num_classes,
             num_layers=output_num_layers
         )
         
@@ -532,7 +563,10 @@ class DDSCTransformer(nn.Module):
             out_dict['weak'] = self.to_logits(self.output_aggregator(out))
 
         if self.output_mode == 'strong' or self.output_mode == 'both':
-            out_dict['strong'] = self.to_logits(out)
+            if self.output_is_unpooled:
+                out_dict['strong'] = self.output_aggregator(out, unpool=True)
+            else:
+                out_dict['strong'] = self.to_logits(out)
 
         if self.probs:
             for mode in out_dict:

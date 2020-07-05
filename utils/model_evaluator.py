@@ -219,7 +219,7 @@ def create_results_file(
                 'Window Size',
                 'External Label Left IDX',
                 'External Label Right IDX',
-                'External Score'
+                'External Score',
                 'Model Predicted Left IDX',
                 'Model Predicted Right IDX',
                 'Model Score',
