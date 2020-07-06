@@ -113,7 +113,7 @@ def create_output_array(
             output_array.append(
                 np.zeros((chromatograms.shape[0], chromatograms.shape[-1])))
         else:
-            output_array.append(output.detach().to('cpu').numpy())
+            output_array.append(output['strong'].detach().to('cpu').numpy())
 
     output_array = np.vstack(output_array)
 
