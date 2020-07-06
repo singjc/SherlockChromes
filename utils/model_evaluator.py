@@ -66,6 +66,7 @@ def create_output_array(
     threshold=0.5,
     template_dataset=None,
     template_batch_size=4):
+    model.output_mode = 'both'
     output_array = []
 
     if load_npy:
@@ -108,7 +109,11 @@ def create_output_array(
         else:
             output = model(chromatograms)
 
-        output_array.append(output.detach().to('cpu').numpy())
+        if output['weak'] < threshold:
+            output_array.append(
+                np.zeros((chromatograms.shape[0], chromatograms.shape[-1])))
+        else:
+            output_array.append(output.detach().to('cpu').numpy())
 
     output_array = np.vstack(output_array)
 
