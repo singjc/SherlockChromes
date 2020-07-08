@@ -193,6 +193,7 @@ class SemiSupervisedLearner1d(nn.Module):
         wu=1,
         threshold=0.95,
         use_weak_labels=False,
+        enforce_weak_consistency=False,
         augmentator_p=0.5,
         augmentator_mz_bins=6,
         augmentator_augment_precursor=False,
@@ -226,6 +227,7 @@ class SemiSupervisedLearner1d(nn.Module):
         self.wu = wu
         self.threshold = threshold
         self.use_weak_labels = use_weak_labels
+        self.enforce_weak_consistency = enforce_weak_consistency
         self.device = model_device
 
         self.weak_augmentator = ChromatogramScaler(
@@ -375,7 +377,7 @@ class SemiSupervisedLearner1d(nn.Module):
                 self.weak_augmentator(unlabeled_batch)
             )
 
-            if self.use_weak_labels:
+            if self.enforce_weak_consistency:
                 self.model.output_mode = 'both'
                 out_dict = self.model(weakly_augmented)
                 weak_output, strong_output = (
@@ -422,7 +424,7 @@ class SemiSupervisedLearner1d(nn.Module):
                     strong_quality_modulator = (
                         strong_quality_modulator * regularizer_mask)
                 elif self.regularizer_mode == 'cutmix':
-                    if self.use_weak_labels:
+                    if self.enforce_weak_consistency:
                         lam = (
                             torch.sum(regularizer_mask) / 
                             regularizer_mask.nelement()
@@ -462,7 +464,7 @@ class SemiSupervisedLearner1d(nn.Module):
             strong_quality_modulator = torch.mean(
                 strong_quality_modulator.reshape(1, -1).squeeze())
 
-            if self.use_weak_labels:
+            if self.enforce_weak_consistency:
                 self.model.output_mode = 'both'
                 out_dict = self.model(strongly_augmented)
                 weak_output, strong_output = (
@@ -473,7 +475,8 @@ class SemiSupervisedLearner1d(nn.Module):
                 self.model.output_mode = 'strong'
                 strong_output = self.model(strongly_augmented)
 
-            if self.use_weak_labels and self.regularizer_mode == 'cutmix':
+            if (self.enforce_weak_consistency
+                and self.regularizer_mode == 'cutmix'):
                 weak_unlabeled_loss_a = lam * torch.mean(
                     self.loss(
                         weak_output,
@@ -497,7 +500,7 @@ class SemiSupervisedLearner1d(nn.Module):
                 weak_unlabeled_loss = (
                     weak_unlabeled_loss_a + weak_unlabeled_loss_b
                 )
-            elif self.use_weak_labels:
+            elif self.enforce_weak_consistency:
                 weak_unlabeled_loss = torch.mean(
                     self.loss(
                         weak_output,
@@ -514,7 +517,7 @@ class SemiSupervisedLearner1d(nn.Module):
            
             self.model.output_mode = orig_setting
 
-            if self.use_weak_labels:
+            if self.enforce_weak_consistency:
                 unlabeled_loss = weak_unlabeled_loss + strong_unlabeled_loss
             else:
                 unlabeled_loss = strong_unlabeled_loss
@@ -522,7 +525,10 @@ class SemiSupervisedLearner1d(nn.Module):
             if self.debug:
                 if self.use_weak_labels:
                     num_positive = int(torch.sum(labels).item())
+                else:
+                    num_positive = 'n/a'
 
+                if self.enforce_weak_consistency:
                     if isinstance(weak_unlabeled_loss, float):
                         weak_unlabeled_loss_debug = weak_unlabeled_loss
                     else:
@@ -533,7 +539,6 @@ class SemiSupervisedLearner1d(nn.Module):
                         weak_quality_modulator).item()
                     weak_quality_modulator_debug = f'{weak_quality_modulator_debug:.8f}'
                 else:
-                    num_positive = 'n/a'
                     weak_unlabeled_loss_debug = 'n/a'
                     weak_quality_modulator_debug = 'n/a'
 
@@ -557,6 +562,7 @@ class SemiSupervisedLearner1d(nn.Module):
 
             return self.to_out(self.model(normalized))
 
+# TODO: Update to match parent
 class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
     def __init__(
         self,
@@ -564,6 +570,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
         wu=1,
         threshold=0.85,
         use_weak_labels=False,
+        enforce_weak_consistency=False,
         augmentator_p=0.5,
         augmentator_mz_bins=6,
         augmentator_augment_precursor=False,
@@ -597,6 +604,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
             wu=wu,
             threshold=threshold,
             use_weak_labels=use_weak_labels,
+            enforce_weak_consistency=enforce_weak_consistency,
             augmentator_p=augmentator_p,
             augmentator_mz_bins=augmentator_mz_bins,
             augmentator_augment_precursor=augmentator_augment_precursor,

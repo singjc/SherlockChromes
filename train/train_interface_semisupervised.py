@@ -19,6 +19,7 @@ def main(
         'wu',
         'threshold',
         'use_weak_labels',
+        'enforce_weak_consistency',
         'augmentator_p',
         'augmentator_mz_bins',
         'augmentator_augment_precursor',

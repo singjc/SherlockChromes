@@ -59,6 +59,14 @@ class TemperatureScaler(nn.Module):
             for batch, label in val_loader:
                 batch = batch.to(self.device)
                 logits = self.model(batch)
+
+                if hasattr(self.model, 'output_mode'):
+                    logits = (
+                        logits['strong']
+                        / torch.max(logits['strong'], dim=1).values.view(b, 1)
+                        * logits['weak']
+                    )
+                
                 logits_list.append(logits)
                 labels_list.append(label)
 
@@ -116,6 +124,10 @@ class AlignmentTemperatureScaler(TemperatureScaler):
         ).to(self.device)
         ece_criterion = ECELossBinary(logits=True).to(self.device)
 
+        if hasattr(self.model, 'output_mode'):
+            orig_setting = self.model.output_mode
+            self.model.output_mode = 'both'
+
         # First: collect all the logits and labels for the validation set
         logits_list = []
         labels_list = []
@@ -126,6 +138,14 @@ class AlignmentTemperatureScaler(TemperatureScaler):
                 templates = templates.to(self.device)
                 template_labels = template_labels.to(self.device)
                 logits = self.model(batch, templates, template_labels)
+
+                if hasattr(self.model, 'output_mode'):
+                    logits = (
+                        logits['strong']
+                        / torch.max(logits['strong'], dim=1).values.view(b, 1)
+                        * logits['weak']
+                    )
+                    
                 logits_list.append(logits)
                 labels_list.append(label)
 
