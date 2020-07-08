@@ -108,12 +108,14 @@ def create_output_array(
             output = model(chromatograms, template, template_label)
         else:
             output = model(chromatograms)
-
-        if output['weak'] < threshold:
-            output_array.append(
-                np.zeros((chromatograms.shape[0], chromatograms.shape[-1])))
-        else:
-            output_array.append(output['strong'].detach().to('cpu').numpy())
+        
+        b, _, _ = chromatograms.size()
+        output['strong'] = (
+            output['strong']
+            / torch.max(output['strong'], dim=1).values.view(b, 1)
+            * output['weak']
+        )
+        output_array.append(output['strong'].detach().to('cpu').numpy())
 
     output_array = np.vstack(output_array)
 
