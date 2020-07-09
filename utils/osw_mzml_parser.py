@@ -53,7 +53,9 @@ class ExtraTraceConsumer():
             npy_filename = b'_'.join([self.repl_name, seq_and_charge, b'Extra'])
             
             np.save(
-                os.path.join(self.out_dir, npy_filename.decode()), extra_traces_npy)
+                os.path.join(self.out_dir, npy_filename.decode()),
+                extra_traces_npy.astype(np.float32)
+            )
 
     def consumeSpectrum(self, s):
         pass
@@ -141,19 +143,37 @@ class RawData2DExtractionConsumer():
             ms2_filename = f'{self.mzml_filename}_ms2_array'
             ms1_rt_filename = f'{self.mzml_filename}_ms1_rt_array'
             ms2_rt_filename = f'{self.mzml_filename}_ms2_rt_array'
-            self.ms1_array = np.array(self.ms1_array).transpose((1, 0))
-            self.ms2_array = np.array(self.ms2_array).transpose((0, 2, 1))
-            self.ms1_rt_array = np.array(self.ms1_rt_array)
-            self.ms2_rt_array = np.array(self.ms2_rt_array)
+            self.ms1_array = np.array(
+                self.ms1_array).transpose((1, 0),
+                dtype=np.float32
+            )
+            self.ms2_array = np.array(
+                self.ms2_array).transpose((0, 2, 1),
+                dtype=np.float32
+            )
+            self.ms1_rt_array = np.array(self.ms1_rt_array, dtype=np.float32)
+            self.ms2_rt_array = np.array(self.ms2_rt_array, dtype=np.float32)
 
             print(f'Saving ms1 array of shape {self.ms1_array.shape}')
-            np.save(os.path.join(self.outdir, ms1_filename), self.ms1_array)
+            np.save(
+                os.path.join(self.outdir, ms1_filename),
+                self.ms1_array
+            )
             print(f'Saving ms2 array of shape {self.ms2_array.shape}')
-            np.save(os.path.join(self.outdir, ms2_filename), self.ms2_array)
+            np.save(
+                os.path.join(self.outdir, ms2_filename),
+                self.ms2_array
+            )
             print(f'Saving ms1 rt array of shape {self.ms1_rt_array.shape}')
-            np.save(os.path.join(self.outdir, ms1_rt_filename), self.ms1_rt_array)
+            np.save(
+                os.path.join(self.outdir, ms1_rt_filename),
+                self.ms1_rt_array
+            )
             print(f'Saving ms2 rt array of shape {self.ms2_rt_array.shape}')
-            np.save(os.path.join(self.outdir, ms2_rt_filename), self.ms2_rt_array)
+            np.save(
+                os.path.join(self.outdir, ms2_rt_filename),
+                self.ms2_rt_array
+            )
 
 def extract_additional_info_traces(
     mzML_filename,

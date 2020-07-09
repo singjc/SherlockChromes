@@ -33,7 +33,7 @@ def get_subsequence_idxs(sequence, value, subsequence_size=-1):
         subsequence_left = length - subsequence_size
         value_idx = length - half_span - 1
 
-    return value_idx, subsequence_left, subsequence_right
+    return subsequence_left, subsequence_right
 
 def merge_repl_files(pattern):
     repl_names = sorted([f.split('.')[0] for f in glob.glob(f'{pattern}*gz')])
@@ -59,7 +59,12 @@ def merge_repl_files(pattern):
                 np.load(f'{repl}{extension}.npy')
             )
 
-        np.save(f'{pattern}{extension}', np.concatenate(combined_npy))
+        dtype = np.int32 if 'labels' in extension else np.float32
+
+        np.save(
+            f'{pattern}{extension}',
+            np.concatenate(combined_npy).astype(dtype)
+        )
 
 def overlaps(
     pred_min,
@@ -324,8 +329,8 @@ def create_feature_data(
             feature_data_array.append(decoy_feature_data_table[i][5:])
 
 
-    feature_data_array = np.array(feature_data_array)
-    labels = np.array(labels)
+    feature_data_array = np.array(feature_data_array, dtype=np.float32)
+    labels = np.array(labels, dtype=np.float32)
 
     np.save(os.path.join(out_dir, data_npy), feature_data_array)
     np.save(os.path.join(out_dir, labels_npy), labels)

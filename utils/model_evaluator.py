@@ -122,7 +122,7 @@ def create_output_array(
     if len(output_array.shape) > 2:
         output_array = output_array.reshape(output_array.shape[0], -1)
 
-    np.save(os.path.join(npy_dir, npy_name), output_array)
+    np.save(os.path.join(npy_dir, npy_name), output_array.astype(np.float32))
 
     return output_array
 
@@ -275,7 +275,7 @@ def create_results_file(
 
             start_idx, end_idx = best_region.start, best_region.stop
 
-            left_width, right_width = start_idx, end_idx
+            left_width, right_width = start_idx, end_idx - 1
 
             score = scores[best_region_idx]
 
@@ -314,7 +314,10 @@ def create_results_file(
                 score,
                 high_quality])
 
-    np.save(os.path.join(out_dir, 'label_' + npy_name), label_output_array)
+    np.save(
+        os.path.join(out_dir, 'label_' + npy_name),
+        label_output_array.astype(np.int32)
+    )
 
     model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
 

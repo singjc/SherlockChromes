@@ -95,7 +95,7 @@ def merge_chromatogram_and_decoy_chromatogram_file(
         chromatogram_labels.shape[0] + num_decoys,
         chromatogram_labels.shape[1])
 
-    np.save(new_prefix + chromatogram_npy, final_labels)
+    np.save(new_prefix + chromatogram_npy, final_labels.astype(np.int32))
 
 if __name__ == '__main__':
     merge_chromatogram_and_decoy_chromatogram_file(

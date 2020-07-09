@@ -185,10 +185,10 @@ def create_chromatogram(
 
     chromatogram = np.concatenate(chromatogram, axis=0)
 
-    lib_rt_idx, osw_label_left_idx, osw_label_right_idx = None, None, None
+    osw_label_left_idx, osw_label_right_idx = None, None
     ss_left_idx, ss_right_idx = None, None
 
-    lib_rt_idx, ss_left_idx, ss_right_idx = get_subsequence_idxs(
+    ss_left_idx, ss_right_idx = get_subsequence_idxs(
         ms1_rt_array, lib_rt, analysis_win_size)
 
     if analysis_win_size > -1:
@@ -205,7 +205,7 @@ def create_chromatogram(
 
     return (
         chromatogram,
-        lib_rt_idx,
+        lib_rt,
         ss_left_idx,
         ss_right_idx,
         osw_label_left_idx,
@@ -238,7 +238,7 @@ def create_repl_chromatograms_array(
             'ID',
             'Filename',
             'External Precursor ID',
-            'External Library RT/RT IDX',
+            'External Library RT',
             'Window Size',
             'External Label Left IDX',
             'External Label Right IDX',
@@ -279,7 +279,7 @@ def create_repl_chromatograms_array(
 
         (
             chromatogram,
-            lib_rt_idx,
+            lib_rt,
             ss_left_idx,
             ss_right_idx,
             osw_label_left_idx,
@@ -336,7 +336,7 @@ def create_repl_chromatograms_array(
             idx,
             filename,
             prec_id,
-            lib_rt_idx,
+            lib_rt,
             analysis_win_size,
             osw_label_left_idx,
             osw_label_right_idx,
@@ -353,8 +353,7 @@ def create_repl_chromatograms_array(
 
     np.save(
         os.path.join(work_dir, f'{repl}_chromatograms_array'),
-        chromatograms_array,
-        dtype='float32'
+        chromatograms_array.astype(np.float32)
     )
 
     if create_label_arrays:
@@ -367,12 +366,11 @@ def create_repl_chromatograms_array(
 
         np.save(
             os.path.join(work_dir, f'{repl}_segmentation_labels_array'),
-            segmentation_labels_array,
-            dtype='float32'
+            segmentation_labels_array.astype(np.int32)
         )
 
         classificaton_labels_array = np.array(
-            classification_labels_array).reshape((-1, 1))
+            classification_labels_array, dtype=np.int32).reshape((-1, 1))
         
         # Change labels from decoy to non-decoy as positive class
         classification_labels_array = 1 - classification_labels_array
@@ -384,8 +382,7 @@ def create_repl_chromatograms_array(
 
         np.save(
             os.path.join(work_dir, f'{repl}_classification_labels_array'),
-            classification_labels_array,
-            dtype='int32'
+            classification_labels_array
         )
 
     with open(os.path.join(work_dir, f'{repl}_chromatograms.csv'), 'w') as out:

@@ -257,7 +257,7 @@ def create_data_from_transition_ids(
             free_idx+= 1
 
         if window_size >= 0:
-            _, subsection_left, subsection_right = get_subsequence_idxs(
+            subsection_left, subsection_right = get_subsequence_idxs(
                 times, exp_rt, window_size)
 
             chromatogram = chromatogram[:, subsection_left:subsection_right]
@@ -285,13 +285,6 @@ def create_data_from_transition_ids(
                 bb_start, bb_end = None, None
 
         if mode == 'npy':
-            # np.save(os.path.join(out, chromatogram_filename), chromatogram)
-            
-            # if extra_features:
-            #     np.save(
-            #         os.path.join(out, chromatogram_filename + '_Extra'),
-            #         extra
-            #     )
             chromatogram = np.concatenate([chromatogram, extra], axis=0)
 
             return row_labels, bb_start, bb_end, chromatogram
@@ -453,8 +446,11 @@ def get_cnn_data(
 
     if not csv_only and scored:
         if mode == 'npy':
-            np.save(chromatograms_filename, np.vstack(chromatograms_array))
-            np.save(labels_filename, np.vstack(label_matrix))
+            np.save(
+                chromatograms_filename,
+                np.vstack(chromatograms_array).astype(np.float32)
+            )
+            np.save(labels_filename, np.vstack(label_matrix).astype(np.int32))
         elif mode == 'hdf5':
             out.create_dataset(
                 labels_filename, data=np.vstack(label_matrix))
