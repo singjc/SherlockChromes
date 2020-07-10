@@ -66,7 +66,6 @@ def create_output_array(
     threshold=0.5,
     template_dataset=None,
     template_batch_size=4):
-    model.output_mode = 'both'
     output_array = []
 
     if load_npy:
@@ -109,13 +108,15 @@ def create_output_array(
         else:
             output = model(chromatograms)
         
-        b, _, _ = chromatograms.size()
-        output['strong'] = (
-            output['strong']
-            / torch.max(output['strong'], dim=1).values.view(b, 1)
-            * output['weak']
-        )
-        output_array.append(output['strong'].detach().to('cpu').numpy())
+        if hasattr(model, 'output_mode') and model.output_mode = 'both':
+            b, _, _ = chromatograms.size()
+            output = (
+                output['strong']
+                / torch.max(output['strong'], dim=1).values.view(b, 1)
+                * output['weak']
+            )
+
+        output_array.append(output.detach().to('cpu').numpy())
 
     output_array = np.vstack(output_array)
 
@@ -326,65 +327,6 @@ def create_results_file(
         index=False,
         header=False)
 
-def create_stats_eval_file(
-    output_array,
-    num_points=3,
-    data_dir='OpenSWATHAutoAnnotated',
-    chromatograms_csv='chromatograms.csv',
-    out_dir='.',
-    results_csv='evaluation_results.csv'):
-    chromatograms = pd.read_csv(os.path.join(
-        data_dir, chromatograms_csv))
-
-    assert len(chromatograms) == output_array.shape[0]
-
-    model_bounding_boxes = \
-        [
-            [
-                'ID',
-                'Filename',
-                'Label BBox Start',
-                'Label BBox End',
-                'Pred BBox Start',
-                'Pred BBox End',
-                'OSW Score',
-                'Model Score',
-                'Lib RT',
-                'Window Size'
-            ]
-        ]
-
-    for i in range(len(chromatograms)):
-        print(i)
-
-        row = chromatograms.iloc[i]
-
-        output = output_array[i, :]
-
-        largest_idx = np.argmax(output)
-
-        left_width = largest_idx - (num_points // 2)
-        right_width = largest_idx + (num_points // 2)
-
-        model_bounding_boxes.append([
-                row['ID'],
-                row['Filename'],
-                row['BB Start'],
-                row['BB End'],
-                left_width,
-                right_width,
-                row['OSW Score'],
-                str(output[largest_idx]),
-                row['Lib RT'],
-                row['Window Size']])
-
-    model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
-
-    model_bounding_boxes.to_csv(
-        os.path.join(out_dir, results_csv),
-        index=False,
-        header=False)
-
 if __name__ == "__main__":
     start = time.time()
 
@@ -402,6 +344,8 @@ if __name__ == "__main__":
     parser.add_argument(
         '-model_pth', '--model_pth', type=str, default='model.pth')
     parser.add_argument(
+        '-output_mode', '--output_mode', type=str, default='strong')
+    parser.add_argument(
         '-out_dir', '--out_dir', type=str, default='results')
     parser.add_argument(
         '-results_csv', '--results_csv', type=str, default='results.csv')
@@ -414,7 +358,6 @@ if __name__ == "__main__":
     parser.add_argument(
         '-npy_name', '--npy_name', type=str, default='output_array')
     parser.add_argument('-mode', '--mode', type=str, default='inference')
-    parser.add_argument('-num_points', '--num_points', type=int, default=3)
     parser.add_argument(
         '-template_chromatograms_csv',
         '--template_chromatograms_csv',
@@ -535,6 +478,9 @@ if __name__ == "__main__":
 
     if hasattr(model, 'get_model'):
         model = model.get_model()
+
+    if hasattr(model, 'output_mode'):
+        model.output_mode = args.output_mode
     
     if args.mode == 'rpn':
         model.mode = 'test'
@@ -610,22 +556,13 @@ if __name__ == "__main__":
             save_path = os.path.join(args.out_dir, save_name)
             torch.save(model, save_path)
 
-        if args.mode in ['alignment', 'inference']:
-            create_results_file(
-                output_array,
-                args.threshold,
-                args.data_dir,
-                args.chromatograms_csv,
-                args.out_dir,
-                args.npy_name,
-                args.results_csv)
-        elif args.mode == 'stats':
-            create_stats_eval_file(
-                output_array,
-                args.num_points,
-                args.data_dir,
-                args.chromatograms_csv,
-                args.out_dir,
-                args.results_csv)
+        create_results_file(
+            output_array,
+            args.threshold,
+            args.data_dir,
+            args.chromatograms_csv,
+            args.out_dir,
+            args.npy_name,
+            args.results_csv)
 
     print('It took {0:0.1f} seconds'.format(time.time() - start))
