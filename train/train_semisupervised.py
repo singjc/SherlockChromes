@@ -180,34 +180,41 @@ def train(
                 preds = model(batch)
                 strong_preds = preds['strong']
                 weak_preds = preds['weak']
+
+                if kwargs['use_weak_labels']:
+                    strong_preds = (
+                        strong_preds
+                        / torch.max(
+                            strong_preds, dim=1
+                        ).values.view(kwargs['batch_size'], 1)
+                        * weak_preds
+                    )
+
                 binarized_preds = np.where(strong_preds.cpu() >= 0.5, 1, 0)
                 inverse_binarized_preds = (1 - binarized_preds)
                 global_preds = np.zeros(labels.shape)
 
                 for i in range(len(strong_preds)):
-                    if weak_preds[i] < 0.5:
-                        global_preds[i] = 0
-                    else:
-                        gaps = scipy.ndimage.find_objects(
-                            scipy.ndimage.label(inverse_binarized_preds[i])[0])
+                    gaps = scipy.ndimage.find_objects(
+                        scipy.ndimage.label(inverse_binarized_preds[i])[0])
 
-                        for gap in gaps:
-                            gap = gap[0]
-                            gap_length = gap.stop - gap.start
+                    for gap in gaps:
+                        gap = gap[0]
+                        gap_length = gap.stop - gap.start
 
-                            if gap_length < 3:
-                                binarized_preds[i][gap.start:gap.stop] = 1
-                                
-                        regions_of_interest = scipy.ndimage.find_objects(
-                            scipy.ndimage.label(binarized_preds[i])[0])
+                        if gap_length < 3:
+                            binarized_preds[i][gap.start:gap.stop] = 1
+                            
+                    regions_of_interest = scipy.ndimage.find_objects(
+                        scipy.ndimage.label(binarized_preds[i])[0])
 
-                        for roi in regions_of_interest:
-                            roi = roi[0]
-                            roi_length = roi.stop - roi.start
+                    for roi in regions_of_interest:
+                        roi = roi[0]
+                        roi_length = roi.stop - roi.start
 
-                            if 2 < roi_length < 60:
-                                global_preds[i] = 1
-                                break
+                        if 2 < roi_length < 60:
+                            global_preds[i] = 1
+                            break
 
                 outputs_for_metrics.append(global_preds)
                 loss_out = loss(
