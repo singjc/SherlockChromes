@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from optimizers.ece_loss import ECELossBinary
 from optimizers.focal_loss import FocalLossBinary
 
+
 class TemperatureScaler(nn.Module):
     """
     A thin decorator, which wraps a model with temperature scaling
@@ -33,7 +34,8 @@ class TemperatureScaler(nn.Module):
         Perform temperature scaling on logits
         """
         # Expand temperature to match the size of logits
-        temperature = self.temperature.unsqueeze(1).expand(logits.size(0), logits.size(1))
+        temperature = self.temperature.unsqueeze(1).expand(
+            logits.size(0), logits.size(1))
 
         return logits / temperature
 
@@ -66,7 +68,7 @@ class TemperatureScaler(nn.Module):
                         / torch.max(logits['strong'], dim=1).values.view(b, 1)
                         * logits['weak']
                     )
-                
+
                 logits_list.append(logits)
                 labels_list.append(label)
 
@@ -76,7 +78,8 @@ class TemperatureScaler(nn.Module):
         # Calculate FL and ECE before temperature scaling
         before_temperature_fl = fl_criterion(logits, labels).item()
         before_temperature_ece = ece_criterion(logits, labels).item()
-        print('Before temperature - FL: %.3f, ECE: %.3f' % (before_temperature_fl, before_temperature_ece))
+        print('Before temperature - FL: %.3f, ECE: %.3f' % (
+            before_temperature_fl, before_temperature_ece))
 
         # Next: optimize the temperature w.r.t. FL
         optimizer = optim.LBFGS([self.temperature], lr=0.01, max_iter=50)
@@ -90,12 +93,16 @@ class TemperatureScaler(nn.Module):
         optimizer.step(evaluate)
 
         # Calculate FL and ECE after temperature scaling
-        after_temperature_fl = fl_criterion(self.scale_temperature(logits), labels).item()
-        after_temperature_ece = ece_criterion(self.scale_temperature(logits), labels).item()
+        after_temperature_fl = fl_criterion(
+            self.scale_temperature(logits), labels).item()
+        after_temperature_ece = ece_criterion(
+            self.scale_temperature(logits), labels).item()
         print('Optimal temperature: %.3f' % self.temperature.item())
-        print('After temperature - FL: %.3f, ECE: %.3f' % (after_temperature_fl, after_temperature_ece))
+        print('After temperature - FL: %.3f, ECE: %.3f' % (
+            after_temperature_fl, after_temperature_ece))
 
         return self
+
 
 class AlignmentTemperatureScaler(TemperatureScaler):
     """
@@ -110,7 +117,8 @@ class AlignmentTemperatureScaler(TemperatureScaler):
         return self.sigmoid(self.scale_temperature(logits))
 
     def set_temperature(
-        self, val_loader, val_templates_loader, alpha=0.25, gamma=2):
+        self, val_loader, val_templates_loader, alpha=0.25, gamma=2
+    ):
         """
         Tune the tempearature of the model (using the validation set).
         We're going to set it to optimize FL.
@@ -145,7 +153,7 @@ class AlignmentTemperatureScaler(TemperatureScaler):
                         / torch.max(logits['strong'], dim=1).values.view(b, 1)
                         * logits['weak']
                     )
-                    
+
                 logits_list.append(logits)
                 labels_list.append(label)
 
@@ -155,7 +163,8 @@ class AlignmentTemperatureScaler(TemperatureScaler):
         # Calculate FL and ECE before temperature scaling
         before_temperature_fl = fl_criterion(logits, labels).item()
         before_temperature_ece = ece_criterion(logits, labels).item()
-        print('Before temperature - FL: %.3f, ECE: %.3f' % (before_temperature_fl, before_temperature_ece))
+        print('Before temperature - FL: %.3f, ECE: %.3f' % (
+            before_temperature_fl, before_temperature_ece))
 
         # Next: optimize the temperature w.r.t. FL
         optimizer = optim.LBFGS([self.temperature], lr=0.01, max_iter=50)
@@ -169,9 +178,12 @@ class AlignmentTemperatureScaler(TemperatureScaler):
         optimizer.step(evaluate)
 
         # Calculate FL and ECE after temperature scaling
-        after_temperature_fl = fl_criterion(self.scale_temperature(logits), labels).item()
-        after_temperature_ece = ece_criterion(self.scale_temperature(logits), labels).item()
+        after_temperature_fl = fl_criterion(
+            self.scale_temperature(logits), labels).item()
+        after_temperature_ece = ece_criterion(
+            self.scale_temperature(logits), labels).item()
         print('Optimal temperature: %.3f' % self.temperature.item())
-        print('After temperature - FL: %.3f, ECE: %.3f' % (after_temperature_fl, after_temperature_ece))
+        print('After temperature - FL: %.3f, ECE: %.3f' % (
+            after_temperature_fl, after_temperature_ece))
 
         return self

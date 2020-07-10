@@ -7,6 +7,7 @@ import torch
 
 from torch.utils.data import Dataset
 
+
 class Subset(Dataset):
     """
     Subset of a dataset at specified indices.
@@ -28,6 +29,7 @@ class Subset(Dataset):
     def __len__(self):
         return len(self.indices)
 
+
 class ChromatogramsDataset(Dataset):
     """Whole Chromatograms dataset with point labels."""
 
@@ -38,11 +40,12 @@ class ChromatogramsDataset(Dataset):
         labels=None,
         extra_path=None,
         transform=None,
-        preload=False):
+        preload=False
+    ):
         """
         Args:
             root_path (string): Path to the root folder.
-            chromatograms (string): Filename of CSV with chromatogram 
+            chromatograms (string): Filename of CSV with chromatogram
                 filenames.
             labels (string): Filename of the npy file with labels.
             extra_path (string, optional): Path to folder containing additional
@@ -57,7 +60,7 @@ class ChromatogramsDataset(Dataset):
             self.labels = np.load(os.path.join(self.root_dir, labels))
         else:
             self.labels = False
-        
+
         self.extra_dir = extra_path
         self.transform = transform
         self.preload = preload
@@ -66,15 +69,15 @@ class ChromatogramsDataset(Dataset):
             npys = []
             for i in range(len(self.chromatograms)):
                 npys.append(self.load_chromatogram(i))
-            
+
             self.chromatogram_npy = np.stack(npys)
-    
+
     def __len__(self):
         return len(self.chromatograms)
 
     def __getitem__(self, idx):
         chromatogram_id = self.chromatograms.iloc[idx, 0]
-        
+
         if self.preload:
             chromatogram = self.chromatogram_npy[chromatogram_id]
         else:
@@ -112,7 +115,7 @@ class ChromatogramsDataset(Dataset):
                 self.chromatograms.iloc[idx, 1]) + '_Extra.npy'
 
             npy_names.append(extra_name)
-            
+
         chromatogram = self.load_npy(npy_names)
 
         return chromatogram
@@ -120,10 +123,11 @@ class ChromatogramsDataset(Dataset):
     def get_bb(self, idx):
         bb_start, bb_end = \
             self.chromatograms.iloc[idx, 2], self.chromatograms.iloc[idx, 3]
-        
+
         return bb_start, bb_end
 
-#TODO: Unfinished!!!
+
+# TODO: Unfinished!!!
 class HDF5ChromatogramsDataset(Dataset):
     """Whole Chromatograms HDF5 dataset with point labels."""
 
@@ -135,11 +139,12 @@ class HDF5ChromatogramsDataset(Dataset):
         labels=None,
         preload=False,
         transform=None,
-        extra_features=[]):
+        extra_features=[]
+    ):
         """
         Args:
             root_path (string): Path to the root folder.
-            chromatograms (string): Filename of CSV with chromatogram 
+            chromatograms (string): Filename of CSV with chromatogram
                 filenames.
             hdf5 (string): Filename of the HDF5 file.
             transform (callable, optional): Optional transform to be applied
@@ -163,15 +168,15 @@ class HDF5ChromatogramsDataset(Dataset):
             npys = []
             for i in range(len(self.chromatograms)):
                 npys.append(self.load_chromatogram(i))
-            
+
             self.chromatogram_npy = np.stack(npys)
-    
+
     def __len__(self):
         return len(self.chromatograms)
 
     def __getitem__(self, idx):
         chromatogram_id = self.chromatograms.iloc[idx, 0]
-        
+
         if self.preload:
             chromatogram = self.chromatogram_npy[chromatogram_id]
         else:
@@ -201,8 +206,9 @@ class HDF5ChromatogramsDataset(Dataset):
     def get_bb(self, idx):
         bb_start, bb_end = \
             self.chromatograms.iloc[idx, 2], self.chromatograms.iloc[idx, 3]
-        
+
         return bb_start, bb_end
+
 
 class NpyChromatogramsDataset(Dataset):
     """Whole Chromatograms npy dataset with point labels."""
@@ -217,11 +223,12 @@ class NpyChromatogramsDataset(Dataset):
         load_weak_labels=False,
         memmap=False,
         num_features=497,
-        transform=None):
+        transform=None
+    ):
         """
         Args:
             root_path (string): Path to the root folder.
-            chromatograms_csv (string): Filename of CSV with chromatogram 
+            chromatograms_csv (string): Filename of CSV with chromatogram
                 filenames.
             chromatograms_npy (string): Filename of npy file with chromatogram
                 data.
@@ -234,12 +241,12 @@ class NpyChromatogramsDataset(Dataset):
         """
         self.root_dir = root_path
         self.chromatograms_csv = pd.read_csv(os.path.join(self.root_dir,
-                                         chromatograms_csv))
+                                             chromatograms_csv))
 
         if memmap:
             rows = len(self.chromatograms_csv)
             cols = self.chromatograms_csv.iloc[0, 4]
-        
+
         chromatograms_filename = os.path.join(self.root_dir, chromatograms_npy)
 
         if memmap:
@@ -284,7 +291,7 @@ class NpyChromatogramsDataset(Dataset):
 
         self.load_weak_labels = load_weak_labels and weak_labels
         self.transform = transform
-    
+
     def __len__(self):
         return len(self.chromatograms_csv)
 
@@ -305,10 +312,13 @@ class NpyChromatogramsDataset(Dataset):
         return chromatogram, label
 
     def get_bb(self, idx):
-        bb_start, bb_end = \
-            self.chromatograms_csv.iloc[idx, 5], self.chromatograms_csv.iloc[idx, 6]
-        
+        bb_start, bb_end = (
+            self.chromatograms_csv.iloc[idx, 5],
+            self.chromatograms_csv.iloc[idx, 6]
+        )
+
         return bb_start, bb_end
+
 
 class TarChromatogramsDataset(Dataset):
     """Whole Chromatograms tar dataset with point labels."""
@@ -327,11 +337,12 @@ class TarChromatogramsDataset(Dataset):
         external_extra_features=[],
         preload=False,
         preload_path='',
-        transform=None):
+        transform=None
+    ):
         """
         Args:
             root_path (string): Path to the root folder.
-            chromatograms (string): Filename of CSV with chromatogram 
+            chromatograms (string): Filename of CSV with chromatogram
                 filenames.
             tar (string): Filename of the tar file.
             tar_shape (tuple of int): Shape of individual chromatogram
@@ -382,22 +393,22 @@ class TarChromatogramsDataset(Dataset):
                 channels = self.tar_shape[0] + len(
                     self.internal_extra_features)
                 for i in range(len(self.external_extra_paths)):
-                    channels+= len(self.external_extra_features[i])
+                    channels += len(self.external_extra_features[i])
 
                 self.chromatogram_npy = np.zeros(
                     (len(self.chromatograms), channels, self.tar_shape[1]))
 
                 for i in range(len(self.chromatograms)):
                     self.chromatogram_npy[i] = self.load_chromatogram(i)
-                
+
                 np.save(preload_path, self.chromatogram_npy)
-    
+
     def __len__(self):
         return len(self.chromatograms)
 
     def __getitem__(self, idx):
         chromatogram_id = self.chromatograms.iloc[idx, 0]
-        
+
         if self.preload:
             chromatogram = self.chromatogram_npy[chromatogram_id]
         else:
@@ -422,7 +433,7 @@ class TarChromatogramsDataset(Dataset):
 
         if not self.internal_extra and len(self.external_extra_paths) < 1:
             return dataset
-        
+
         dataset = [dataset]
         if self.internal_extra:
             extracted = self.tar.extractfile(f'{name}_Extra')
@@ -430,7 +441,7 @@ class TarChromatogramsDataset(Dataset):
                 extracted.read(),
                 dtype=np.float64
             ).reshape(self.internal_extra_shape)[self.internal_extra_features]
-            
+
             dataset.append(internal_extra)
 
         if len(self.external_extra_paths) > 0:
@@ -457,8 +468,9 @@ class TarChromatogramsDataset(Dataset):
     def get_bb(self, idx):
         bb_start, bb_end = \
             self.chromatograms.iloc[idx, 2], self.chromatograms.iloc[idx, 3]
-        
+
         return bb_start, bb_end
+
 
 class ChromatogramsBBoxDataset(Dataset):
     """Whole Chromatograms dataset with bounding boxes."""
@@ -476,7 +488,7 @@ class ChromatogramsBBoxDataset(Dataset):
         self.chromatograms = pd.read_csv(os.path.join(self.root_dir,
                                          chromatograms))
         self.transform = transform
-    
+
     def __len__(self):
         return len(self.chromatograms)
 
@@ -494,6 +506,7 @@ class ChromatogramsBBoxDataset(Dataset):
             chromatogram, bbox = self.transform((chromatogram, bbox))
 
         return chromatogram, bbox
+
 
 class ChromatogramSubsectionsDataset(Dataset):
     """Chromatogram Subsections dataset."""
@@ -513,7 +526,7 @@ class ChromatogramSubsectionsDataset(Dataset):
         self.labels = [self.chromatograms.iloc[idx, 2] for idx in range(
             len(self.chromatograms))]
         self.transform = transform
-    
+
     def __len__(self):
         return len(self.chromatograms)
 
@@ -529,10 +542,13 @@ class ChromatogramSubsectionsDataset(Dataset):
 
         return chromatogram, label
 
+
 class ChromatogramSubsectionsInMemoryDataset(Dataset):
     """Chromatogram Subsections In Memory dataset."""
 
-    def __init__(self, root_path, chromatograms, chromatograms_npy, transform=None):
+    def __init__(
+        self, root_path, chromatograms, chromatograms_npy, transform=None
+    ):
         """
         Args:
             root_path (string): Path to the root folder.
@@ -552,7 +568,7 @@ class ChromatogramSubsectionsInMemoryDataset(Dataset):
         self.chromatograms_npy = np.load(
             os.path.join(self.root_dir, chromatograms_npy) + '.npy')
         self.transform = transform
-    
+
     def __len__(self):
         return len(self.chromatograms)
 

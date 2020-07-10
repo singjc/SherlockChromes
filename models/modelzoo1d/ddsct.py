@@ -6,6 +6,7 @@ import torch.nn.functional as F
 
 from models.modelzoo1d.dain import DAIN_Layer
 
+
 class DynamicDepthSeparableConv1d(nn.Module):
     def __init__(
         self,
@@ -80,6 +81,7 @@ class DynamicDepthSeparableConv1d(nn.Module):
 
         return out
 
+
 class DynamicDepthSeparableConv1dMultiheadAttention(nn.Module):
     def __init__(
         self,
@@ -87,13 +89,14 @@ class DynamicDepthSeparableConv1dMultiheadAttention(nn.Module):
         heads=8,
         kernel_sizes=[3, 15],
         share_encoder=False,
-        save_attn=False):
+        save_attn=False
+    ):
         super(DynamicDepthSeparableConv1dMultiheadAttention, self).__init__()
         self.heads = heads
         self.kernel_sizes = kernel_sizes
         self.save_attn = save_attn
 
-        # These compute the queries, keys, and values for all 
+        # These compute the queries, keys, and values for all
         # heads (as a single concatenated vector)
         self.to_queries = DynamicDepthSeparableConv1d(
             c,
@@ -116,7 +119,7 @@ class DynamicDepthSeparableConv1dMultiheadAttention(nn.Module):
             kernel_sizes=kernel_sizes
         )
 
-        # This unifies the outputs of the different heads into a single 
+        # This unifies the outputs of the different heads into a single
         # c-vector
         if self.heads > 1:
             self.unify_heads = nn.Conv1d(heads * c, c, 1)
@@ -176,6 +179,7 @@ class DynamicDepthSeparableConv1dMultiheadAttention(nn.Module):
 
         return out
 
+
 class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
     def __init__(
         self,
@@ -184,14 +188,15 @@ class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
         heads=8,
         kernel_sizes=[3, 15],
         share_encoder=False,
-        save_attn=False):
+        save_attn=False
+    ):
         super(
             DynamicDepthSeparableConv1dTemplateAttention, self).__init__()
         self.heads = heads
         self.kernel_sizes = kernel_sizes
         self.save_attn = save_attn
 
-        # These compute the queries, keys, and values for all 
+        # These compute the queries, keys, and values for all
         # heads (as a single concatenated vector)
         self.to_queries = DynamicDepthSeparableConv1d(
             qk_c,
@@ -214,7 +219,7 @@ class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
             kernel_sizes=kernel_sizes
         )
 
-        # This unifies the outputs of the different heads into a single 
+        # This unifies the outputs of the different heads into a single
         # v_c-vector
         if self.heads > 1:
             self.unify_heads = nn.Conv1d(heads * v_c, v_c, 1)
@@ -284,6 +289,7 @@ class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
 
         return out
 
+
 class Conv1dFeedForwardNetwork(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
         super(Conv1dFeedForwardNetwork, self).__init__()
@@ -302,6 +308,7 @@ class Conv1dFeedForwardNetwork(nn.Module):
 
         return x
 
+
 class DynamicDepthSeparableConv1dTransformerBlock(nn.Module):
     def __init__(
         self,
@@ -311,7 +318,8 @@ class DynamicDepthSeparableConv1dTransformerBlock(nn.Module):
         share_encoder=False,
         save_attn=False,
         depth_multiplier=4,
-        dropout=0.1):
+        dropout=0.1
+    ):
         super(DynamicDepthSeparableConv1dTransformerBlock, self).__init__()
         self.attention = DynamicDepthSeparableConv1dMultiheadAttention(
             c,
@@ -335,7 +343,7 @@ class DynamicDepthSeparableConv1dTransformerBlock(nn.Module):
 
         # 2D Dropout to simulate spatial dropout of entire channels
         self.dropout = nn.Dropout2d(dropout)
-        
+
     def forward(self, q, k=None, v=None):
         out = q
         attended = self.attention(q, k, v)
@@ -345,13 +353,15 @@ class DynamicDepthSeparableConv1dTransformerBlock(nn.Module):
 
         return out
 
+
 class TimeSeriesAttentionPooling(nn.Module):
     def __init__(
         self,
         c,
         heads=1,
         num_queries=1,
-        save_attn=False):
+        save_attn=False
+    ):
         super(TimeSeriesAttentionPooling, self).__init__()
         self.heads = heads
         self.num_queries = num_queries
@@ -370,10 +380,9 @@ class TimeSeriesAttentionPooling(nn.Module):
         b, c, l = x.size()
         h = self.heads
         queries = (self.query_embeds
-            .unsqueeze(0)
-            .repeat(b, 1, 1, 1)
-            .view(b * h, c, self.num_queries)
-        )
+                   .unsqueeze(0)
+                   .repeat(b, 1, 1, 1)
+                   .view(b * h, c, self.num_queries))
 
         # Repeat and fold heads into the batch dimension
         keys = values = x.repeat(1, h, 1).view(b * h, c, l)
@@ -398,16 +407,15 @@ class TimeSeriesAttentionPooling(nn.Module):
             self.attn = dot.view(b, h, l, self.num_queries)
 
         return out
-    
+
     def forward_unpool(self, x):
         b, c, l = x.size()
         h = self.heads
         queries = x.repeat(1, h, 1).view(b * h, c, l)
         keys = (self.query_embeds
-            .unsqueeze(0)
-            .repeat(b, 1, 1, 1)
-            .view(b * h, c, self.num_queries)
-        )
+                .unsqueeze(0)
+                .repeat(b, 1, 1, 1)
+                .view(b * h, c, self.num_queries))
 
         # Scale and get dot product of queries and keys
         queries = queries / (c ** (1 / 4))
@@ -427,6 +435,7 @@ class TimeSeriesAttentionPooling(nn.Module):
         if unpool:
             return self.forward_unpool(x)
         return self.forward_pool(x)
+
 
 class DDSCTransformer(nn.Module):
     def __init__(
@@ -450,7 +459,8 @@ class DDSCTransformer(nn.Module):
         output_num_layers=1,
         output_mode='strong',
         output_is_unpooled=False,
-        probs=True):
+        probs=True
+    ):
         super(DDSCTransformer, self).__init__()
         self.save_normalized = save_normalized
         self.use_templates = use_templates
@@ -473,7 +483,7 @@ class DDSCTransformer(nn.Module):
             1
         )
 
-        # The sequence of transformer blocks that does all the 
+        # The sequence of transformer blocks that does all the
         # heavy lifting
         t_blocks = []
         for i in range(depth):
@@ -505,7 +515,7 @@ class DDSCTransformer(nn.Module):
             )
 
         if self.cat_templates:
-            t_out_channels+= 1
+            t_out_channels += 1
         elif self.use_templates:
             t_out_channels = 1
 
@@ -524,7 +534,7 @@ class DDSCTransformer(nn.Module):
             output_num_classes,
             num_layers=output_num_layers
         )
-        
+
         # Maps the final logits to probabilities
         self.to_probs = nn.Sigmoid()
 
@@ -556,7 +566,7 @@ class DDSCTransformer(nn.Module):
                 out = torch.cat([out, out_weighted], dim=1)
             else:
                 out = out_weighted
-        
+
         out_dict = {}
 
         if self.output_mode == 'weak' or self.output_mode == 'both':

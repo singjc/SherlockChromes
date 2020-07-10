@@ -10,10 +10,12 @@ import sqlite3
 
 from sklearn.model_selection import KFold
 
+
 def calc_bin_idx(mz, min_mz, bin_resolution):
     bin_idx = math.floor((mz - min_mz) / bin_resolution)
 
     return bin_idx
+
 
 def get_subsequence_idxs(sequence, value, subsequence_size=-1):
     value_idx = bisect.bisect_left(sequence, value)
@@ -35,43 +37,39 @@ def get_subsequence_idxs(sequence, value, subsequence_size=-1):
 
     return subsequence_left, subsequence_right
 
+
 def merge_repl_files(pattern):
     repl_names = sorted([f.split('.')[0] for f in glob.glob(f'{pattern}*gz')])
 
     combined_csv = pd.concat(
         [pd.read_csv(f'{f}_chromatograms.csv') for f in repl_names],
-        ignore_index=True
-    )
+        ignore_index=True)
     combined_csv.iloc[:, 0] = combined_csv.index
     combined_csv.to_csv(f'{pattern}_csv.csv', index=False)
 
     extensions = [
         '_chromatograms_array',
         '_segmentation_labels_array',
-        '_classification_labels_array'
-    ]
+        '_classification_labels_array']
 
     for extension in extensions:
         combined_npy = []
 
         for repl in repl_names:
-            combined_npy.append(
-                np.load(f'{repl}{extension}.npy')
-            )
+            combined_npy.append(np.load(f'{repl}{extension}.npy'))
 
         dtype = np.int32 if 'labels' in extension else np.float32
+        np.save(f'{pattern}{extension}', np.concatenate(combined_npy).astype(
+            dtype))
 
-        np.save(
-            f'{pattern}{extension}',
-            np.concatenate(combined_npy).astype(dtype)
-        )
 
 def overlaps(
     pred_min,
     pred_max,
     target_min,
     target_max,
-    threshold=0.7):
+    threshold=0.7
+):
     if not pred_min or not pred_max or not target_min or not target_max:
         return False
 
@@ -82,10 +80,12 @@ def overlaps(
         return True
     return False
 
+
 def get_high_quality_training_labels(
     target_csv,
     og_train_idx_filename,
-    new_train_idx_filename):
+    new_train_idx_filename
+):
     idxs = {}
     with open(og_train_idx_filename, 'r') as idx_file:
         for line in idx_file:
@@ -105,6 +105,7 @@ def get_high_quality_training_labels(
                 new_idxs.append(int(idx))
 
     np.savetxt(new_train_idx_filename, np.array(new_idxs))
+
 
 def parse_manual_annotation_file(manual_annotation_filename, rt_gap=3.4):
     filename_to_annotation = {}
@@ -133,10 +134,10 @@ def parse_manual_annotation_file(manual_annotation_filename, rt_gap=3.4):
                 'end_time': end_time,
                 'lib_rt_idx': lib_rt_idx,
                 'lib_rt': lib_rt,
-                'win_size': win_size
-            }
+                'win_size': win_size}
 
     return filename_to_annotation
+
 
 def get_naked_seq(seq):
     if '_' in seq:
@@ -150,24 +151,25 @@ def get_naked_seq(seq):
 
     return seq
 
+
 def get_feature_data_table(osw_filename, decoy=0, spectral_info=True):
     con = sqlite3.connect(osw_filename)
     cursor = con.cursor()
 
     if spectral_info:
         query = \
-        """SELECT r.FILENAME, p2.MODIFIED_SEQUENCE, p1.CHARGE, f.LEFT_WIDTH, 
-        f.RIGHT_WIDTH, ms1.VAR_MASSDEV_SCORE, 
-        ms1.VAR_ISOTOPE_CORRELATION_SCORE, ms1.VAR_ISOTOPE_OVERLAP_SCORE, 
+        """SELECT r.FILENAME, p2.MODIFIED_SEQUENCE, p1.CHARGE, f.LEFT_WIDTH,
+        f.RIGHT_WIDTH, ms1.VAR_MASSDEV_SCORE,
+        ms1.VAR_ISOTOPE_CORRELATION_SCORE, ms1.VAR_ISOTOPE_OVERLAP_SCORE,
         ms1.VAR_XCORR_COELUTION, ms1.VAR_XCORR_SHAPE,
-        ms2.VAR_BSERIES_SCORE, ms2.VAR_DOTPROD_SCORE, ms2.VAR_INTENSITY_SCORE, 
-        ms2.VAR_ISOTOPE_CORRELATION_SCORE, ms2.VAR_ISOTOPE_OVERLAP_SCORE, 
-        ms2.VAR_LIBRARY_CORR, ms2.VAR_LIBRARY_DOTPROD, 
-        ms2.VAR_LIBRARY_MANHATTAN, ms2.VAR_LIBRARY_RMSD, 
-        ms2.VAR_LIBRARY_ROOTMEANSQUARE, ms2.VAR_LIBRARY_SANGLE, 
-        ms2.VAR_LOG_SN_SCORE, ms2.VAR_MANHATTAN_SCORE, ms2.VAR_MASSDEV_SCORE, 
-        ms2.VAR_MASSDEV_SCORE_WEIGHTED, ms2.VAR_NORM_RT_SCORE, 
-        ms2.VAR_XCORR_COELUTION, ms2.VAR_XCORR_COELUTION_WEIGHTED, 
+        ms2.VAR_BSERIES_SCORE, ms2.VAR_DOTPROD_SCORE, ms2.VAR_INTENSITY_SCORE,
+        ms2.VAR_ISOTOPE_CORRELATION_SCORE, ms2.VAR_ISOTOPE_OVERLAP_SCORE,
+        ms2.VAR_LIBRARY_CORR, ms2.VAR_LIBRARY_DOTPROD,
+        ms2.VAR_LIBRARY_MANHATTAN, ms2.VAR_LIBRARY_RMSD,
+        ms2.VAR_LIBRARY_ROOTMEANSQUARE, ms2.VAR_LIBRARY_SANGLE,
+        ms2.VAR_LOG_SN_SCORE, ms2.VAR_MANHATTAN_SCORE, ms2.VAR_MASSDEV_SCORE,
+        ms2.VAR_MASSDEV_SCORE_WEIGHTED, ms2.VAR_NORM_RT_SCORE,
+        ms2.VAR_XCORR_COELUTION, ms2.VAR_XCORR_COELUTION_WEIGHTED,
         ms2.VAR_XCORR_SHAPE, ms2.VAR_XCORR_SHAPE_WEIGHTED,
         ms2.VAR_YSERIES_SCORE, ms2.VAR_ELUTION_MODEL_FIT_SCORE
         FROM PRECURSOR p1
@@ -180,14 +182,14 @@ def get_feature_data_table(osw_filename, decoy=0, spectral_info=True):
         WHERE p1.DECOY = {0}""".format(decoy)
     else:
         query = \
-        """SELECT r.FILENAME, p2.MODIFIED_SEQUENCE, p1.CHARGE, f.LEFT_WIDTH, 
+        """SELECT r.FILENAME, p2.MODIFIED_SEQUENCE, p1.CHARGE, f.LEFT_WIDTH,
         f.RIGHT_WIDTH, ms1.VAR_XCORR_COELUTION, ms1.VAR_XCORR_SHAPE,
-        ms2.VAR_DOTPROD_SCORE, ms2.VAR_INTENSITY_SCORE, 
-        ms2.VAR_LIBRARY_CORR, ms2.VAR_LIBRARY_DOTPROD, 
-        ms2.VAR_LIBRARY_MANHATTAN, ms2.VAR_LIBRARY_RMSD, 
-        ms2.VAR_LIBRARY_ROOTMEANSQUARE, ms2.VAR_LIBRARY_SANGLE, 
-        ms2.VAR_LOG_SN_SCORE, ms2.VAR_MANHATTAN_SCORE, ms2.VAR_NORM_RT_SCORE, 
-        ms2.VAR_XCORR_COELUTION, ms2.VAR_XCORR_COELUTION_WEIGHTED, 
+        ms2.VAR_DOTPROD_SCORE, ms2.VAR_INTENSITY_SCORE,
+        ms2.VAR_LIBRARY_CORR, ms2.VAR_LIBRARY_DOTPROD,
+        ms2.VAR_LIBRARY_MANHATTAN, ms2.VAR_LIBRARY_RMSD,
+        ms2.VAR_LIBRARY_ROOTMEANSQUARE, ms2.VAR_LIBRARY_SANGLE,
+        ms2.VAR_LOG_SN_SCORE, ms2.VAR_MANHATTAN_SCORE, ms2.VAR_NORM_RT_SCORE,
+        ms2.VAR_XCORR_COELUTION, ms2.VAR_XCORR_COELUTION_WEIGHTED,
         ms2.VAR_XCORR_SHAPE, ms2.VAR_XCORR_SHAPE_WEIGHTED,
         ms2.VAR_ELUTION_MODEL_FIT_SCORE
         FROM PRECURSOR p1
@@ -198,12 +200,13 @@ def get_feature_data_table(osw_filename, decoy=0, spectral_info=True):
         LEFT JOIN FEATURE_MS1 ms1 ON f.ID = ms1.FEATURE_ID
         LEFT JOIN FEATURE_MS2 ms2 on f.ID = ms2.FEATURE_ID
         WHERE p1.DECOY = {0}""".format(decoy)
-    
+
     res = cursor.execute(query)
     tmp = res.fetchall()
     con.close()
-    
+
     return tmp
+
 
 def create_feature_data(
     manual_annotation_dir,
@@ -217,37 +220,30 @@ def create_feature_data(
     labels_npy,
     csv_filename,
     spectral_info=True,
-    decoys=False):
+    decoys=False
+):
     manual_annotation_filename = os.path.join(
         manual_annotation_dir, manual_annotation_filename)
     osw_filename = os.path.join(osw_dir, osw_filename)
-
     filename_to_annotation = parse_manual_annotation_file(
         manual_annotation_filename, rt_gap)
-
     feature_data_table = get_feature_data_table(
         osw_filename, 0, spectral_info)
-
     num_samples = len(feature_data_table)
-
     feature_data_array = []
-
     labels = []
-
     feature_data_csv = []
-
     feature_idx = 0
 
     for i in range(num_samples):
         if None in feature_data_table[i]:
             continue
-        
+
         filename, mod_seq, charge, left, right = feature_data_table[i][0:5]
         filename = '_'.join(
             [filename.split('/')[-1].split('.')[0], mod_seq, str(charge)])
-
         label = 0
-        
+
         if filename not in filename_to_annotation:
             continue
         elif overlaps(
@@ -255,23 +251,16 @@ def create_feature_data(
             right,
             filename_to_annotation[filename]['start_time'],
             filename_to_annotation[filename]['end_time'],
-            threshold):
+            threshold
+        ):
             label = 1
 
         left_idx = round(
-            ((
-                left - 
-                filename_to_annotation[filename]['lib_rt']) / 
-            rt_gap) + 
-            filename_to_annotation[filename]['lib_rt_idx'])
-
+            ((left - filename_to_annotation[filename]['lib_rt']) / rt_gap)
+            + filename_to_annotation[filename]['lib_rt_idx'])
         right_idx = round(
-            ((
-                right - 
-                filename_to_annotation[filename]['lib_rt']) / 
-            rt_gap) + 
-            filename_to_annotation[filename]['lib_rt_idx'])
-
+            ((right - filename_to_annotation[filename]['lib_rt']) / rt_gap)
+            + filename_to_annotation[filename]['lib_rt_idx'])
         labels.append([label])
         feature_data_csv.append(
             [
@@ -283,11 +272,9 @@ def create_feature_data(
                 filename_to_annotation[filename]['end_idx'],
                 label,
                 filename_to_annotation[filename]['lib_rt'],
-                filename_to_annotation[filename]['win_size']
-            ]
-        )
+                filename_to_annotation[filename]['win_size']])
 
-        feature_idx+= 1
+        feature_idx += 1
 
         feature_data_array.append(feature_data_table[i][5:])
 
@@ -300,7 +287,7 @@ def create_feature_data(
         for i in range(num_decoys):
             if None in decoy_feature_data_table[i]:
                 continue
-            
+
             filename, mod_seq, charge, left, right = (
                 decoy_feature_data_table[i][0:5])
             filename = '_'.join(
@@ -320,31 +307,23 @@ def create_feature_data(
                     None,
                     label,
                     None,
-                    None
-                ]
-            )
-
-            feature_idx+= 1
-
+                    None])
+            feature_idx += 1
             feature_data_array.append(decoy_feature_data_table[i][5:])
-
 
     feature_data_array = np.array(feature_data_array, dtype=np.float32)
     labels = np.array(labels, dtype=np.float32)
-
     np.save(os.path.join(out_dir, data_npy), feature_data_array)
     np.save(os.path.join(out_dir, labels_npy), labels)
 
     with open(os.path.join(out_dir, csv_filename), 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(
-            [
-                'ID', 'Filename', 'OSW BB Start', 'OSW BB End',
-                'Manual BB Start', 'Manual BB End', 'Label', 'Lib RT',
-                'Window Size'
-            ]
-        )
+            ['ID', 'Filename', 'OSW BB Start', 'OSW BB End',
+             'Manual BB Start', 'Manual BB End', 'Label', 'Lib RT',
+             'Window Size'])
         writer.writerows(feature_data_csv)
+
 
 def get_seqs_from_csv(seq_csv, naked=True, exclusion_seqs=None):
     excluded = {}
@@ -368,6 +347,7 @@ def get_seqs_from_csv(seq_csv, naked=True, exclusion_seqs=None):
 
     return seq_list
 
+
 def get_filenames_from_csv(seq_csv):
     filenames = {}
     with open(seq_csv, 'r') as seq_file:
@@ -380,6 +360,7 @@ def get_filenames_from_csv(seq_csv):
 
     return filenames
 
+
 def get_train_val_test_sequence_splits(
     seq_csv,
     out_dir,
@@ -387,7 +368,8 @@ def get_train_val_test_sequence_splits(
     test_proportion=0.1,
     train_seqs_filename='train_seqs.txt',
     val_seqs_filename='val_seqs.txt',
-    test_seqs_filename='test_seqs.txt'):
+    test_seqs_filename='test_seqs.txt'
+):
     seq_list = get_seqs_from_csv(seq_csv, naked)
 
     random.shuffle(seq_list)
@@ -415,8 +397,9 @@ def get_train_val_test_sequence_splits(
     train_seqs = {seq: True for seq in train_seqs}
     val_seqs = {seq: True for seq in val_seqs}
     test_seqs = {seq: True for seq in test_seqs}
-    
+
     return train_seqs, val_seqs, test_seqs
+
 
 def get_train_val_test_idx_from_sequences(
     split_csv,
@@ -425,7 +408,8 @@ def get_train_val_test_idx_from_sequences(
     test_seqs,
     naked=True,
     out_dir='.',
-    prefix='dl'):
+    prefix='dl'
+):
     train_idx, val_idx, test_idx = [], [], []
 
     with open(split_csv, 'r') as seqs:
@@ -451,20 +435,18 @@ def get_train_val_test_idx_from_sequences(
     np.savetxt(
         os.path.join(out_dir, f'{prefix}_train_idx.txt'),
         np.array(train_idx),
-        fmt='%i'
-    )
+        fmt='%i')
     np.savetxt(
         os.path.join(out_dir, f'{prefix}_val_idx.txt'),
         np.array(val_idx),
-        fmt='%i'
-    )
+        fmt='%i')
     np.savetxt(
         os.path.join(out_dir, f'{prefix}_test_idx.txt'),
         np.array(test_idx),
-        fmt='%i'
-    )
+        fmt='%i')
 
     return train_idx, val_idx, test_idx
+
 
 def create_train_val_test_split_by_sequence(
     in_dir,
@@ -473,7 +455,8 @@ def create_train_val_test_split_by_sequence(
     split_csv=None,
     naked=True,
     test_proportion=0.1,
-    prefix='dl'):
+    prefix='dl'
+):
     seq_csv = os.path.join(in_dir, seq_csv)
 
     if split_csv:
@@ -488,6 +471,7 @@ def create_train_val_test_split_by_sequence(
     train_idx, val_idx, test_idx = get_train_val_test_idx_from_sequences(
         seq_csv, train_seqs, val_seqs, test_seqs, naked, out_dir, prefix)
 
+
 def create_supervised_data_split(
     in_dir,
     dl_csv,
@@ -496,7 +480,8 @@ def create_supervised_data_split(
     naked=True,
     test_proportion=0.1,
     dl_prefix='dl',
-    trad_prefix='trad'):
+    trad_prefix='trad'
+):
     create_train_val_test_split_by_sequence(
         in_dir,
         dl_csv,
@@ -514,13 +499,15 @@ def create_supervised_data_split(
         test_proportion=test_proportion,
         prefix=trad_prefix)
 
+
 def get_kfold_sequence_splits(
     seq_csv,
     out_dir,
     exclusion_seqs=None,
     naked=True,
     n_splits=5,
-    prefix='mv'):
+    prefix='mv'
+):
     kf = KFold(n_splits=n_splits, shuffle=True)
     seq_splits = {}
     counter = 1
@@ -532,19 +519,19 @@ def get_kfold_sequence_splits(
             'train_seqs': {item: True for item in seq_list[train_idx]},
             'test_seqs': {item: True for item in seq_list[test_idx]}
         }
-        counter+= 1
+        counter += 1
 
     for split in seq_splits:
         for split_part in seq_splits[split]:
             with open(
                 os.path.join(
                     out_dir,
-                    f'{prefix}_{split}_{split_part}.txt'
-                ), 'w') as f:
+                    f'{prefix}_{split}_{split_part}.txt'), 'w') as f:
                 for seq in seq_splits[split][split_part]:
                     f.write(seq + '\n')
 
     return seq_splits
+
 
 def get_kfold_idx_from_sequences(
     seq_csv,
@@ -552,7 +539,8 @@ def get_kfold_idx_from_sequences(
     inclusion_filenames={},
     naked=True,
     out_dir='.',
-    prefix='labeled'):
+    prefix='labeled'
+):
     idx_splits = {
         split: {'train_idx': [], 'test_idx': []} for split in seq_splits
     }
@@ -591,6 +579,7 @@ def get_kfold_idx_from_sequences(
 
     return idx_splits
 
+
 def create_kfold_split_by_sequence(
     in_dir,
     seq_csv,
@@ -600,7 +589,8 @@ def create_kfold_split_by_sequence(
     inclusion_filename_csvs=[],
     naked=True,
     n_splits=5,
-    prefix='labeled'):
+    prefix='labeled'
+):
     seq_csv = os.path.join(in_dir, seq_csv)
 
     if idx_csv:
@@ -611,7 +601,7 @@ def create_kfold_split_by_sequence(
     if exclusion_seq_csvs:
         for exclusion_seq_csv in exclusion_seq_csvs:
             exclusion_seq_csv = os.path.join(in_dir, exclusion_seq_csv)
-            exclusion_seqs+= get_seqs_from_csv(exclusion_seq_csv, naked)
+            exclusion_seqs += get_seqs_from_csv(exclusion_seq_csv, naked)
 
     seq_splits = get_kfold_sequence_splits(
         seq_csv,
@@ -636,6 +626,7 @@ def create_kfold_split_by_sequence(
     idx_splits = get_kfold_idx_from_sequences(
         seq_csv, seq_splits, inclusion_filenames, naked, out_dir, prefix)
 
+
 def create_kfold_train_and_validation_and_holdout_test_by_sequence(
     in_dir,
     seq_csv,
@@ -643,7 +634,8 @@ def create_kfold_train_and_validation_and_holdout_test_by_sequence(
     naked=True,
     special_seq_csv=None,
     n_splits=5,
-    holdout_proportion=0.1):
+    holdout_proportion=0.1
+):
     special_seq_filenames = {}
 
     if special_seq_csv:
@@ -709,19 +701,22 @@ def create_kfold_train_and_validation_and_holdout_test_by_sequence(
     holdout_non_decoy_seqs = non_decoy_seqs[n_non_holdout:]
 
     with open(
-        os.path.join(out_dir, 'special_holdout_test_idx.txt'), 'w') as f:
+        os.path.join(out_dir, 'special_holdout_test_idx.txt'), 'w'
+    ) as f:
         for seq in holdout_special_seqs:
             for idx in seq_to_idx[seq]:
                 f.write(idx + '\n')
 
     with open(
-        os.path.join(out_dir, 'decoy_holdout_test_idx.txt'), 'w') as f:
+        os.path.join(out_dir, 'decoy_holdout_test_idx.txt'), 'w'
+    ) as f:
         for seq in holdout_decoy_seqs:
             for idx in seq_to_idx[seq]:
                 f.write(idx + '\n')
 
     with open(
-        os.path.join(out_dir, 'non_decoy_holdout_test_idx.txt'), 'w') as f:
+        os.path.join(out_dir, 'non_decoy_holdout_test_idx.txt'), 'w'
+    ) as f:
         for seq in holdout_non_decoy_seqs:
             for idx in seq_to_idx[seq]:
                 f.write(idx + '\n')
@@ -734,9 +729,8 @@ def create_kfold_train_and_validation_and_holdout_test_by_sequence(
     for train_idx, val_idx in kf.split(seq_list):
         seq_splits[f'split_{counter}'] = {
             'train_idx': {item: True for item in seq_list[train_idx]},
-            'val_idx': {item: True for item in seq_list[val_idx]}
-        }
-        counter+= 1
+            'val_idx': {item: True for item in seq_list[val_idx]}}
+        counter += 1
 
     for split in seq_splits:
         for split_part in seq_splits[split]:
@@ -754,9 +748,8 @@ def create_kfold_train_and_validation_and_holdout_test_by_sequence(
     for train_idx, val_idx in kf.split(seq_list):
         seq_splits[f'split_{counter}'] = {
             'train_idx': {item: True for item in seq_list[train_idx]},
-            'val_idx': {item: True for item in seq_list[val_idx]}
-        }
-        counter+= 1
+            'val_idx': {item: True for item in seq_list[val_idx]}}
+        counter += 1
 
     for split in seq_splits:
         for split_part in seq_splits[split]:
@@ -776,7 +769,7 @@ def create_kfold_train_and_validation_and_holdout_test_by_sequence(
             'train_idx': {item: True for item in seq_list[train_idx]},
             'val_idx': {item: True for item in seq_list[val_idx]}
         }
-        counter+= 1
+        counter += 1
 
     for split in seq_splits:
         for split_part in seq_splits[split]:

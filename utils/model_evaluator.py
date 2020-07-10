@@ -14,13 +14,16 @@ sys.path.insert(0, '..')
 from datasets.chromatograms_dataset import NpyChromatogramsDataset
 from datasets.samplers import LoadingSampler
 from datasets.transforms import ToTensor
-from models.temperature_scaler import AlignmentTemperatureScaler, TemperatureScaler
+from models.temperature_scaler import (
+    AlignmentTemperatureScaler, TemperatureScaler)
 from train.collate_fns import PadChromatogramsFor1DCNN
+
 
 def cycle(iterable):
     while True:
         for x in iterable:
             yield x
+
 
 def calibrate(
     calibration_dataset,
@@ -30,7 +33,8 @@ def calibrate(
     alpha=0.25,
     gamma=2,
     template_dataset=None,
-    template_batch_size=4):
+    template_batch_size=4
+):
     calibration_dataloader = DataLoader(
         calibration_dataset,
         batch_size=batch_size,
@@ -55,6 +59,7 @@ def calibrate(
 
     return temperature_scaler
 
+
 def create_output_array(
     dataset,
     model,
@@ -65,14 +70,15 @@ def create_output_array(
     npy_name='output_array',
     threshold=0.5,
     template_dataset=None,
-    template_batch_size=4):
+    template_batch_size=4
+):
     output_array = []
 
     if load_npy:
         output_array = np.load(os.path.join(npy_dir, npy_name + '.npy'))
 
         return output_array
-        
+
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -107,7 +113,7 @@ def create_output_array(
             output = model(chromatograms, template, template_label)
         else:
             output = model(chromatograms)
-        
+
         if hasattr(model, 'output_mode') and model.output_mode = 'both':
             b, _, _ = chromatograms.size()
             output = (
@@ -127,6 +133,7 @@ def create_output_array(
 
     return output_array
 
+
 def create_rpn_results_file(
     dataset,
     model,
@@ -135,7 +142,8 @@ def create_rpn_results_file(
     data_dir='OpenSWATHAutoAnnotated',
     chromatograms_csv='chromatograms.csv',
     out_dir='.',
-    results_csv='evaluation_results_rpn.csv'):
+    results_csv='evaluation_results_rpn.csv'
+):
     chromatograms = pd.read_csv(os.path.join(
         data_dir, chromatograms_csv))
 
@@ -187,9 +195,9 @@ def create_rpn_results_file(
                     score,
                     row['Lib RT'],
                     row['Window Size']])
-            
-            output_idx+= 1
-            idx+= 1
+
+            output_idx += 1
+            idx += 1
 
     model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
 
@@ -197,6 +205,7 @@ def create_rpn_results_file(
         os.path.join(out_dir, results_csv),
         index=False,
         header=False)
+
 
 def create_results_file(
     output_array,
@@ -206,7 +215,8 @@ def create_results_file(
     out_dir='.',
     npy_name='output_array',
     results_csv='evaluation_results.csv',
-    idx=None):
+    idx=None
+):
     chromatograms = pd.read_csv(os.path.join(
         data_dir, chromatograms_csv))
 
@@ -268,9 +278,9 @@ def create_results_file(
             scipy.ndimage.label(binarized_output)[0])
 
         if regions_of_interest:
-            scores = [(np.mean(output[r]) + np.max(output[r])) / 2 
-                for r 
-                in regions_of_interest]
+            scores = [(np.mean(output[r]) + np.max(output[r])) / 2
+                      for r
+                      in regions_of_interest]
             best_region_idx = np.argmax(scores)
             best_region = regions_of_interest[best_region_idx][0]
 
@@ -283,17 +293,17 @@ def create_results_file(
             # Find relative index of highest intensity value in region of
             # interest and add to start index to get absolute index
             max_idx = np.argmax(output[regions_of_interest[best_region_idx]])
-            max_idx+= start_idx
+            max_idx += start_idx
 
             roi_length = end_idx - start_idx
 
-            if (2 < roi_length < 60 and
-                start_idx < max_idx < end_idx and
-                'DECOY_' not in row['Filename']):
+            if (
+                2 < roi_length < 60
+                and start_idx < max_idx < end_idx
+                and 'DECOY_' not in row['Filename']
+            ):
                 label_output_array[i, start_idx:end_idx] = np.ones(
-                    (end_idx - start_idx)
-                )
-
+                    (end_idx - start_idx))
                 high_quality = 1
 
         external_score = None
@@ -314,18 +324,15 @@ def create_results_file(
                 right_width,
                 score,
                 high_quality])
-
     np.save(
         os.path.join(out_dir, 'label_' + npy_name),
-        label_output_array.astype(np.int32)
-    )
-
+        label_output_array.astype(np.int32))
     model_bounding_boxes = pd.DataFrame(model_bounding_boxes)
-
     model_bounding_boxes.to_csv(
         os.path.join(out_dir, results_csv),
         index=False,
         header=False)
+
 
 if __name__ == "__main__":
     start = time.time()
@@ -333,7 +340,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-data_dir', '--data_dir', type=str, default='.')
     parser.add_argument(
-        '-dataset', '--dataset', type=str, default='hroest_Strep_600s_175pts.npy')
+        '-dataset',
+        '--dataset',
+        type=str,
+        default='hroest_Strep_600s_175pts.npy')
     parser.add_argument(
         '-chromatograms_csv',
         '--chromatograms_csv',
@@ -481,7 +491,7 @@ if __name__ == "__main__":
 
     if hasattr(model, 'output_mode'):
         model.output_mode = args.output_mode
-    
+
     if args.mode == 'rpn':
         model.mode = 'test'
         model.pre_nms_topN = 1
@@ -513,7 +523,7 @@ if __name__ == "__main__":
                     template_batch_size=args.template_batch_size)
             else:
                 model.probs = True
-            
+
             output_array = create_output_array(
                 dataset,
                 model,
@@ -550,7 +560,7 @@ if __name__ == "__main__":
                 args.npy_dir,
                 args.npy_name,
                 args.threshold)
-        
+
         if args.calibrate:
             save_name = 'calibrated_' + args.model_pth.split('/')[-1]
             save_path = os.path.join(args.out_dir, save_name)

@@ -5,6 +5,7 @@ import os
 from general_utils import get_subsequence_idxs
 from pyopenms import AASequence
 
+
 def parse_skyline_exported_annotations(annotations_dir, annotations_filename):
     annotations = {}
 
@@ -18,7 +19,8 @@ def parse_skyline_exported_annotations(annotations_dir, annotations_filename):
                 line[2], line[13], line[14], line[15], line[16])
             repl = repl.replace('0R', '0PlasmaBiolR')
             seq = AASequence.fromString(seq).toUniModString().decode('utf-8')
-            repl_prefix = 'hroest_K120808' if 'R04' not in repl else 'hroest_K120809'
+            repl_prefix = (
+                'hroest_K120808' if 'R04' not in repl else 'hroest_K120809')
             key = f'{repl_prefix}_{repl}_{seq}_{charge}'
 
             if start == '#N/A' or end == '#N/A':
@@ -29,12 +31,14 @@ def parse_skyline_exported_annotations(annotations_dir, annotations_filename):
 
     return annotations
 
+
 def create_skyline_augmented_osw_dataset(
     annotations,
     osw_dir,
-    osw_csv, 
+    osw_csv,
     osw_labels_npy,
-    out_dir):
+    out_dir
+):
     orig_labels = np.load(os.path.join(osw_dir, osw_labels_npy))
     ms1_rt_arrays = {}
     counter = 0
@@ -51,11 +55,10 @@ def create_skyline_augmented_osw_dataset(
                 continue
             elif annotations[filename] == {'start': None, 'end': None}:
                 orig_labels[int(idx)] = np.zeros(orig_labels[int(idx)].shape)
-                counter+= 1
+                counter += 1
                 continue
 
-            counter+= 1
-
+            counter += 1
             repl = '_'.join(filename.split('_')[:-2])
 
             if repl not in ms1_rt_arrays:

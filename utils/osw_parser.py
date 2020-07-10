@@ -11,10 +11,12 @@ import time
 from general_utils import get_subsequence_idxs
 from sql_data_access import SqlDataAccess
 
+
 def get_run_id_from_folder_name(
     con,
     cursor,
-    folder_name):
+    folder_name
+):
     query = \
         """SELECT ID FROM RUN WHERE FILENAME LIKE '%{0}%'""".format(
             folder_name)
@@ -25,11 +27,14 @@ def get_run_id_from_folder_name(
 
     return tmp[0][0]
 
+
 def get_mod_seqs_and_charges(
     con,
-    cursor):
+    cursor
+):
     query = \
-        """SELECT precursor.ID, peptide.MODIFIED_SEQUENCE, precursor.CHARGE, precursor.DECOY
+        """SELECT precursor.ID, peptide.MODIFIED_SEQUENCE, precursor.CHARGE,
+        precursor.DECOY
         FROM PRECURSOR precursor LEFT JOIN PRECURSOR_PEPTIDE_MAPPING mapping
         ON precursor.ID = mapping.PRECURSOR_ID LEFT JOIN PEPTIDE peptide
         ON mapping.PEPTIDE_ID = peptide.ID
@@ -39,29 +44,34 @@ def get_mod_seqs_and_charges(
 
     return tmp
 
+
 def get_feature_info_from_run(
     con,
     cursor,
-    run_id):
+    run_id
+):
     query = \
-        """SELECT p.ID, f.EXP_RT, f.DELTA_RT, f.LEFT_WIDTH, f.RIGHT_WIDTH, s.SCORE
+        """SELECT p.ID, f.EXP_RT, f.DELTA_RT, f.LEFT_WIDTH, f.RIGHT_WIDTH,
+        s.SCORE
         FROM PRECURSOR p
-		LEFT JOIN FEATURE f ON p.ID = f.PRECURSOR_ID 
-		AND (f.RUN_ID = {0} OR f.RUN_ID IS NULL) 
-		LEFT JOIN SCORE_MS2 s ON f.ID = s.FEATURE_ID 
-		WHERE (s.RANK = 1 OR s.RANK IS NULL)
+        LEFT JOIN FEATURE f ON p.ID = f.PRECURSOR_ID
+        AND (f.RUN_ID = {0} OR f.RUN_ID IS NULL)
+        LEFT JOIN SCORE_MS2 s ON f.ID = s.FEATURE_ID
+        WHERE (s.RANK = 1 OR s.RANK IS NULL)
         ORDER BY p.ID ASC""".format(run_id)
     res = cursor.execute(query)
     tmp = res.fetchall()
-    
+
     return tmp
+
 
 def get_transition_ids_and_library_intensities_from_prec_id(
     con,
     cursor,
-    prec_id):
+    prec_id
+):
     query = \
-        """SELECT ID, LIBRARY_INTENSITY 
+        """SELECT ID, LIBRARY_INTENSITY
         FROM TRANSITION LEFT JOIN TRANSITION_PRECURSOR_MAPPING
         ON TRANSITION.ID = TRANSITION_ID
         WHERE PRECURSOR_ID = {0}""".format(prec_id)
@@ -69,14 +79,15 @@ def get_transition_ids_and_library_intensities_from_prec_id(
     tmp = res.fetchall()
 
     assert len(tmp) > 0, prec_id
-    
+
     return tmp
+
 
 def get_ms2_chromatogram_ids_from_transition_ids(con, cursor, transition_ids):
     sql_query = "SELECT ID FROM CHROMATOGRAM WHERE NATIVE_ID IN ("
 
     for current_id in transition_ids:
-        sql_query+= "'" + current_id + "', "
+        sql_query += "'" + current_id + "', "
 
     sql_query = sql_query[:-2]
     sql_query = sql_query + ') ORDER BY NATIVE_ID ASC'
@@ -88,15 +99,17 @@ def get_ms2_chromatogram_ids_from_transition_ids(con, cursor, transition_ids):
 
     return tmp
 
+
 def get_ms1_chromatogram_ids_from_precursor_id_and_isotope(
     con,
     cursor,
     prec_id,
-    isotopes):
+    isotopes
+):
     sql_query = "SELECT ID FROM CHROMATOGRAM WHERE NATIVE_ID IN ("
 
     for isotope in isotopes:
-        sql_query+= "'{0}_Precursor_i{1}', ".format(prec_id, isotope)
+        sql_query += "'{0}_Precursor_i{1}', ".format(prec_id, isotope)
 
     sql_query = sql_query[:-2]
     sql_query = sql_query + ') ORDER BY NATIVE_ID ASC'
@@ -108,10 +121,12 @@ def get_ms1_chromatogram_ids_from_precursor_id_and_isotope(
 
     return tmp
 
+
 def get_chromatogram_labels_and_bbox(
     left_width,
     right_width,
-    times):
+    times
+):
     row_labels = []
 
     for time in times:
@@ -122,7 +137,7 @@ def get_chromatogram_labels_and_bbox(
                 row_labels.append(0)
         else:
             row_labels.append(0)
-    
+
     row_labels = np.array(row_labels)
 
     label_idxs = np.where(row_labels == 1)[0]
@@ -133,6 +148,7 @@ def get_chromatogram_labels_and_bbox(
         bb_start, bb_end = None, None
 
     return row_labels, bb_start, bb_end
+
 
 def create_data_from_transition_ids(
     sqMass_dir,
@@ -149,7 +165,8 @@ def create_data_from_transition_ids(
     extra_features=[],
     csv_only=False,
     window_size=201,
-    mode='tar'):
+    mode='tar'
+):
     con = sqlite3.connect(os.path.join(sqMass_dir, sqMass_filename))
 
     cursor = con.cursor()
@@ -184,13 +201,13 @@ def create_data_from_transition_ids(
         free_idx = 0
 
         if 'ms1' in extra_features:
-            num_expected_extra_features+= len(isotopes)
+            num_expected_extra_features += len(isotopes)
 
         if 'lib_int' in extra_features:
-            num_expected_extra_features+= 6
+            num_expected_extra_features += 6
 
         if 'exp_rt' in extra_features:
-            num_expected_extra_features+= 1
+            num_expected_extra_features += 1
 
         chromatogram = np.zeros((num_expected_features, len_times))
         extra = np.zeros((num_expected_extra_features, len_times))
@@ -232,20 +249,20 @@ def create_data_from_transition_ids(
                 )
 
             extra[free_idx:free_idx + ms1_transitions.shape[0]] = (
-                ms1_transitions) 
+                ms1_transitions)
             extra_meta['ms1_start'] = free_idx
-            free_idx+= len(isotopes)
+            free_idx += len(isotopes)
             extra_meta['ms1_end'] = free_idx
-        
+
         if 'lib_int' in extra_features:
             lib_int_features = np.repeat(
                 library_intensities,
                 len_times).reshape(len(library_intensities), len_times)
-            
+
             extra[free_idx:free_idx + lib_int_features.shape[0]] = (
                 lib_int_features)
             extra_meta['lib_int_start'] = free_idx
-            free_idx+= 6
+            free_idx += 6
             extra_meta['lib_int_end'] = free_idx
 
         if 'exp_rt' in extra_features:
@@ -254,7 +271,7 @@ def create_data_from_transition_ids(
 
             extra[free_idx:free_idx + 1] = dist_from_exp_rt
             extra_meta['exp_rt'] = free_idx
-            free_idx+= 1
+            free_idx += 1
 
         if window_size >= 0:
             subsection_left, subsection_right = get_subsequence_idxs(
@@ -313,6 +330,7 @@ def create_data_from_transition_ids(
 
     return row_labels, bb_start, bb_end, None
 
+
 def get_cnn_data(
     out,
     osw_dir='.',
@@ -324,7 +342,8 @@ def get_cnn_data(
     window_size=201,
     use_rt=False,
     scored=False,
-    mode='tar'):
+    mode='tar'
+):
     label_matrix, chromatograms_array, chromatograms_csv = [], [], []
 
     chromatogram_id = 0
@@ -352,11 +371,14 @@ def get_cnn_data(
                 run_id)
 
             assert len(
-                prec_id_and_prec_mod_seqs_and_charges) == len(feature_info), print(len(prec_id_and_prec_mod_seqs_and_charges), len(feature_info))
+                prec_id_and_prec_mod_seqs_and_charges) == len(
+                    feature_info), print(
+                        len(prec_id_and_prec_mod_seqs_and_charges),
+                        len(feature_info))
 
         for i in range(len(prec_id_and_prec_mod_seqs_and_charges)):
             print(i)
-            
+
             prec_id, prec_mod_seq, prec_charge, decoy = (
                 prec_id_and_prec_mod_seqs_and_charges[i])
 
@@ -389,10 +411,10 @@ def get_cnn_data(
             if not scored:
                 # TODO: Implement extraction of OSW features only
                 exp_rt, left_width, right_width, score = None, None, None, None
-                bb_start, bb_end = None, None 
+                bb_start, bb_end = None, None
 
             repl_name = sqMass_root
-            
+
             chromatogram_filename = [repl_name, prec_mod_seq, str(prec_charge)]
             if decoy == 1:
                 chromatogram_filename.insert(0, 'DECOY')
@@ -400,7 +422,11 @@ def get_cnn_data(
             chromatogram_filename = '_'.join(chromatogram_filename)
 
             if scored:
-                labels, bb_start, bb_end, chromatogram = create_data_from_transition_ids(
+                (
+                    labels,
+                    bb_start,
+                    bb_end,
+                    chromatogram) = create_data_from_transition_ids(
                     sqMass_root,
                     'output.sqMass',
                     transition_ids,
@@ -437,10 +463,8 @@ def get_cnn_data(
                     window_size,
                     bb_start,
                     bb_end,
-                    score
-                ]
-            )
-            chromatogram_id+= 1
+                    score])
+            chromatogram_id += 1
 
     con.close()
 
@@ -476,6 +500,7 @@ def get_cnn_data(
             ]
         )
         writer.writerows(chromatograms_csv)
+
 
 if __name__ == '__main__':
     start = time.time()
@@ -520,7 +545,7 @@ if __name__ == '__main__':
     args.extra_features = args.extra_features.split(',')
 
     print(args)
-    
+
     out = None
 
     if not args.csv_only:

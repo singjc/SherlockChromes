@@ -4,6 +4,7 @@ import torch.optim as optim
 from models.semisupervised_learner_1d import SemiSupervisedLearner1d
 from train.train_semisupervised import train
 
+
 def main(
         data,
         model,
@@ -46,7 +47,8 @@ def main(
         'loss_logits',
         'loss_reduction',
         'model_device',
-        'debug']:
+        'debug'
+    ]:
         if kw in train_kwargs:
             model_kwargs[kw] = train_kwargs[kw]
 

@@ -8,6 +8,7 @@ import time
 
 from general_utils import calc_bin_idx, get_subsequence_idxs
 
+
 def get_specs_from_sql(con, cursor, repl):
     query = \
         f"""SELECT
@@ -18,13 +19,13 @@ def get_specs_from_sql(con, cursor, repl):
         group_concat(PRODUCT_MZ, '|') AS PRODUCT_MZS,
         group_concat(LIBRARY_INTENSITY, '|') AS LIBRARY_INTENSITIES,
         DECOY,
-		EXP_RT,
+        EXP_RT,
         DELTA_RT,
         LEFT_WIDTH,
         RIGHT_WIDTH,
         SCORE
             FROM (
-                SELECT 
+                SELECT
                 prec.ID AS PRECURSOR_ID,
                 pep.MODIFIED_SEQUENCE,
                 prec.CHARGE AS CHARGE,
@@ -40,11 +41,11 @@ def get_specs_from_sql(con, cursor, repl):
                 FROM PRECURSOR AS prec
                 LEFT JOIN PRECURSOR_PEPTIDE_MAPPING AS prec_to_pep
                 ON prec.ID = prec_to_pep.PRECURSOR_ID
-                LEFT JOIN PEPTIDE AS pep 
+                LEFT JOIN PEPTIDE AS pep
                 ON prec_to_pep.PEPTIDE_ID = pep.ID
                 LEFT JOIN TRANSITION_PRECURSOR_MAPPING AS trans_to_prec
                 ON prec.ID = trans_to_prec.PRECURSOR_ID
-                LEFT JOIN TRANSITION AS trans 
+                LEFT JOIN TRANSITION AS trans
                 ON trans_to_prec.TRANSITION_ID = trans.ID
                 LEFT JOIN (
                     SELECT
@@ -61,8 +62,8 @@ def get_specs_from_sql(con, cursor, repl):
                         FROM RUN
                         WHERE FILENAME LIKE '%{repl}%') AS run
                     ON feat1.RUN_ID = run.ID
-                    LEFT JOIN SCORE_MS2 AS score 
-					ON feat1.ID = score.FEATURE_ID
+                    LEFT JOIN SCORE_MS2 AS score
+                    ON feat1.ID = score.FEATURE_ID
                     WHERE NOT run.ID IS NULL AND score.RANK = 1
                     GROUP BY PRECURSOR_ID) AS feat2
                 ON prec.ID = feat2.PRECURSOR_ID
@@ -73,13 +74,15 @@ def get_specs_from_sql(con, cursor, repl):
 
     return tmp
 
+
 def extract_target_strip(
     lcms_map,
     target_mz,
     min_mz=0,
     bin_resolution=0.01,
     lower_span=5,
-    upper_span=5):
+    upper_span=5
+):
     bin_idx = calc_bin_idx(target_mz, min_mz, bin_resolution)
     max_idx = lcms_map.shape[0] - 1
     lower = max(bin_idx - lower_span, 0)
@@ -96,7 +99,7 @@ def extract_target_strip(
         if lower == 0:
             height = min(-(bin_idx - lower_span), tgt_height)
             padded_strip.append(np.zeros((height, width)))
-        
+
         padded_strip.append(strip)
 
         if upper == max_idx:
@@ -107,6 +110,7 @@ def extract_target_strip(
         strip = np.concatenate(padded_strip, axis=0)
 
     return strip
+
 
 def create_chromatogram(
     ms1_map,
@@ -124,9 +128,9 @@ def create_chromatogram(
     monoisotope_only=False,
     prod_charges=[],
     num_traces=6,
-    analysis_win_size=175):
+    analysis_win_size=175
+):
     ms2_map_idx = calc_bin_idx(prec_mz, min_swath_win, swath_win_size)
-
     chromatogram = []
 
     if not prod_charges:
@@ -135,7 +139,7 @@ def create_chromatogram(
     for mz, charge in zip(prod_mzs, prod_charges):
         if not monoisotope_only:
             charge = charge if charge else 1
-            
+
             for i in range(3, 1, -1):
                 delta = 1 / charge * i
                 chromatogram.append(
@@ -153,24 +157,24 @@ def create_chromatogram(
         shape = chromatogram[-1].shape
 
         if not monoisotope_only:
-                shape = (70, chromatogram[-1].shape[-1])
+            shape = (70, chromatogram[-1].shape[-1])
 
         for i in range(num_traces - len(prod_mzs)):
             chromatogram.append(np.zeros(shape))
 
     if not monoisotope_only:
-            for i in range(3, 1, -1):
-                delta = 1 / prec_charge * i
-                chromatogram.append(
-                    extract_target_strip(ms1_map, prec_mz + delta, min_mz=400))
+        for i in range(3, 1, -1):
+            delta = 1 / prec_charge * i
+            chromatogram.append(
+                extract_target_strip(ms1_map, prec_mz + delta, min_mz=400))
 
     chromatogram.append(extract_target_strip(ms1_map, prec_mz, min_mz=400))
 
     if not monoisotope_only:
-            for i in range(4, 0, -1):
-                delta = 1 / i
-                chromatogram.append(
-                    extract_target_strip(ms1_map, prec_mz - delta, min_mz=400))
+        for i in range(4, 0, -1):
+            delta = 1 / i
+            chromatogram.append(
+                extract_target_strip(ms1_map, prec_mz - delta, min_mz=400))
 
     if len(lib_intensities) < num_traces:
         for i in range(num_traces - len(lib_intensities)):
@@ -180,14 +184,10 @@ def create_chromatogram(
         np.repeat(
             lib_intensities,
             ms1_rt_array.shape[-1]).reshape(num_traces, -1))
-
     chromatogram.append(np.expand_dims(abs(ms1_rt_array - lib_rt), axis=0))
-
     chromatogram = np.concatenate(chromatogram, axis=0)
-
     osw_label_left_idx, osw_label_right_idx = None, None
     ss_left_idx, ss_right_idx = None, None
-
     ss_left_idx, ss_right_idx = get_subsequence_idxs(
         ms1_rt_array, lib_rt, analysis_win_size)
 
@@ -212,6 +212,7 @@ def create_chromatogram(
         osw_label_right_idx
     )
 
+
 def create_repl_chromatograms_array(
     work_dir,
     osw_filename,
@@ -220,7 +221,8 @@ def create_repl_chromatograms_array(
     min_swath_win=399.5,
     swath_win_size=25,
     analysis_win_size=175,
-    create_label_arrays=True):
+    create_label_arrays=True
+):
     repl = repl.split('.')[0]
 
     ms1_map = np.load(f'{repl}_ms1_array.npy')
@@ -271,7 +273,9 @@ def create_repl_chromatograms_array(
         if exp_rt and delta_rt:
             lib_rt = exp_rt - delta_rt
         else:
-            print(f'Precursor {prec_id}: {mod_seq_and_prec_charge} missing lib_rt')
+            print(
+                f'Precursor {prec_id}: {mod_seq_and_prec_charge} '
+                'missing lib_rt')
             continue
 
         prod_mzs = [float(x) for x in prod_mzs.split('|')]
@@ -342,7 +346,7 @@ def create_repl_chromatograms_array(
             osw_label_right_idx,
             score
         ])
-        idx+= 1
+        idx += 1
 
     chromatograms_array = np.stack(chromatograms_array, axis=0)
 
@@ -371,7 +375,7 @@ def create_repl_chromatograms_array(
 
         classificaton_labels_array = np.array(
             classification_labels_array, dtype=np.int32).reshape((-1, 1))
-        
+
         # Change labels from decoy to non-decoy as positive class
         classification_labels_array = 1 - classification_labels_array
 
@@ -389,8 +393,6 @@ def create_repl_chromatograms_array(
         writer = csv.writer(out, lineterminator='\n')
         writer.writerows(out_csv)
 
-def subset_chromatograms_and_create_labels():
-    pass
 
 if __name__ == "__main__":
     start = time.time()
@@ -404,5 +406,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     create_repl_chromatograms_array(args.work_dir, args.osw, args.repl_name)
-    
+
     print('It took {0:0.1f} seconds'.format(time.time() - start))

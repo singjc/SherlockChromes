@@ -11,6 +11,7 @@ from importlib.util import spec_from_file_location, module_from_spec
 #                     level=logging.DEBUG,
 #                     stream=sys.stdout)
 
+
 def create_obj_from_cfg_section(cfg, section_name):
     if section_name in cfg:
         path = cfg[section_name]['script_path']
@@ -28,6 +29,7 @@ def create_obj_from_cfg_section(cfg, section_name):
 
         return obj
     return None
+
 
 def run_experiment(yaml_filepath):
     """Example."""
@@ -79,7 +81,9 @@ def run_experiment(yaml_filepath):
         optimizer_kwargs,
         lr_scheduler_kwargs,
         train_kwargs,
-        device)
+        device
+    )
+
 
 def make_paths_absolute(dir_, cfg):
     """
@@ -87,7 +91,7 @@ def make_paths_absolute(dir_, cfg):
 
     Args:
         dir_ (str): The absolute path to the directory of script.
-        cfg (dict): Dictionary of config params. 
+        cfg (dict): Dictionary of config params.
 
     Output:
         cfg (dict): Dictionary of config params with absolute paths.
@@ -102,13 +106,14 @@ def make_paths_absolute(dir_, cfg):
             cfg[key] = make_paths_absolute(dir_, cfg[key])
 
     return cfg
-    
+
+
 def extract_module_names(cfg):
     """
     Extract all module names based on filename from script paths.
 
     Args:
-        cfg (dict): Dictionary of config params. 
+        cfg (dict): Dictionary of config params.
 
     Output:
         cfg (dict): Dictionary of config params with added module names.
@@ -124,6 +129,7 @@ def extract_module_names(cfg):
             os.path.basename(cfg[path[0]][path[1]]))[0]
 
     return cfg
+
 
 def load_cfg(yaml_filepath):
     """
@@ -142,6 +148,7 @@ def load_cfg(yaml_filepath):
     cfg = extract_module_names(cfg)
 
     return cfg
+
 
 def get_parser():
     """Get parser object."""

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class SelfAttention(nn.Module):
     def __init__(self, k, heads=8, mask=False):
         """
@@ -57,6 +58,7 @@ class SelfAttention(nn.Module):
         out = out.transpose(1, 2).contiguous().view(b, t, h * k)
 
         return self.unifyheads(out)
+
 
 class TransformerBlock(nn.Module):
     def __init__(self, k, heads, ff_hidden_mult=4, dropout=0.0):

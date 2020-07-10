@@ -4,6 +4,7 @@ import torch.nn as nn
 from models.modelzoo1d.deeplab_1d import DeepLab1d
 from models.modelzoo1d.transformer import TransformerBlock
 
+
 class BaselineSegmentationNet(nn.Module):
     def __init__(self):
         super(BaselineSegmentationNet, self).__init__()
@@ -25,6 +26,7 @@ class BaselineSegmentationNet(nn.Module):
 
         return output
 
+
 class BaselineTransformer(nn.Module):
     def __init__(self, in_channels, k, heads, depth, seq_length):
         super().__init__()
@@ -32,7 +34,7 @@ class BaselineTransformer(nn.Module):
 
         self.pos_emb = nn.Embedding(seq_length, k)
 
-        # The sequence of transformer blocks that does all the 
+        # The sequence of transformer blocks that does all the
         # heavy lifting
         tblocks = []
         for i in range(depth):
@@ -47,9 +49,9 @@ class BaselineTransformer(nn.Module):
 
     def forward(self, x):
         """
-        :param x: A (b, t) tensor of integer values representing 
+        :param x: A (b, t) tensor of integer values representing
                   words (in some predetermined vocabulary).
-        :return: A (b, c) tensor of log-probabilities over the 
+        :return: A (b, c) tensor of log-probabilities over the
                  classes (where c is the nr. of classes).
         """
         # generate token embeddings

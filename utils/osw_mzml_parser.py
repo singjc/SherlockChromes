@@ -7,6 +7,7 @@ import time
 
 from general_utils import calc_bin_idx
 
+
 class ExtraTraceConsumer():
     def __init__(self, num_traces, trace_length, out_dir, repl_name, decoy):
         self.num_traces = num_traces
@@ -47,18 +48,20 @@ class ExtraTraceConsumer():
                         ms2_array_npy, nan=np.nanmax(ms2_array_npy))
 
                 extra_traces_npy[trace_counter, :] = ms2_array_npy
-                trace_counter+= 1
+                trace_counter += 1
 
-            seq_and_charge = b'_'.join(chromatogram_id.split(b'_')[-3].split(b'/'))
-            npy_filename = b'_'.join([self.repl_name, seq_and_charge, b'Extra'])
-            
+            seq_and_charge = b'_'.join(
+                chromatogram_id.split(b'_')[-3].split(b'/'))
+            npy_filename = b'_'.join(
+                [self.repl_name, seq_and_charge, b'Extra'])
+
             np.save(
                 os.path.join(self.out_dir, npy_filename.decode()),
-                extra_traces_npy.astype(np.float32)
-            )
+                extra_traces_npy.astype(np.float32))
 
     def consumeSpectrum(self, s):
         pass
+
 
 class RawData2DExtractionConsumer():
     def __init__(
@@ -71,7 +74,8 @@ class RawData2DExtractionConsumer():
         ms2_max_mz=2000,
         bin_resolution=0.01,
         expected_cycles=2372,
-        outdir='.'):
+        outdir='.'
+    ):
         self.mzml_filename = mzml_filename.split('/')[-1].split('.')[0]
         self.num_ms2_scans = num_ms2_scans
         self.ms1_array = []
@@ -115,9 +119,9 @@ class RawData2DExtractionConsumer():
 
         for mz, i in zip(*s.get_peaks()):
             bin_idx = calc_bin_idx(mz, min_mz, num_bins)
-            
-            binned_rt_slice[bin_idx]+= i
-        
+
+            binned_rt_slice[bin_idx] += i
+
         rt = s.getRT()
 
         if ms_level > 1:
@@ -127,64 +131,59 @@ class RawData2DExtractionConsumer():
             )
             self.ms2_array[self.curr_ms2_scan].append(binned_rt_slice)
             self.ms2_rt_array[self.curr_ms2_scan].append(rt)
-            self.curr_ms2_scan+= 1
+            self.curr_ms2_scan += 1
         else:
-            self.curr_cycle+= 1
+            self.curr_cycle += 1
             print(f'Appending MS1 Scan for cycle {self.curr_cycle}')
             self.ms1_array.append(binned_rt_slice)
             self.ms1_rt_array.append(rt)
             self.curr_ms2_scan = 0
 
         if (
-            self.curr_cycle == self.expected_cycles and 
-            self.curr_ms2_scan == self.num_ms2_scans
+            self.curr_cycle == self.expected_cycles
+            and self.curr_ms2_scan == self.num_ms2_scans
         ):
             ms1_filename = f'{self.mzml_filename}_ms1_array'
             ms2_filename = f'{self.mzml_filename}_ms2_array'
             ms1_rt_filename = f'{self.mzml_filename}_ms1_rt_array'
             ms2_rt_filename = f'{self.mzml_filename}_ms2_rt_array'
             self.ms1_array = np.array(
-                self.ms1_array).transpose((1, 0),
-                dtype=np.float32
-            )
+                self.ms1_array).transpose((1, 0), dtype=np.float32)
             self.ms2_array = np.array(
-                self.ms2_array).transpose((0, 2, 1),
-                dtype=np.float32
-            )
+                self.ms2_array).transpose((0, 2, 1), dtype=np.float32)
             self.ms1_rt_array = np.array(self.ms1_rt_array, dtype=np.float32)
             self.ms2_rt_array = np.array(self.ms2_rt_array, dtype=np.float32)
 
             print(f'Saving ms1 array of shape {self.ms1_array.shape}')
             np.save(
                 os.path.join(self.outdir, ms1_filename),
-                self.ms1_array
-            )
+                self.ms1_array)
             print(f'Saving ms2 array of shape {self.ms2_array.shape}')
             np.save(
                 os.path.join(self.outdir, ms2_filename),
-                self.ms2_array
-            )
+                self.ms2_array)
             print(f'Saving ms1 rt array of shape {self.ms1_rt_array.shape}')
             np.save(
                 os.path.join(self.outdir, ms1_rt_filename),
-                self.ms1_rt_array
-            )
+                self.ms1_rt_array)
             print(f'Saving ms2 rt array of shape {self.ms2_rt_array.shape}')
             np.save(
                 os.path.join(self.outdir, ms2_rt_filename),
-                self.ms2_rt_array
-            )
+                self.ms2_rt_array)
+
 
 def extract_additional_info_traces(
     mzML_filename,
     num_traces=15,
     trace_length=2372,
     out_dir='OpenSWATHAutoAnnotatedAllXGB',
-    decoy=False):
+    decoy=False
+):
     repl_name = b'_'.join(mzML_filename.split(b'/')[0].split(b'_')[-3:])
     consumer = ExtraTraceConsumer(
         num_traces, trace_length, out_dir, repl_name, decoy)
     ms.MzMLFile().transform(mzML_filename, consumer)
+
 
 if __name__ == "__main__":
     start = time.time()
@@ -226,5 +225,5 @@ if __name__ == "__main__":
 
     consumer = RawData2DExtractionConsumer(args.raw_mzml)
     ms.MzMLFile().transform(args.raw_mzml.encode(), consumer)
-    
+
     print('It took {0:0.1f} seconds'.format(time.time() - start))

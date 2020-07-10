@@ -21,6 +21,7 @@ from torch.utils.data import DataLoader
 from datasets.chromatograms_dataset import Subset
 from optimizers.focal_loss import FocalLossBinary
 
+
 def get_data_loaders(
     data,
     test_batch_proportion=0.1,
@@ -29,7 +30,8 @@ def get_data_loaders(
     u_ratio=7,
     sampling_fn=None,
     collate_fn=None,
-    outdir_path=None):
+    outdir_path=None
+):
 
     if sampling_fn:
         labeled_idx, unlabeled_idx, val_idx = sampling_fn(
@@ -87,10 +89,12 @@ def get_data_loaders(
 
     return labeled_loader, unlabeled_loader, val_loader
 
+
 def cycle(iterable):
     while True:
         for x in iterable:
             yield x
+
 
 def train(
     data,
@@ -101,7 +105,8 @@ def train(
     sampling_fn=None,
     collate_fn=None,
     device='cpu',
-    **kwargs):
+    **kwargs
+):
     (
         labeled_loader,
         unlabeled_loader,
@@ -154,10 +159,10 @@ def train(
             loss_out.backward()
             optimizer.step()
             scheduler.step(epoch + i / num_batches)
-            iters+= 1
+            iters += 1
             iter_loss = loss_out.item()
-            avg_loss+= iter_loss
-            
+            avg_loss += iter_loss
+
             print(f'Training - Iter: {iters} Iter loss: {iter_loss:.8f}')
 
         if not ('scheduler_step_on_iter' in kwargs and
@@ -170,7 +175,8 @@ def train(
         outputs_for_metrics = []
         losses = []
         model.eval()
-        orig_output_mode, model.model.output_mode = model.model.output_mode, 'both'
+        orig_output_mode, model.model.output_mode = (
+            model.model.output_mode, 'both')
 
         for batch, labels in val_loader:
             with torch.no_grad():
@@ -204,7 +210,7 @@ def train(
 
                         if gap_length < 3:
                             binarized_preds[i][gap.start:gap.stop] = 1
-                            
+
                     regions_of_interest = scipy.ndimage.find_objects(
                         scipy.ndimage.label(binarized_preds[i])[0])
 
@@ -259,10 +265,10 @@ def train(
 
             if dice > highest_dice:
                 highest_dice = dice
-            
+
             if iou > highest_iou:
                 highest_iou = iou
-            
+
             if avg_loss < lowest_loss:
                 lowest_loss = avg_loss
         elif dice > highest_dice:
@@ -272,10 +278,10 @@ def train(
             )
 
             highest_dice = dice
-            
+
             if iou > highest_iou:
                 highest_iou = iou
-            
+
             if avg_loss < lowest_loss:
                 lowest_loss = avg_loss
         elif iou > highest_iou:

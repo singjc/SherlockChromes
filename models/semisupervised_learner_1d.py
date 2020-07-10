@@ -11,6 +11,7 @@ from scipy.special import erfinv
 from models.modelzoo1d.dain import DAIN_Layer
 from optimizers.focal_loss import FocalLossBinary
 
+
 class ChromatogramScaler(nn.Module):
     def __init__(
         self,
@@ -20,7 +21,8 @@ class ChromatogramScaler(nn.Module):
         lower=0.875,
         upper=1.125,
         p=0.5,
-        device='cpu'):
+        device='cpu'
+    ):
         super(ChromatogramScaler, self).__init__()
         self.mz_bins = mz_bins
         self.num_factors = 6
@@ -31,8 +33,8 @@ class ChromatogramScaler(nn.Module):
         self.device = device
 
         if augment_precursor:
-            self.mz_bins+= self.mz_bins // 6
-            self.num_factors+= 1
+            self.mz_bins += self.mz_bins // 6
+            self.num_factors += 1
 
     def forward(self, chromatogram_batch):
         if torch.rand(1).item() < self.p:
@@ -43,7 +45,7 @@ class ChromatogramScaler(nn.Module):
                 torch.FloatTensor(
                     self.num_factors, 1).uniform_(self.lower, self.upper)
             ).to(self.device)
-            
+
             if self.mz_bins > 6:
                 scaling_factors = (
                     scaling_factors.repeat_interleave(
@@ -59,6 +61,7 @@ class ChromatogramScaler(nn.Module):
 
         return chromatogram_batch
 
+
 class ChromatogramJitterer(nn.Module):
     def __init__(
         self,
@@ -68,7 +71,8 @@ class ChromatogramJitterer(nn.Module):
         mean=0,
         std=1,
         p=0.5,
-        device='cpu'):
+        device='cpu'
+    ):
         super(ChromatogramJitterer, self).__init__()
         self.mz_bins = mz_bins
         self.length = length
@@ -78,7 +82,7 @@ class ChromatogramJitterer(nn.Module):
         self.device = device
 
         if augment_precursor:
-            self.mz_bins+= self.mz_bins // 6
+            self.mz_bins += self.mz_bins // 6
 
     def forward(self, chromatogram_batch):
         if torch.rand(1).item() < self.p:
@@ -92,8 +96,9 @@ class ChromatogramJitterer(nn.Module):
 
         chromatogram_batch[:, 0:self.mz_bins] = (
             chromatogram_batch[:, 0:self.mz_bins] + noise)
-        
+
         return chromatogram_batch
+
 
 class ChromatogramShuffler(nn.Module):
     def __init__(self, mz_bins=6, p=0.5):
@@ -111,7 +116,7 @@ class ChromatogramShuffler(nn.Module):
         start = self.mz_bins
 
         if chromatogram_batch.size()[1] - start != 7:
-            start+= N
+            start += N
 
         end = start + 6
 
@@ -124,9 +129,10 @@ class ChromatogramShuffler(nn.Module):
                 b, M, -1, n)[:, shuffled_indices].reshape(b, -1, n)
 
         chromatogram_batch[:, start:end] = (
-            chromatogram_batch[:, start:end][:, shuffled_indices])         
+            chromatogram_batch[:, start:end][:, shuffled_indices])
 
         return chromatogram_batch
+
 
 class ChromatogramSpectraMasker(nn.Module):
     def __init__(
@@ -135,7 +141,8 @@ class ChromatogramSpectraMasker(nn.Module):
         augment_precursor=False,
         F=1,
         m_F=1,
-        p=0.5):
+        p=0.5
+    ):
         super(ChromatogramSpectraMasker, self).__init__()
         self.v = mz_bins
         self.F = F
@@ -143,7 +150,7 @@ class ChromatogramSpectraMasker(nn.Module):
         self.p = p
 
         if augment_precursor:
-            self.v+= self.v // 6
+            self.v += self.v // 6
 
     def forward(self, chromatogram_batch):
         if torch.rand(1).item() < self.p:
@@ -156,6 +163,7 @@ class ChromatogramSpectraMasker(nn.Module):
 
         return chromatogram_batch
 
+
 class ChromatogramTimeMasker(nn.Module):
     def __init__(
         self,
@@ -164,7 +172,8 @@ class ChromatogramTimeMasker(nn.Module):
         length=175,
         T=5,
         m_T=1,
-        p=0.5):
+        p=0.5
+    ):
         super(ChromatogramTimeMasker, self).__init__()
         self.mz_bins = mz_bins
         self.tau = length
@@ -173,7 +182,7 @@ class ChromatogramTimeMasker(nn.Module):
         self.p = p
 
         if augment_precursor:
-            self.mz_bins+= self.mz_bins // 6
+            self.mz_bins += self.mz_bins // 6
 
     def forward(self, chromatogram_batch):
         if torch.rand(1).item() < self.p:
@@ -185,6 +194,7 @@ class ChromatogramTimeMasker(nn.Module):
             chromatogram_batch[:, 0:self.mz_bins, t_0:t] = 0
 
         return chromatogram_batch
+
 
 class SemiSupervisedLearner1d(nn.Module):
     def __init__(
@@ -221,7 +231,8 @@ class SemiSupervisedLearner1d(nn.Module):
         loss_reduction='none',
         model_device='cpu',
         debug=False,
-        save_normalized=False):
+        save_normalized=False
+    ):
         super(SemiSupervisedLearner1d, self).__init__()
         self.model = copy.deepcopy(model)
         self.wu = wu
@@ -312,8 +323,10 @@ class SemiSupervisedLearner1d(nn.Module):
     def get_model(self):
         model = self.model
 
-        if ('normalization_layer' in [n for n, m in model.named_modules()] and
-            isinstance(model.normalization_layer, nn.Identity)):
+        if (
+            'normalization_layer' in [n for n, m in model.named_modules()] and
+            isinstance(model.normalization_layer, nn.Identity)
+        ):
             model.normalization_layer = self.normalization_layer
 
         return model
@@ -324,15 +337,15 @@ class SemiSupervisedLearner1d(nn.Module):
         sigma_min=4,
         sigma_max=16,
         p_min=0.5,
-        p_max=0.5):
+        p_max=0.5
+    ):
         sigma = np.exp(np.random.uniform(np.log(sigma_min), np.log(sigma_max)))
         p = np.random.uniform(p_min, p_max)
         noise_image = np.random.normal(size=length)
         noise_image_smoothed = gaussian_filter1d(noise_image, sigma)
         threshold = (
-            erfinv((p * 2) - 1) * (2 ** 0.5) * noise_image_smoothed.std() + 
-            noise_image_smoothed.mean()
-        )
+            erfinv((p * 2) - 1) * (2 ** 0.5) * noise_image_smoothed.std()
+            + noise_image_smoothed.mean())
 
         return (noise_image_smoothed > threshold).astype(float)
 
@@ -355,7 +368,7 @@ class SemiSupervisedLearner1d(nn.Module):
                         ],
                         dim=0
                     )
-                    b_ul+= 1
+                    b_ul += 1
 
             orig_setting = self.model.output_mode
 
@@ -387,10 +400,10 @@ class SemiSupervisedLearner1d(nn.Module):
 
                 weak_pseudo_labels = (self.to_out(weak_output) >= 0.5).float()
                 weak_quality_modulator = (
-                    (self.to_out(weak_output) >= self.threshold).float() + 
-                    (self.to_out(weak_output) <= (1 - self.threshold))
+                    (self.to_out(weak_output) >= self.threshold).float()
+                    + (self.to_out(weak_output) <= (1 - self.threshold))
                 ).reshape(1, -1).squeeze()
-                
+
                 # Variable required for cutmix
                 lam = None
             else:
@@ -399,10 +412,10 @@ class SemiSupervisedLearner1d(nn.Module):
 
             strong_pseudo_labels = (
                 self.to_out(strong_output) >= 0.5).float()
-            
-            strong_quality_modulator =  (
-                (self.to_out(strong_output) >= self.threshold).float() + 
-                (self.to_out(strong_output) <= (1 - self.threshold))
+
+            strong_quality_modulator = (
+                (self.to_out(strong_output) >= self.threshold).float()
+                + (self.to_out(strong_output) <= (1 - self.threshold))
             )
 
             # Variable required for cutmix
@@ -426,40 +439,23 @@ class SemiSupervisedLearner1d(nn.Module):
                 elif self.regularizer_mode == 'cutmix':
                     if self.enforce_weak_consistency:
                         lam = (
-                            torch.sum(regularizer_mask) / 
-                            regularizer_mask.nelement()
+                            torch.sum(regularizer_mask)
+                            / regularizer_mask.nelement()
                         )
-                    
+
                     strongly_augmented = (
-                        (
-                            strongly_augmented[0:b_ul_half] * 
-                            regularizer_mask
-                        ) +
-                        (
-                            strongly_augmented[b_ul_half:] *
-                            (1 - regularizer_mask)
-                        )
-                    )
+                        (strongly_augmented[0:b_ul_half] * regularizer_mask)
+                        + (strongly_augmented[b_ul_half:]
+                            * (1 - regularizer_mask)))
                     strong_pseudo_labels = (
-                        (
-                            strong_pseudo_labels[0:b_ul_half] *
-                            regularizer_mask
-                        ) +
-                        (
-                            strong_pseudo_labels[b_ul_half:] *
-                            (1 - regularizer_mask)
-                        )
-                    )
+                        (strong_pseudo_labels[0:b_ul_half] * regularizer_mask)
+                        + (strong_pseudo_labels[b_ul_half:]
+                            * (1 - regularizer_mask)))
                     strong_quality_modulator = (
-                        (
-                            strong_quality_modulator[0:b_ul_half] *
-                            regularizer_mask
-                        ) +
-                        (
-                            strong_quality_modulator[b_ul_half:] *
-                            (1 - regularizer_mask)
-                        )
-                    )
+                        (strong_quality_modulator[0:b_ul_half]
+                            * regularizer_mask)
+                        + (strong_quality_modulator[b_ul_half:]
+                            * (1 - regularizer_mask)))
 
             strong_quality_modulator = torch.mean(
                 strong_quality_modulator.reshape(1, -1).squeeze())
@@ -475,8 +471,10 @@ class SemiSupervisedLearner1d(nn.Module):
                 self.model.output_mode = 'strong'
                 strong_output = self.model(strongly_augmented)
 
-            if (self.enforce_weak_consistency
-                and self.regularizer_mode == 'cutmix'):
+            if (
+                self.enforce_weak_consistency
+                and self.regularizer_mode == 'cutmix'
+            ):
                 weak_unlabeled_loss_a = lam * torch.mean(
                     self.loss(
                         weak_output,
@@ -514,14 +512,14 @@ class SemiSupervisedLearner1d(nn.Module):
             strong_unlabeled_loss = strong_quality_modulator * torch.mean(
                 self.loss(strong_output, strong_pseudo_labels)
             )
-           
+
             self.model.output_mode = orig_setting
 
             if self.enforce_weak_consistency:
                 unlabeled_loss = weak_unlabeled_loss + strong_unlabeled_loss
             else:
                 unlabeled_loss = strong_unlabeled_loss
-            
+
             if self.debug:
                 if self.use_weak_labels:
                     num_positive = int(torch.sum(labels).item())
@@ -533,7 +531,7 @@ class SemiSupervisedLearner1d(nn.Module):
                         weak_unlabeled_loss_debug = weak_unlabeled_loss
                     else:
                         weak_unlabeled_loss_debug = weak_unlabeled_loss.item()
-                    
+
                     weak_unlabeled_loss_debug = f'{weak_unlabeled_loss_debug:.8f}'
                     weak_quality_modulator_debug = torch.mean(
                         weak_quality_modulator).item()
@@ -561,6 +559,7 @@ class SemiSupervisedLearner1d(nn.Module):
                 self.normalized = normalized
 
             return self.to_out(self.model(normalized))
+
 
 # TODO: Update to match parent
 class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
@@ -598,7 +597,8 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
         loss_reduction='none',
         model_device='cpu',
         debug=False,
-        save_normalized=False):
+        save_normalized=False
+    ):
         super(SemiSupervisedAlignmentLearner1d, self).__init__(
             model,
             wu=wu,
@@ -641,7 +641,8 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
         templates,
         template_labels,
         labeled_batch=None,
-        labels=None):
+        labels=None
+    ):
         b_ul, c_ul, l_ul = unlabeled_batch.size()
 
         templates = self.normalization_layer(templates)
@@ -658,7 +659,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
                     unlabeled_batch = unlabeled_batch[0:b_ul - 1]
 
             self.model.aggregate_output = self.use_weak_labels
-                
+
             labeled_loss = torch.mean(
                 self.loss(
                     self.model(labeled_batch, templates, template_labels),
@@ -678,9 +679,9 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
                 self.model(weakly_augmented, templates, template_labels)
             )
             pseudo_labels = (weak_output >= 0.5).float()
-            quality_modulator =  (
-                (weak_output >= self.threshold).float() + 
-                (weak_output <= (1 - self.threshold))
+            quality_modulator = (
+                (weak_output >= self.threshold).float()
+                + (weak_output <= (1 - self.threshold))
             )
 
             if self.regularizer_mode != 'none':
@@ -701,7 +702,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
                     b_ul_half = b_ul // 2
                     strongly_augmented = (
                         (
-                            strongly_augmented[0:b_ul_half].to(self.device) * 
+                            strongly_augmented[0:b_ul_half].to(self.device) *
                             regularizer_mask
                         ) +
                         (
@@ -735,14 +736,14 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
             quality_modulator = torch.mean(quality_modulator)
 
             unlabeled_loss = torch.mean(
-                quality_modulator * 
+                quality_modulator *
                 self.loss(
                     self.model(
                         strongly_augmented, templates, template_labels),
                     pseudo_labels
                 )
             )
-            
+
             if self.debug:
                 print(
                     f'Labeled Loss: {labeled_loss.item()}, '
