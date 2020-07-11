@@ -106,12 +106,6 @@ def train(
     if not scheduler:
         scheduler = CosineAnnealingWarmRestarts(optimizer, 10)
 
-    if 'transfer_model_path' in kwargs:
-        model.load_state_dict(
-            torch.load(kwargs['transfer_model_path']).state_dict(),
-            strict=False
-        )
-
     highest_bacc, highest_dice, highest_iou, lowest_loss = 0, 0, 0, 100
 
     model.to(device)

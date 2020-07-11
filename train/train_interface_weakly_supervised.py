@@ -3,6 +3,7 @@ import torch.optim as optim
 
 from train.train_weakly_supervised import train
 
+
 def main(
         data,
         model,
@@ -14,6 +15,17 @@ def main(
         train_kwargs,
         device):
     optimizer = train_kwargs.pop('optimizer', None)
+
+    if 'freeze_strong_layers' in kwargs and kwargs['freeze_strong_layers']:
+        if 'transfer_model_path' in kwargs:
+            model.load_state_dict(
+                torch.load(kwargs['transfer_model_path']).state_dict(),
+                strict=False
+            )
+
+        for name, param in model.named_parameters():
+            if 'output_aggregator' not in name:
+                param.requires_grad = False
 
     if optimizer == 'SGD':
         optimizer = optim.SGD(model.parameters(), **optimizer_kwargs)
