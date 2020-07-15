@@ -188,11 +188,12 @@ def train(
                 weak_preds = preds['weak']
 
                 if kwargs['use_weak_labels']:
+                    b, _ = strong_preds.size()
                     strong_preds = (
                         strong_preds
                         / torch.max(
                             strong_preds, dim=1
-                        ).values.view(kwargs['batch_size'], 1)
+                        ).values.view(b, 1)
                         * weak_preds
                     )
 

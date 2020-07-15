@@ -70,7 +70,7 @@ def plot_whole_chromatogram(
                     scipy.ndimage.label(binarized_labels)[0])
 
                 if regions_of_interest:
-                    scores = [(np.mean(labels[r]) + np.max(labels[r])) / 2 
+                    scores = [np.sum(labels[r])
                         for r 
                         in regions_of_interest]
                     best_region_idx = np.argmax(scores)

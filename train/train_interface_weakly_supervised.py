@@ -1,4 +1,5 @@
 import sys
+import torch
 import torch.optim as optim
 
 from train.train_weakly_supervised import train
@@ -16,10 +17,11 @@ def main(
         device):
     optimizer = train_kwargs.pop('optimizer', None)
 
-    if 'freeze_strong_layers' in kwargs and kwargs['freeze_strong_layers']:
-        if 'transfer_model_path' in kwargs:
+    if ('freeze_strong_layers' in train_kwargs
+            and train_kwargs['freeze_strong_layers']):
+        if 'transfer_model_path' in train_kwargs:
             model.load_state_dict(
-                torch.load(kwargs['transfer_model_path']).state_dict(),
+                torch.load(train_kwargs['transfer_model_path']).state_dict(),
                 strict=False
             )
 

@@ -235,18 +235,18 @@ class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
         if len(values.size()) == 2:
             values = values.unsqueeze(1)
 
-        q_b, qk_c, l = queries.size()
+        q_b, qk_c, length = queries.size()
         kv_b, v_c, _ = values.size()
         h = self.heads
 
-        queries = self.to_queries(queries).view(q_b, h, qk_c, l)
-        keys = self.to_keys(keys).view(kv_b, h, qk_c, l)
-        values = self.to_values(values).view(kv_b, h, v_c, l)
+        queries = self.to_queries(queries).view(q_b, h, qk_c, length)
+        keys = self.to_keys(keys).view(kv_b, h, qk_c, length)
+        values = self.to_values(values).view(kv_b, h, v_c, length)
 
         # Fold heads into the batch dimension
-        queries = queries.view(q_b * h, qk_c, l)
-        keys = keys.view(kv_b * h, qk_c, l)
-        values = values.view(kv_b * h, v_c, l)
+        queries = queries.view(q_b * h, qk_c, length)
+        keys = keys.view(kv_b * h, qk_c, length)
+        values = values.view(kv_b * h, v_c, length)
 
         # Scale and get dot product of queries and key
         queries = queries / (qk_c ** (1 / 4))
@@ -254,32 +254,33 @@ class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
 
         if kv_b > 1:
             dot = torch.matmul(
-                keys.transpose(1, 2).contiguous().view(kv_b * h, l, qk_c),
+                keys.transpose(1, 2).contiguous().view(kv_b * h, length, qk_c),
                 queries
             )
-            # dot now has size (q_b*h, kv_b*h, l, l) containing raw weights
+            # dot now has size (q_b*h, kv_b*h, length, length) containing raw
+            # weights
 
             dot = F.softmax(dot, dim=2)
             # dot now has channel-wise self-attention probabilities
 
             # Apply the attention to the values
             out = torch.matmul(values, dot)
-            # out now has size (q_b*h, kv_b*h, v_c, l)
+            # out now has size (q_b*h, kv_b*h, v_c, length)
 
-            out = torch.sum(out, dim=1)
-            # out now has size (q_b*h, v_c, l)
+            out = torch.mean(out, dim=1)
+            # out now has size (q_b*h, v_c, length)
         else:
             dot = torch.matmul(keys.transpose(1, 2), queries)
-            # dot now has size (q_b*h, l, l) containing raw weights
+            # dot now has size (q_b*h, length, length) containing raw weights
 
             dot = F.softmax(dot, dim=1)
             # dot now has channel-wise self-attention probabilities
 
             # Apply the attention to the values
             out = torch.matmul(values, dot)
-            # out now has size (q_b*h, v_c, l)
+            # out now has size (q_b*h, v_c, length)
 
-        out = out.view(q_b, h * v_c, l)
+        out = out.view(q_b, h * v_c, length)
 
         # Unify heads
         out = self.unify_heads(out)
@@ -369,7 +370,7 @@ class TimeSeriesAttentionPooling(nn.Module):
 
         # This represents the queries for the weak binary global label(s)
         self.query_embeds = nn.Parameter(
-            torch.randn(self.heads, c, self.num_queries) / (c ** (1 / 2)))
+            torch.randn(self.heads, c, self.num_queries))
 
         self.attn = None
 
@@ -377,7 +378,7 @@ class TimeSeriesAttentionPooling(nn.Module):
         return self.attn
 
     def forward_pool(self, x):
-        b, c, l = x.size()
+        b, c, length = x.size()
         h = self.heads
         queries = (self.query_embeds
                    .unsqueeze(0)
@@ -385,13 +386,13 @@ class TimeSeriesAttentionPooling(nn.Module):
                    .view(b * h, c, self.num_queries))
 
         # Repeat and fold heads into the batch dimension
-        keys = values = x.repeat(1, h, 1).view(b * h, c, l)
+        keys = values = x.repeat(1, h, 1).view(b * h, c, length)
 
         # Scale and get dot product of queries and keys
         queries = queries / (c ** (1 / 4))
         keys = keys / (c ** (1 / 4))
         dot = torch.bmm(keys.transpose(1, 2), queries)
-        # dot now has size (b*h, l, num_queries) containing raw weights
+        # dot now has size (b*h, length, num_queries) containing raw weights
 
         dot = F.softmax(dot, dim=1)
         # dot now has channel-wise self-attention probabilities
@@ -404,14 +405,14 @@ class TimeSeriesAttentionPooling(nn.Module):
         # out now has size (b, c, num_queries)
 
         if self.save_attn:
-            self.attn = dot.view(b, h, l, self.num_queries)
+            self.attn = dot.view(b, h, length, self.num_queries)
 
         return out
 
     def forward_unpool(self, x):
-        b, c, l = x.size()
+        b, c, length = x.size()
         h = self.heads
-        queries = x.repeat(1, h, 1).view(b * h, c, l)
+        queries = values = x.repeat(1, h, 1).view(b * h, c, length)
         keys = (self.query_embeds
                 .unsqueeze(0)
                 .repeat(b, 1, 1, 1)
@@ -421,13 +422,15 @@ class TimeSeriesAttentionPooling(nn.Module):
         queries = queries / (c ** (1 / 4))
         keys = keys / (c ** (1 / 4))
         dot = torch.bmm(keys.transpose(1, 2), queries)
-        # dot now has size (b*h, num_queries, l) containing raw weights
+        # dot now has size (b*h, num_queries, length) containing raw weights
 
-        dot = dot.view(b, h, self.num_queries, l)
+        dot = torch.max(F.softmax(dot, dim=2), dim=1, keepdim=True).values
+        # dot now has length-wise attention probabilities
+        # and size (b*h, 1, length)
 
         # Unify heads
-        out = torch.mean(dot, dim=1)
-        # out now has size (b, num_queries, l)
+        out = torch.mean((values * dot).view(b, h, c, length), dim=1)
+        # out now has size (b, c, length)
 
         return out
 
@@ -575,8 +578,8 @@ class DDSCTransformer(nn.Module):
         if self.output_mode == 'strong' or self.output_mode == 'both':
             if self.output_is_unpooled:
                 out_dict['strong'] = self.output_aggregator(out, unpool=True)
-            else:
-                out_dict['strong'] = self.to_logits(out)
+
+            out_dict['strong'] = self.to_logits(out)
 
         if self.probs:
             for mode in out_dict:
