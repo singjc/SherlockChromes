@@ -7,6 +7,7 @@ import os
 import sqlite3
 import tarfile
 import time
+import click
 
 from general_utils import get_subsequence_idxs
 from sql_data_access import SqlDataAccess
@@ -68,13 +69,19 @@ def get_feature_info_from_run(
 def get_transition_ids_and_library_intensities_from_prec_id(
     con,
     cursor,
-    prec_id
+    prec_id,
+    detecting=True,
+    identifying=False
 ):
     query = \
         """SELECT ID, LIBRARY_INTENSITY
         FROM TRANSITION LEFT JOIN TRANSITION_PRECURSOR_MAPPING
         ON TRANSITION.ID = TRANSITION_ID
-        WHERE PRECURSOR_ID = {0}""".format(prec_id)
+        WHERE PRECURSOR_ID = {0},
+        AND (
+      TRANSITION.DETECTING = {1} --- #detecting Include detecting transitions
+      OR TRANSITION.IDENTIFYING = {2} --- #identifying Include identifying transitions
+          )""".format(prec_id, detecting, identifying)
     res = cursor.execute(query)
     tmp = res.fetchall()
 
@@ -336,6 +343,8 @@ def get_cnn_data(
     osw_dir='.',
     osw_filename='merged.osw',
     sqMass_roots=[],
+    detecting,
+    identifying,
     extra_features=['ms1', 'lib_int', 'exp_rt'],
     isotopes=[0],
     csv_only=False,
@@ -386,7 +395,9 @@ def get_cnn_data(
                 get_transition_ids_and_library_intensities_from_prec_id(
                     con,
                     cursor,
-                    prec_id))
+                    prec_id,
+                    detecting,
+                    identifying))
             transition_ids = \
                 [str(x[0]) for x in transition_ids_and_library_intensities]
             library_intensities = \
@@ -515,6 +526,8 @@ if __name__ == '__main__':
         '--in_folder',
         type=str,
         default='hroest_K120808_Strep0PlasmaBiolRepl1_R01_SW')
+    parser.add_argument('-no_detecting', '--no_detecting', type=bool, default=False, help="Enable to exclude detecting transitions", action="store_false")
+    parser.add_argument'-identifying', '--identifying', type=bool, default=False, help="Enable to include identifying transitions", action="store_false")
     parser.add_argument(
         '-extra_features',
         '--extra_features',
@@ -556,11 +569,28 @@ if __name__ == '__main__':
         elif args.mode == 'tar':
             out = tarfile.open(args.out + '.tar', 'w|')
 
+
+    ## Set Detecting off
+    if args.no_detecting:
+        click.echo("WARN: Excluding Detecting Transitions...")
+        detecting=False
+    else:
+        detecting=True
+
+    ## Set Identifying on
+    if args.identifying:
+        click.echo("WARN: Including Identifying Transitions..."
+        identifying=True
+    else:
+        identifying=False
+    
     get_cnn_data(
         out=out,
         osw_dir=args.osw_dir,
         osw_filename=args.osw_in,
         sqMass_roots=args.in_folder,
+        detecting=detecting,
+        identifying=identifying,
         extra_features=args.extra_features,
         isotopes=args.isotopes,
         csv_only=args.csv_only,
