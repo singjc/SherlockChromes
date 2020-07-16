@@ -579,7 +579,7 @@ if __name__ == '__main__':
 
     ## Set Identifying on
     if args.identifying:
-        click.echo("WARN: Including Identifying Transitions..."
+        click.echo("WARN: Including Identifying Transitions...")
         identifying=True
     else:
         identifying=False
