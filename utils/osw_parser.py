@@ -21,11 +21,8 @@ def get_run_id_from_folder_name(
     query = \
         """SELECT ID FROM RUN WHERE FILENAME LIKE '%{0}%'""".format(
             os.path.basename(folder_name) )
-        
-    print( query )
     res = cursor.execute(query)
     tmp = res.fetchall()
-    print(tmp)
     assert len(tmp) == 1
 
     return tmp[0][0]
@@ -83,7 +80,7 @@ def get_transition_ids_and_library_intensities_from_prec_id(
         AND (
       TRANSITION.DETECTING = {1} --- #detecting Include detecting transitions
       OR TRANSITION.IDENTIFYING = {2} --- #identifying Include identifying transitions
-          )""".format(prec_id, detecting, identifying)
+          )""".format(prec_id, int(detecting), int(identifying))
     res = cursor.execute(query)
     tmp = res.fetchall()
 
