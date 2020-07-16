@@ -369,7 +369,7 @@ def get_cnn_data(
     csv_filename = f'{out}_chromatograms_csv.csv'
 
     for sqMass_root in sqMass_roots:
-        print(sqMass_root)
+        click.echo( "INFO: Working on Chrom File %s " % (sqMass_root) )
 
         run_id = get_run_id_from_folder_name(con, cursor, sqMass_root)
 
