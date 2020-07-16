@@ -526,8 +526,8 @@ if __name__ == '__main__':
         '--in_folder',
         type=str,
         default='hroest_K120808_Strep0PlasmaBiolRepl1_R01_SW')
-    parser.add_argument('-no_detecting', '--no_detecting', type=bool, default=False, help="Enable to exclude detecting transitions", action="store_false")
-    parser.add_argument('-identifying', '--identifying', type=bool, default=False, help="Enable to include identifying transitions", action="store_false")
+    parser.add_argument('-no_detecting', '--no_detecting', default=False, help="Enable to exclude detecting transitions", action="store_false")
+    parser.add_argument('-identifying', '--identifying', default=False, help="Enable to include identifying transitions", action="store_false")
     parser.add_argument(
         '-extra_features',
         '--extra_features',
