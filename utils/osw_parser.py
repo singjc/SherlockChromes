@@ -79,7 +79,7 @@ def get_transition_ids_and_library_intensities_from_prec_id(
         """SELECT ID, LIBRARY_INTENSITY
         FROM TRANSITION LEFT JOIN TRANSITION_PRECURSOR_MAPPING
         ON TRANSITION.ID = TRANSITION_ID
-        WHERE PRECURSOR_ID = {0},
+        WHERE PRECURSOR_ID = {0}
         AND (
       TRANSITION.DETECTING = {1} --- #detecting Include detecting transitions
       OR TRANSITION.IDENTIFYING = {2} --- #identifying Include identifying transitions
