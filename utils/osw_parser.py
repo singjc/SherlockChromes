@@ -27,7 +27,7 @@ def get_run_id_from_folder_name(
 ):
     query = \
         """SELECT ID FROM RUN WHERE FILENAME LIKE '%{0}%'""".format(
-            os.path.basename(os.path.dirname(folder_name)) )
+            folder_name )
     #print( query )
     res = cursor.execute(query)
     tmp = res.fetchall()
