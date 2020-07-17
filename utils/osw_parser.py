@@ -12,6 +12,13 @@ import click
 from general_utils import get_subsequence_idxs
 from sql_data_access import SqlDataAccess
 
+def get_chromatogram_filename( chromatogram_directory ):
+    """Get the last modified chromatogram filename in the respective run directory."""
+    for file in os.listdir( chromatogram_directory ):
+        if file.lower().endswith('.sqmass'):
+            return file
+        else:
+            raise ValueError( "There was no chromatogram file of extension sqMass found in %s" % ( chromatogram_directory ) )             
 
 def get_run_id_from_folder_name(
     con,
@@ -21,10 +28,10 @@ def get_run_id_from_folder_name(
     query = \
         """SELECT ID FROM RUN WHERE FILENAME LIKE '%{0}%'""".format(
             os.path.basename(os.path.dirname(folder_name)) )
-    print( query )
+    #print( query )
     res = cursor.execute(query)
     tmp = res.fetchall()
-    print( tmp )
+    #print( tmp )
     assert len(tmp) == 1
 
     return tmp[0][0]
@@ -175,6 +182,8 @@ def create_data_from_transition_ids(
     window_size=201,
     mode='tar'
 ):
+    click.echo("sqMass_dir: %s\nsqMass_filename: %s\nchromatogram_filename: %s\n" % (sqMass_dir, sqMass_filename,
+    chromatogram_filename))
     con = sqlite3.connect(os.path.join(sqMass_dir, sqMass_filename))
 
     cursor = con.cursor()
@@ -344,6 +353,7 @@ def get_cnn_data(
     osw_dir='.',
     osw_filename='merged.osw',
     sqMass_roots=[],
+    sqMass_names='output.sqMass',
     detecting=True,
     identifying=False,
     extra_features=['ms1', 'lib_int', 'exp_rt'],
@@ -369,7 +379,7 @@ def get_cnn_data(
     chromatograms_filename = f'{out}_chromatograms_array'
     csv_filename = f'{out}_chromatograms_csv.csv'
 
-    for sqMass_root in sqMass_roots:
+    for sqMass_root, sqMass_name in zip(sqMass_roots, sqMass_names):
         click.echo( "INFO: Working on Chrom File %s " % (sqMass_root) )
 
         run_id = get_run_id_from_folder_name(con, cursor, sqMass_root)
@@ -387,7 +397,7 @@ def get_cnn_data(
                         len(feature_info))
 
         for i in range(len(prec_id_and_prec_mod_seqs_and_charges)):
-            print(i)
+            print( "%s of %s" % (str(i), str(len(prec_id_and_prec_mod_seqs_and_charges))) )
 
             prec_id, prec_mod_seq, prec_charge, decoy = (
                 prec_id_and_prec_mod_seqs_and_charges[i])
@@ -425,22 +435,23 @@ def get_cnn_data(
                 exp_rt, left_width, right_width, score = None, None, None, None
                 bb_start, bb_end = None, None
 
-            repl_name = sqMass_root
+            repl_name = os.path.dirname(sqMass_root)
 
             chromatogram_filename = [repl_name, prec_mod_seq, str(prec_charge)]
             if decoy == 1:
                 chromatogram_filename.insert(0, 'DECOY')
 
             chromatogram_filename = '_'.join(chromatogram_filename)
-
+              
             if scored:
+
                 (
                     labels,
                     bb_start,
                     bb_end,
                     chromatogram) = create_data_from_transition_ids(
-                    sqMass_root,
-                    'output.sqMass',
+                    os.path.dirname(sqMass_root),
+                    sqMass_name,
                     transition_ids,
                     out,
                     chromatogram_filename,
@@ -527,6 +538,12 @@ if __name__ == '__main__':
         '--in_folder',
         type=str,
         default='hroest_K120808_Strep0PlasmaBiolRepl1_R01_SW')
+    parser.add_argument(
+        '-chrom_name_wildcard',
+        '--chrom_name_wildcard',
+        type=str,
+        default='output.sqMass',
+        help="Default is set to 'output.sqMass', this assumes all your chromatograms is named as such. If your chromatogram files have their own unique names in their respective directories, set this flag to 'unique'. Note: if you set unique, ensure each run folder has a single chromatogram, otherwise the most recently modified chromatogram file will be used.")    
     parser.add_argument('-no_detecting', '--no_detecting', default=False, help="Enable to exclude detecting transitions", action="store_false")
     parser.add_argument('-identifying', '--identifying', default=False, help="Enable to include identifying transitions", action="store_false")
     parser.add_argument(
@@ -584,12 +601,22 @@ if __name__ == '__main__':
         identifying=True
     else:
         identifying=False
+
+    ## Get unique chromatogram filenames if chrom_name_wildcard is set to unique
+    if args.chrom_name_wildcard=='unique':
+        sqMass_names=list(map(get_chromatogram_filename, args.in_folder))
+    else:
+        if args.chrom_name_wildcard.lower().endswith('.sqmass'):
+            sqMass_names=args.chrom_name_wildcard
+        else:
+            raise ValueError("Input for chrom_name_wildcard did not have a valid extension (.sqMass): %s" % (args.chrom_name_wildcard) )
     
     get_cnn_data(
         out=out,
         osw_dir=args.osw_dir,
         osw_filename=args.osw_in,
         sqMass_roots=args.in_folder,
+        sqMass_names=sqMass_names,
         detecting=detecting,
         identifying=identifying,
         extra_features=args.extra_features,
