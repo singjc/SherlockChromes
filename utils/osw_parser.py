@@ -27,7 +27,7 @@ def get_run_id_from_folder_name(
 ):
     query = \
         """SELECT ID FROM RUN WHERE FILENAME LIKE '%{0}%'""".format(
-            folder_name )
+            os.path.basename( folder_name ) )
     #print( query )
     res = cursor.execute(query)
     tmp = res.fetchall()
@@ -435,7 +435,7 @@ def get_cnn_data(
                 exp_rt, left_width, right_width, score = None, None, None, None
                 bb_start, bb_end = None, None
 
-            repl_name = os.path.dirname(sqMass_root)
+            repl_name = sqMass_root
 
             chromatogram_filename = [repl_name, prec_mod_seq, str(prec_charge)]
             if decoy == 1:
@@ -450,7 +450,7 @@ def get_cnn_data(
                     bb_start,
                     bb_end,
                     chromatogram) = create_data_from_transition_ids(
-                    os.path.dirname(sqMass_root),
+                    sqMass_root,
                     sqMass_name,
                     transition_ids,
                     out,
