@@ -14,11 +14,20 @@ from sql_data_access import SqlDataAccess
 
 def get_chromatogram_filename( chromatogram_directory ):
     """Get the last modified chromatogram filename in the respective run directory."""
-    for file in os.listdir( chromatogram_directory ):
-        if file.lower().endswith('.sqmass'):
-            return file
-        else:
-            raise ValueError( "There was no chromatogram file of extension sqMass found in %s" % ( chromatogram_directory ) )             
+    ## Get list of files in chromatogram directory
+    files_in_chrom_dir = os.listdir( chromatogram_directory )
+    ## Identify which files are of type sqMass, if any
+    sqmass_present = [ file.lower().endswith('.sqmass') for file in files_in_chrom_dir ]
+    if any( sqmass_present ):
+        ## Subset for only sqMass files
+        chrom_files = np.asarray(files_in_chrom_dir)[sqmass_present].tolist()
+        ## Get the relative path of chromatogram file, and sort by last modified time
+        chrom_files_relpath = [ os.path.join(chromatogram_directory, file) for file in chrom_files ]
+        chrom_files_relpath.sort(key=os.path.getmtime)
+        ## Return last modified file
+        return os.path.basename( chrom_files_relpath[-1] )
+    else:
+        raise ValueError( "There was no chromatogram file of extension sqMass found in %s" % ( chromatogram_directory ) )             
 
 def get_run_id_from_folder_name(
     con,
@@ -28,10 +37,8 @@ def get_run_id_from_folder_name(
     query = \
         """SELECT ID FROM RUN WHERE FILENAME LIKE '%{0}%'""".format(
             os.path.basename( folder_name ) )
-    #print( query )
     res = cursor.execute(query)
     tmp = res.fetchall()
-    #print( tmp )
     assert len(tmp) == 1
 
     return tmp[0][0]
@@ -182,8 +189,6 @@ def create_data_from_transition_ids(
     window_size=201,
     mode='tar'
 ):
-    click.echo("sqMass_dir: %s\nsqMass_filename: %s\nchromatogram_filename: %s\n" % (sqMass_dir, sqMass_filename,
-    chromatogram_filename))
     con = sqlite3.connect(os.path.join(sqMass_dir, sqMass_filename))
 
     cursor = con.cursor()
@@ -495,14 +500,14 @@ def get_cnn_data(
         if mode == 'npy':
             np.save(
                 chromatograms_filename,
-                np.vstack(chromatograms_array).astype(np.float32)
+                np.stack(chromatograms_array, axis=0).astype(np.float32)
             )
-            np.save(labels_filename, np.vstack(label_matrix).astype(np.int32))
+            np.save(labels_filename, np.stack(label_matrix, axis=0).astype(np.int32))
         elif mode == 'hdf5':
             out.create_dataset(
-                labels_filename, data=np.vstack(label_matrix))
+                labels_filename, data=np.stack(label_matrix, axis=0))
         elif mode == 'tar':
-            data = np.vstack(label_matrix).tobytes()
+            data = np.stack(label_matrix, axis=0).tobytes()
             with io.BytesIO(data) as f:
                 info = tarfile.TarInfo(labels_filename)
                 info.size = len(data)
