@@ -444,7 +444,7 @@ def get_cnn_data(
 
             chromatogram_filename = [repl_name, prec_mod_seq, str(prec_charge)]
             if decoy == 1:
-                chromatogram_filename.insert(0, 'DECOY')
+                chromatogram_filename.insert(1, 'DECOY')
 
             chromatogram_filename = '_'.join(chromatogram_filename)
               
