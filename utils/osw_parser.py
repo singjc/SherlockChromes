@@ -36,7 +36,7 @@ def get_run_id_from_folder_name(
 ):
     query = \
         """SELECT ID FROM RUN WHERE FILENAME LIKE '%{0}%'""".format(
-            os.path.basename( folder_name ) )
+            os.path.basename( folder_name.rstrip("/|\\") ) )
     res = cursor.execute(query)
     tmp = res.fetchall()
     assert len(tmp) == 1
@@ -549,8 +549,8 @@ if __name__ == '__main__':
         type=str,
         default='output.sqMass',
         help="Default is set to 'output.sqMass', this assumes all your chromatograms is named as such. If your chromatogram files have their own unique names in their respective directories, set this flag to 'unique'. Note: if you set unique, ensure each run folder has a single chromatogram, otherwise the most recently modified chromatogram file will be used.")    
-    parser.add_argument('-no_detecting', '--no_detecting', default=False, help="Enable to exclude detecting transitions", action="store_false")
-    parser.add_argument('-identifying', '--identifying', default=False, help="Enable to include identifying transitions", action="store_false")
+    parser.add_argument('-no_detecting', '--no_detecting', default=False, help="Enable to exclude detecting transitions", action="store_true")
+    parser.add_argument('-identifying', '--identifying', default=False, help="Enable to include identifying transitions", action="store_true")
     parser.add_argument(
         '-extra_features',
         '--extra_features',
