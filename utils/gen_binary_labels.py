@@ -67,7 +67,7 @@ def gen_target_decoy_labels( in_chromatograms_csv, library_database_file, out_fi
     if  ( in_chromatograms_csv_ext != '.tsv' and in_chromatograms_csv_ext != '.csv' and in_chromatograms_csv_ext != '.txt' ):
         raise ValueError( 'chromatogram csv file of type {} is not supported. Your chromatogram csv file type should be .tsv/.csv/.txt'.format(in_chromatograms_csv_ext) )
 
-    library_database_file_filename, library_database_file_ext = os.path.splitext( ground_truth_file )
+    library_database_file_filename, library_database_file_ext = os.path.splitext( library_database_file )
     if  ( library_database_file_ext != '.pqd' ):
         raise ValueError( 'library file of type {} is not supported. Your library file type should be .pqp'.format(truth_ext) )
     
@@ -99,16 +99,16 @@ def gen_target_decoy_labels( in_chromatograms_csv, library_database_file, out_fi
     np.save( out_file, binary_labels.astype(np.int32) )
 
 @click.command()
-@click.option( '--in_chrom_csv', '--in_chromatograms_csv', required=True, help='Chromatogram csv file containing filename column containing peptide sequence. This file should be derived from osw_parser.' )
-@click.option( '--in_truth', '--ground_truth_file', default="", help='Single column ground truth file containing peptide sequences that you know are present. i.e. synthetic peptides.' )
-@click.option( '--in_lib', '--library_database_file', default="", help='A library file that contains precursor target-decoy information. Filetype: pqp' )
-@click.option( '--out_file', '--out_file', default="binary_labels.npy", help='Numpy file to write binary labels to.' )
+@click.option( '-in_chrom_csv', '--in_chromatograms_csv', required=True, help='Chromatogram csv file containing filename column containing peptide sequence. This file should be derived from osw_parser.' )
+@click.option( '-in_truth', '--ground_truth_file', default="", help='Single column ground truth file containing peptide sequences that you know are present. i.e. synthetic peptides.' )
+@click.option( '-in_lib', '--library_database_file', default="", help='A library file that contains precursor target-decoy information. Filetype: pqp' )
+@click.option( '-out_file', '--out_file', default="binary_labels.npy", help='Numpy file to write binary labels to.' )
 def main( in_chromatograms_csv, ground_truth_file, library_database_file, out_file ):
 
     if ground_truth_file!="" and library_database_file=="":
         out_file = "ground_truth_based_" + out_file 
         gen_ground_truth_labels( in_chromatograms_csv, ground_truth_file, out_file )
-    elif ground_truth_file!="" and library_database_file=="":
+    elif ground_truth_file=="" and library_database_file!="":
         out_file = "target_decoy_based_" + out_file
         gen_target_decoy_labels( in_chromatograms_csv, library_database_file, out_file )
     elif ground_truth_file=="" and library_database_file=="":
