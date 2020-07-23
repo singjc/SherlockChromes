@@ -68,8 +68,8 @@ def gen_target_decoy_labels( in_chromatograms_csv, library_database_file, out_fi
         raise ValueError( 'chromatogram csv file of type {} is not supported. Your chromatogram csv file type should be .tsv/.csv/.txt'.format(in_chromatograms_csv_ext) )
 
     library_database_file_filename, library_database_file_ext = os.path.splitext( library_database_file )
-    if  ( library_database_file_ext != '.pqd' ):
-        raise ValueError( 'library file of type {} is not supported. Your library file type should be .pqp'.format(truth_ext) )
+    if  ( library_database_file_ext != '.pqp' ):
+        raise ValueError( 'library file of type {} is not supported. Your library file type should be .pqp'.format(library_database_file_ext) )
     
     # Get file delimiters
     if in_chromatograms_csv_ext == '.tsv' or in_chromatograms_csv_ext == '.txt' :
