@@ -60,7 +60,7 @@ def gen_ground_truth_labels( in_chromatograms_csv, ground_truth_file, out_file )
 def gen_target_decoy_labels( in_chromatograms_csv, library_database_file, out_file ):
     """Generate a binary array of target-decoy labels"""
 
-    click.echo( "in_chromatograms_csv: {0}\library_database_file: {1}".format(in_chromatograms_csv,library_database_file))
+    click.echo( "in_chromatograms_csv: {0}\nlibrary_database_file: {1}".format(in_chromatograms_csv,library_database_file))
 
     # Check files for supported formats
     in_chromatograms_csv_filename, in_chromatograms_csv_ext = os.path.splitext( in_chromatograms_csv )
