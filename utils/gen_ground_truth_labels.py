@@ -62,8 +62,6 @@ def gen_target_decoy_labels( in_chromatograms_csv, library_database_file, out_fi
 
     click.echo( "in_chromatograms_csv: {0}\library_database_file: {1}".format(in_chromatograms_csv,library_database_file))
 
-    library_database_file="/home/singjust/projects/def-hroest/data/synth_phospho_pep/singjust_results/George_lib_repeat2/lib/psgs.pqp"
-
     # Check files for supported formats
     in_chromatograms_csv_filename, in_chromatograms_csv_ext = os.path.splitext( in_chromatograms_csv )
     if  ( in_chromatograms_csv_ext != '.tsv' and in_chromatograms_csv_ext != '.csv' and in_chromatograms_csv_ext != '.txt' ):
