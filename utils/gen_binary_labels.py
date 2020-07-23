@@ -91,7 +91,7 @@ def gen_target_decoy_labels( in_chromatograms_csv, library_database_file, out_fi
     filename = chromatogram_df['Filename'].tolist()
 
     # Identify which filenames contain peptide sequences from truth list
-    binary_labels = [ len(set(os.path.basename(current_filename).split("_")) & set(truth_list))>0 if  1 else 0 for current_filename in filename ]
+    binary_labels = [ len(set(os.path.basename(current_filename).split("_")) & set(target_sequences))>0 if  1 else 0 for current_filename in filename ]
     binary_labels = np.array( binary_labels )
 
     # Write labels to file
