@@ -8,6 +8,7 @@ import sqlite3
 import tarfile
 import time
 import click
+from random import seed, sample
 
 from general_utils import get_subsequence_idxs
 from sql_data_access import SqlDataAccess
@@ -86,10 +87,12 @@ def get_transition_ids_and_library_intensities_from_prec_id(
     cursor,
     prec_id,
     detecting=True,
-    identifying=False
+    identifying=False,
+    n_identifying=0,
+    test_seed=False
 ):
     query = \
-        """SELECT ID, LIBRARY_INTENSITY
+        """SELECT ID, LIBRARY_INTENSITY, DETECTING
         FROM TRANSITION LEFT JOIN TRANSITION_PRECURSOR_MAPPING
         ON TRANSITION.ID = TRANSITION_ID
         WHERE PRECURSOR_ID = {0}
@@ -99,16 +102,40 @@ def get_transition_ids_and_library_intensities_from_prec_id(
           )""".format(prec_id, int(detecting), int(identifying))
     res = cursor.execute(query)
     tmp = res.fetchall()
-
-    assert len(tmp) > 0, prec_id
-
-    return tmp
+    # Subset detecting transitions
+    detecting_only_list = list(filter(lambda is_ident: 1 in is_ident, tmp))
+    if detecting:
+        assert len(detecting_only_list) > 0, prec_id
+    # Subset identifying transitions
+    identifying_only_list = list(filter(lambda is_ident: 0 in is_ident, tmp))
+    # Set seed for testing
+    if test_seed:
+        seed(0)
+    # Randomly sample N identifying transitions
+    if len(identifying_only_list) < n_identifying:
+        subsampled_identifying_only_list = sample( identifying_only_list, len(identifying_only_list) )
+        padding = (-1, 0, -1)
+        N = n_identifying-len(identifying_only_list)
+        identifying_padding = ((padding, ) * N) 
+        subsampled_identifying_only_list = subsampled_identifying_only_list + list(identifying_padding)
+    else:
+        subsampled_identifying_only_list = sample( identifying_only_list, n_identifying )
+    # Merged the list of detecting tuples and the subsampled list of identifying tupples
+    merged_list = detecting_only_list + subsampled_identifying_only_list
+    # Remove Detecting ID information
+    merged_list = [ item[0:2] for item in merged_list ]
+    assert len(merged_list) > 0, prec_id
+    return merged_list
 
 
 def get_ms2_chromatogram_ids_from_transition_ids(con, cursor, transition_ids):
+    valid_transition_ids = list(filter( lambda id: id != "-1", transition_ids ))
+    padding_ids = list(filter( lambda id: id == "-1", transition_ids ))
+    padding_ids = [ (int(id),) for id in padding_ids ]
+
     sql_query = "SELECT ID FROM CHROMATOGRAM WHERE NATIVE_ID IN ("
 
-    for current_id in transition_ids:
+    for current_id in valid_transition_ids:
         sql_query += "'" + current_id + "', "
 
     sql_query = sql_query[:-2]
@@ -117,6 +144,7 @@ def get_ms2_chromatogram_ids_from_transition_ids(con, cursor, transition_ids):
     res = cursor.execute(sql_query)
     tmp = res.fetchall()
 
+    tmp = tmp + padding_ids
     # assert len(tmp) > 0, str(transition_ids)
 
     return tmp
@@ -185,6 +213,7 @@ def create_data_from_transition_ids(
     library_intensities=[],
     exp_rt=None,
     extra_features=[],
+    n_identifying=0,
     csv_only=False,
     window_size=201,
     mode='tar'
@@ -205,12 +234,25 @@ def create_data_from_transition_ids(
 
     transitions = SqlDataAccess(os.path.join(sqMass_dir, sqMass_filename))
 
+    valid_ms2_transition_ids = list(filter( lambda id: id != -1, ms2_transition_ids ))
+    padding_ids = list(filter( lambda id: id == -1, ms2_transition_ids ))
+    padding_ids = [ (int(id),) for id in padding_ids ]
+
     ms2_transitions = transitions.getDataForChromatograms(
-        ms2_transition_ids)
+        valid_ms2_transition_ids)
 
     times = ms2_transitions[0][0]
     len_times = len(times)
     subsection_left, subsection_right = 0, len_times
+
+    # Add padding for missing identifying transitions
+    if len(padding_ids) > 0:
+        click("WARN: There was not enough identifying transitions that met the n_identifying={0} flag, padding {1} transitions with 0 intensity.".format(n_identifying, len(padding_ids)))
+        padding_data = []
+        intensity = [0]*len(times)
+        padding_data.append([times, intensity])
+        padding_data = padding_data * len(padding_ids)
+        ms2_transitions = ms2_transitions + padding_data
 
     row_labels, bb_start, bb_end = get_chromatogram_labels_and_bbox(
             left_width,
@@ -230,6 +272,10 @@ def create_data_from_transition_ids(
 
         if 'exp_rt' in extra_features:
             num_expected_extra_features += 1
+
+        if 'identifying' in extra_features:
+            num_expected_features += n_identifying
+            num_expected_extra_features += n_identifying
 
         chromatogram = np.zeros((num_expected_features, len_times))
         extra = np.zeros((num_expected_extra_features, len_times))
@@ -285,6 +331,8 @@ def create_data_from_transition_ids(
                 lib_int_features)
             extra_meta['lib_int_start'] = free_idx
             free_idx += 6
+            if 'identifying' in extra_features:
+                free_idx += n_identifying
             extra_meta['lib_int_end'] = free_idx
 
         if 'exp_rt' in extra_features:
@@ -361,7 +409,9 @@ def get_cnn_data(
     sqMass_names='output.sqMass',
     detecting=True,
     identifying=False,
-    extra_features=['ms1', 'lib_int', 'exp_rt'],
+    n_identifying=0,
+    test_seed=False,
+    extra_features=['ms1', 'lib_int', 'exp_rt', 'identifying'],
     isotopes=[0],
     csv_only=False,
     window_size=201,
@@ -413,7 +463,9 @@ def get_cnn_data(
                     cursor,
                     prec_id,
                     detecting,
-                    identifying))
+                    identifying,
+                    n_identifying,
+                    test_seed))
             transition_ids = \
                 [str(x[0]) for x in transition_ids_and_library_intensities]
             library_intensities = \
@@ -467,6 +519,7 @@ def get_cnn_data(
                     library_intensities=library_intensities,
                     exp_rt=exp_rt,
                     extra_features=extra_features,
+                    n_identifying=n_identifying,
                     csv_only=csv_only,
                     window_size=window_size,
                     mode=mode)
@@ -551,6 +604,8 @@ if __name__ == '__main__':
         help="Default is set to 'output.sqMass', this assumes all your chromatograms is named as such. If your chromatogram files have their own unique names in their respective directories, set this flag to 'unique'. Note: if you set unique, ensure each run folder has a single chromatogram, otherwise the most recently modified chromatogram file will be used.")    
     parser.add_argument('-no_detecting', '--no_detecting', default=False, help="Enable to exclude detecting transitions", action="store_true")
     parser.add_argument('-identifying', '--identifying', default=False, help="Enable to include identifying transitions", action="store_true")
+    parser.add_argument('-n_identifying', '--n_identifying', type=int, default=0, help="The number of identifying transitions to use. If there is N < n_identifying, 0 flat signal padding will be added.")
+    parser.add_argument('-test', '--test_seed', default=False, help="Set seed to sample the same identifying transitions", action="store_true")
     parser.add_argument(
         '-extra_features',
         '--extra_features',
@@ -602,7 +657,7 @@ if __name__ == '__main__':
 
     ## Set Identifying on
     if args.identifying:
-        click.echo("WARN: Including Identifying Transitions...")
+        click.echo("WARN: Including {0} Identifying Transitions...".format(n_identifying))
         identifying=True
     else:
         identifying=False
@@ -624,6 +679,8 @@ if __name__ == '__main__':
         sqMass_names=sqMass_names,
         detecting=detecting,
         identifying=identifying,
+        n_identifying=n_identifying,
+        test_seed=test_seed,
         extra_features=args.extra_features,
         isotopes=args.isotopes,
         csv_only=args.csv_only,
