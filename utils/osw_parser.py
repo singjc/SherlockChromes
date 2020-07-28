@@ -657,7 +657,7 @@ if __name__ == '__main__':
 
     ## Set Identifying on
     if args.identifying:
-        click.echo("WARN: Including {0} Identifying Transitions...".format(n_identifying))
+        click.echo("WARN: Including {0} Identifying Transitions...".format(args.n_identifying))
         identifying=True
     else:
         identifying=False
@@ -679,8 +679,8 @@ if __name__ == '__main__':
         sqMass_names=sqMass_names,
         detecting=detecting,
         identifying=identifying,
-        n_identifying=n_identifying,
-        test_seed=test_seed,
+        n_identifying=args.n_identifying,
+        test_seed=args.test_seed,
         extra_features=args.extra_features,
         isotopes=args.isotopes,
         csv_only=args.csv_only,
