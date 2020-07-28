@@ -247,7 +247,7 @@ def create_data_from_transition_ids(
 
     # Add padding for missing identifying transitions
     if len(padding_ids) > 0:
-        click( "WARN: There was not enough identifying transitions that met the n_identifying=%s flag, padding %s transitions with 0 intensity." % (str(n_identifying), str(len(padding_ids)) )
+        click( "WARN: There was not enough identifying transitions that met the n_identifying=%s flag, padding %s transitions with 0 intensity." % (str(n_identifying), str(len(padding_ids))) )
         padding_data = []
         intensity = [0]*len(times)
         padding_data.append([times, intensity])
