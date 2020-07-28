@@ -374,10 +374,17 @@ class TimeSeriesAttentionPooling(nn.Module):
 
         self.attn = None
 
+        # This unifies the outputs of the different heads into a single
+        # c-vector
+        if self.heads > 1:
+            self.unify_heads = nn.Conv1d(heads * c, c, 1)
+        else:
+            self.unify_heads = nn.Identity()
+
     def get_attn(self):
         return self.attn
 
-    def forward_pool(self, x):
+    def forward(self, x):
         b, c, length = x.size()
         h = self.heads
         queries = (self.query_embeds
@@ -398,46 +405,16 @@ class TimeSeriesAttentionPooling(nn.Module):
         # dot now has channel-wise self-attention probabilities
 
         # Apply the self attention to the values
-        out = torch.bmm(values, dot).view(b, h, c, self.num_queries)
+        out = torch.bmm(values, dot).view(b, h * c, self.num_queries)
 
         # Unify heads
-        out = torch.mean(out, dim=1)
+        out = self.unify_heads(out)
         # out now has size (b, c, num_queries)
 
         if self.save_attn:
             self.attn = dot.view(b, h, length, self.num_queries)
 
         return out
-
-    def forward_unpool(self, x):
-        b, c, length = x.size()
-        h = self.heads
-        queries = values = x.repeat(1, h, 1).view(b * h, c, length)
-        keys = (self.query_embeds
-                .unsqueeze(0)
-                .repeat(b, 1, 1, 1)
-                .view(b * h, c, self.num_queries))
-
-        # Scale and get dot product of queries and keys
-        queries = queries / (c ** (1 / 4))
-        keys = keys / (c ** (1 / 4))
-        dot = torch.bmm(keys.transpose(1, 2), queries)
-        # dot now has size (b*h, num_queries, length) containing raw weights
-
-        dot = torch.max(F.softmax(dot, dim=2), dim=1, keepdim=True).values
-        # dot now has length-wise attention probabilities
-        # and size (b*h, 1, length)
-
-        # Unify heads
-        out = torch.mean((values * dot).view(b, h, c, length), dim=1)
-        # out now has size (b, c, length)
-
-        return out
-
-    def forward(self, x, unpool=False):
-        if unpool:
-            return self.forward_unpool(x)
-        return self.forward_pool(x)
 
 
 class DDSCTransformer(nn.Module):
@@ -457,19 +434,19 @@ class DDSCTransformer(nn.Module):
         dropout=0.1,
         use_templates=False,
         cat_templates=False,
+        aggregator_mode='query',
         aggregator_num_heads=1,
         output_num_classes=1,
         output_num_layers=1,
         output_mode='strong',
-        output_is_unpooled=False,
         probs=True
     ):
         super(DDSCTransformer, self).__init__()
         self.save_normalized = save_normalized
         self.use_templates = use_templates
         self.cat_templates = self.use_templates and cat_templates
+        self.aggregator_mode = aggregator_mode
         self.output_mode = output_mode
-        self.output_is_unpooled = output_is_unpooled
         self.probs = probs
 
         if normalize:
@@ -523,12 +500,13 @@ class DDSCTransformer(nn.Module):
             t_out_channels = 1
 
         # Aggregates output to aggregator_num_classes value(s) per batch item
-        self.output_aggregator = TimeSeriesAttentionPooling(
-            c=t_out_channels,
-            heads=aggregator_num_heads,
-            num_queries=output_num_classes,
-            save_attn=save_attn
-        )
+        if self.aggregator_mode = 'query':
+            self.output_aggregator = TimeSeriesAttentionPooling(
+                c=t_out_channels,
+                heads=aggregator_num_heads,
+                num_queries=output_num_classes,
+                save_attn=save_attn
+            )
 
         # Maps the final output state(s) to logits
         self.to_logits = Conv1dFeedForwardNetwork(
@@ -568,29 +546,37 @@ class DDSCTransformer(nn.Module):
             if self.cat_templates:
                 out = torch.cat([out, out_weighted], dim=1)
             else:
-                out = out_weighted
+                return out_weighted
 
         out_dict = {}
 
-        if self.output_mode == 'weak' or self.output_mode == 'both':
-            out_dict['weak'] = self.to_logits(self.output_aggregator(out))
-
-        if self.output_mode == 'strong' or self.output_mode == 'both':
-            if self.output_is_unpooled:
-                out_dict['strong'] = self.output_aggregator(out, unpool=True)
-
+        if self.output_pooling_mode == 'mask':
+            out = self.to_logits(out)
+            out_dict['strong'] = self.to_probs(out)
+            out_dict['attn_mask'] = F.softmax(out, dim=2)
+            out_dict['weak'] = (
+                torch.sum(
+                    out_dict['strong']
+                    * out_dict['attn_mask'], dim=2)
+                / torch.sum(out_dict['attn_mask'], dim=2))
+        elif self.output_pooling_mode == 'query':
             out_dict['strong'] = self.to_logits(out)
+            out_dict['weak'] = self.to_logits(self.output_aggregator(out))
+        else:
+            raise NotImplementedError
 
-        if self.probs:
+        if self.probs and self.output_pooling_mode == 'query':
             for mode in out_dict:
                 out_dict[mode] = self.to_probs(out_dict[mode])
 
         for mode in out_dict:
             out_dict[mode] = out_dict[mode].view(b, -1)
 
-        if self.output_mode == 'weak':
-            return out_dict['weak']
-        elif self.output_mode == 'strong':
+        if self.output_mode == 'strong':
             return out_dict['strong']
+        elif self.output_mode == 'weak':
+            return out_dict['weak']
         elif self.output_mode == 'both':
             return out_dict
+        else:
+            raise NotImplementedError
