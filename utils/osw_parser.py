@@ -103,11 +103,11 @@ def get_transition_ids_and_library_intensities_from_prec_id(
     res = cursor.execute(query)
     tmp = res.fetchall()
     # Subset detecting transitions
-    detecting_only_list = list(filter(lambda is_ident: 1 in is_ident, tmp))
+    detecting_only_list = list(filter(lambda is_detecting: is_detecting[2]==1, tmp))
     if detecting:
         assert len(detecting_only_list) > 0, prec_id
     # Subset identifying transitions
-    identifying_only_list = list(filter(lambda is_ident: 0 in is_ident, tmp))
+    identifying_only_list = list(filter(lambda is_detecting: is_detecting[2]==0, tmp))
     # Set seed for testing
     if test_seed:
         seed(0)
