@@ -500,7 +500,7 @@ class DDSCTransformer(nn.Module):
             t_out_channels = 1
 
         # Aggregates output to aggregator_num_classes value(s) per batch item
-        if self.aggregator_mode = 'query':
+        if self.aggregator_mode == 'query':
             self.output_aggregator = TimeSeriesAttentionPooling(
                 c=t_out_channels,
                 heads=aggregator_num_heads,
@@ -550,7 +550,7 @@ class DDSCTransformer(nn.Module):
 
         out_dict = {}
 
-        if self.output_pooling_mode == 'mask':
+        if self.aggregator_mode == 'mask':
             out = self.to_logits(out)
             out_dict['strong'] = self.to_probs(out)
             out_dict['attn_mask'] = F.softmax(out, dim=2)
@@ -559,13 +559,13 @@ class DDSCTransformer(nn.Module):
                     out_dict['strong']
                     * out_dict['attn_mask'], dim=2)
                 / torch.sum(out_dict['attn_mask'], dim=2))
-        elif self.output_pooling_mode == 'query':
+        elif self.aggregator_mode == 'query':
             out_dict['strong'] = self.to_logits(out)
             out_dict['weak'] = self.to_logits(self.output_aggregator(out))
         else:
             raise NotImplementedError
 
-        if self.probs and self.output_pooling_mode == 'query':
+        if self.probs and self.aggregator_mode == 'query':
             for mode in out_dict:
                 out_dict[mode] = self.to_probs(out_dict[mode])
 
