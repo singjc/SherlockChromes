@@ -553,12 +553,12 @@ class DDSCTransformer(nn.Module):
         if self.aggregator_mode == 'mask':
             out = self.to_logits(out)
             out_dict['strong'] = self.to_probs(out)
-            out_dict['attn_mask'] = F.softmax(out, dim=2)
+            attn_mask = F.softmax(out, dim=2)
             out_dict['weak'] = (
                 torch.sum(
                     out_dict['strong']
-                    * out_dict['attn_mask'], dim=2)
-                / torch.sum(out_dict['attn_mask'], dim=2))
+                    * attn_mask, dim=2)
+                / torch.sum(attn_mask, dim=2))
         elif self.aggregator_mode == 'query':
             out_dict['strong'] = self.to_logits(out)
             out_dict['weak'] = self.to_logits(self.output_aggregator(out))
