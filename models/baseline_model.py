@@ -67,13 +67,6 @@ class BaselineTransformer(nn.Module):
         self.to_probs = nn.Sigmoid()
 
     def forward(self, x):
-        """
-        :param x: A (b, t) tensor of integer values representing
-                  words (in some predetermined vocabulary).
-        :return: A (b, c) tensor of log-probabilities over the
-                 classes (where c is the nr. of classes).
-        """
-        # generate token embeddings
         x = self.normalization_layer(x)
         x = self.init_encoder(x)
         x = x.transpose(1, 2).contiguous()
