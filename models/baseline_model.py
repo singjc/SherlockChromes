@@ -41,7 +41,7 @@ class BaselineTransformer(nn.Module):
         aggregator_mode='max_pool',
         output_mode='strong'
     ):
-        super(BaselineTransformer).__init__()
+        super(BaselineTransformer, self).__init__()
         if normalize:
             self.normalization_layer = DAIN_Layer(
                 mode=normalization_mode,

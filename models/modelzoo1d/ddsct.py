@@ -533,9 +533,9 @@ class DDSCTransformer(nn.Module):
         out_dict['strong'] = self.to_logits(out)
 
         if self.aggregator_mode == 'max_pool':
-            out_dict['weak'] = self.to_logits(out.max(dim=2).values)
+            out_dict['weak'] = self.to_logits(out.max(dim=2, keepdim=True)[0])
         elif self.aggregator_mode == 'avg_pool':
-            out_dict['weak'] = self.to_logits(out.mean(dim=2))
+            out_dict['weak'] = self.to_logits(out.mean(dim=2, keepdim=True))
         elif self.aggregator_mode == 'attn_pool':
             attn_mask = F.softmax(out_dict['strong'], dim=2)
             out_dict['strong'] = self.to_probs(out_dict['strong'])
@@ -545,8 +545,7 @@ class DDSCTransformer(nn.Module):
                     * attn_mask, dim=2)
                 / torch.sum(attn_mask, dim=2))
         elif self.aggregator_mode == 'query_attn_pool':
-            out_dict['weak'] = self.to_logits(
-                self.output_aggregator(out)).view(b, -1)
+            out_dict['weak'] = self.to_logits(self.output_aggregator(out))
         else:
             raise NotImplementedError
 
@@ -554,7 +553,9 @@ class DDSCTransformer(nn.Module):
             for mode in out_dict:
                 out_dict[mode] = self.to_probs(out_dict[mode])
 
-        out_dict['strong'] = out_dict['strong'].view(b, -1)
+        for mode in out_dict:
+            if len(out_dict[mode].size()) > 2:
+                out_dict[mode] = out_dict[mode].view(b, -1)
 
         if self.output_mode == 'strong':
             return out_dict['strong']
