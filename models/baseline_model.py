@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from models.modelzoo1d.dain import DAIN_Layer
 from models.modelzoo1d.deeplab_1d import DeepLab1d
@@ -100,7 +101,7 @@ class BaselineTransformer(nn.Module):
         else:
             raise NotImplementedError
 
-        if self.probs and self.aggregator_mode != 'attn_pool':
+        if self.aggregator_mode != 'attn_pool':
             for mode in out_dict:
                 out_dict[mode] = self.to_probs(out_dict[mode])
 
