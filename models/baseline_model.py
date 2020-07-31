@@ -53,7 +53,7 @@ class BaselineTransformer(nn.Module):
         self.pos_emb = nn.Embedding(seq_length, k)
 
         device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        self.pos_array = torch.arange(t).to(device)
+        self.pos_array = torch.arange(seq_length).to(device)
 
         # The sequence of transformer blocks that does all the
         # heavy lifting
