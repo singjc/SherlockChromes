@@ -482,7 +482,7 @@ class DDSCTransformer(nn.Module):
             t_out_channels = 1
 
         # Aggregates output to aggregator_num_classes value(s) per batch item
-        if self.aggregator_mode == 'query':
+        if self.aggregator_mode == 'query_attn_pool':
             self.output_aggregator = TimeSeriesQueryAttentionPooling(
                 c=t_out_channels,
                 heads=aggregator_num_heads,
