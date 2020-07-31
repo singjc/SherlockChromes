@@ -545,7 +545,8 @@ class DDSCTransformer(nn.Module):
                     * attn_mask, dim=2)
                 / torch.sum(attn_mask, dim=2))
         elif self.aggregator_mode == 'query_attn_pool':
-            out_dict['weak'] = self.to_logits(self.output_aggregator(out))
+            out_dict['weak'] = self.to_logits(
+                self.output_aggregator(out)).view(b, -1)
         else:
             raise NotImplementedError
 
@@ -553,8 +554,7 @@ class DDSCTransformer(nn.Module):
             for mode in out_dict:
                 out_dict[mode] = self.to_probs(out_dict[mode])
 
-        for mode in out_dict:
-            out_dict[mode] = out_dict[mode].view(b, -1)
+        out_dict['strong'] = out_dict['strong'].view(b, -1)
 
         if self.output_mode == 'strong':
             return out_dict['strong']

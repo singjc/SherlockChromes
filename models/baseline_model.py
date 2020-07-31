@@ -83,9 +83,9 @@ class BaselineTransformer(nn.Module):
         out_dict['strong'] = self.to_logits(x)
 
         if self.aggregator_mode == 'max_pool':
-            out_dict['weak'] = self.to_probs(self.to_logits(x.max(dim=1)[0]))
+            out_dict['weak'] = self.to_logits(x.max(dim=1)[0])
         elif self.aggregator_mode == 'avg_pool':
-            out_dict['weak'] = self.to_probs(self.to_logits(x.mean(dim=1)))
+            out_dict['weak'] = self.to_logits(x.mean(dim=1))
         elif self.aggregator_mode == 'attn_pool':
             attn_mask = F.softmax(out_dict['strong'], dim=1)
             out_dict['strong'] = self.to_probs(out_dict['strong'])
@@ -94,16 +94,14 @@ class BaselineTransformer(nn.Module):
                     out_dict['strong']
                     * attn_mask, dim=1)
                 / torch.sum(attn_mask, dim=1))
-        elif self.aggregator_mode == 'query_attn_pool':
-            out_dict['weak'] = self.to_logits(self.output_aggregator(x))
         else:
             raise NotImplementedError
 
-        if self.aggregator_mode != 'attn_pool':
-            x = self.to_probs(out_dict['strong'])
+        if self.probs and self.aggregator_mode != 'attn_pool':
+            for mode in out_dict:
+                out_dict[mode] = self.to_probs(out_dict[mode])
 
-        for mode in out_dict:
-            out_dict[mode] = out_dict[mode].transpose(1, 2).contiguous()
+        out_dict['strong'] = out_dict['strong'].view(b, -1)
 
         if self.output_mode == 'strong':
             return out_dict['strong']
