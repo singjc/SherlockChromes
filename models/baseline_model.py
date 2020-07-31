@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+from models.modelzoo1d.dain import DAIN_Layer
 from models.modelzoo1d.deeplab_1d import DeepLab1d
 from models.modelzoo1d.transformer import TransformerBlock
 
@@ -28,24 +29,42 @@ class BaselineSegmentationNet(nn.Module):
 
 
 class BaselineTransformer(nn.Module):
-    def __init__(self, in_channels, k, heads, depth, seq_length):
-        super().__init__()
-        self.init_encoder = nn.Conv1d(in_channels, k, 1)
+    def __init__(
+        self,
+        in_channels,
+        k=32,
+        heads=8,
+        depth=6,
+        seq_length=175,
+        normalize=False,
+        normalization_mode='full',
+        aggregator_mode='max_pool',
+        output_mode='strong'
+    ):
+        super(BaselineTransformer).__init__()
+        if normalize:
+            self.normalization_layer = DAIN_Layer(
+                mode=normalization_mode,
+                input_dim=in_channels)
+        else:
+            self.normalization_layer = nn.Identity()
 
+        self.init_encoder = nn.Conv1d(in_channels, k, 1)
         self.pos_emb = nn.Embedding(seq_length, k)
+
+        device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        self.pos_array = torch.arange(t).to(device)
 
         # The sequence of transformer blocks that does all the
         # heavy lifting
-        tblocks = []
+        t_blocks = []
         for i in range(depth):
-            tblocks.append(TransformerBlock(k=k, heads=heads))
-        self.tblocks = nn.Sequential(*tblocks)
+            t_blocks.append(TransformerBlock(k=k, heads=heads))
+        self.t_blocks = nn.Sequential(*t_blocks)
 
         # Maps the final output sequence to class logits
-        self.toprobs = nn.Sequential(
-            nn.Linear(k, 1),
-            nn.Sigmoid()
-        )
+        self.to_logits = nn.Linear(k, 1)
+        self.to_probs = nn.Sigmoid()
 
     def forward(self, x):
         """
@@ -55,19 +74,49 @@ class BaselineTransformer(nn.Module):
                  classes (where c is the nr. of classes).
         """
         # generate token embeddings
+        x = self.normalization_layer(x)
         x = self.init_encoder(x)
         x = x.transpose(1, 2).contiguous()
         b, t, k = x.size()
 
         # generate position embeddings
-        positions = torch.arange(t)
-        positions = self.pos_emb(positions)[None, :, :].expand(b, t, k)
+        positions = self.pos_emb(self.pos_array)[None, :, :].expand(b, t, k)
 
         x = x + positions
-        x = self.tblocks(x)
+        x = self.t_blocks(x)
 
-        x = self.toprobs(x)
+        out_dict = {}
 
-        x = x.transpose(1, 2).contiguous()
+        out_dict['strong'] = self.to_logits(x)
 
-        return x
+        if self.aggregator_mode == 'max_pool':
+            out_dict['weak'] = self.to_probs(self.to_logits(x.max(dim=1)[0]))
+        elif self.aggregator_mode == 'avg_pool':
+            out_dict['weak'] = self.to_probs(self.to_logits(x.mean(dim=1)))
+        elif self.aggregator_mode == 'attn_pool':
+            attn_mask = F.softmax(out_dict['strong'], dim=1)
+            out_dict['strong'] = self.to_probs(out_dict['strong'])
+            out_dict['weak'] = (
+                torch.sum(
+                    out_dict['strong']
+                    * attn_mask, dim=1)
+                / torch.sum(attn_mask, dim=1))
+        elif self.aggregator_mode == 'query_attn_pool':
+            out_dict['weak'] = self.to_logits(self.output_aggregator(x))
+        else:
+            raise NotImplementedError
+
+        if self.aggregator_mode != 'attn_pool':
+            x = self.to_probs(out_dict['strong'])
+
+        for mode in out_dict:
+            out_dict[mode] = out_dict[mode].transpose(1, 2).contiguous()
+
+        if self.output_mode == 'strong':
+            return out_dict['strong']
+        elif self.output_mode == 'weak':
+            return out_dict['weak']
+        elif self.output_mode == 'both':
+            return out_dict
+        else:
+            raise NotImplementedError

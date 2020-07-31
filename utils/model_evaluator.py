@@ -115,12 +115,7 @@ def create_output_array(
             output = model(chromatograms)
 
         if hasattr(model, 'output_mode') and model.output_mode = 'both':
-            b, _, _ = chromatograms.size()
-            output = (
-                output['strong']
-                / torch.max(output['strong'], dim=1).values.view(b, 1)
-                * output['weak']
-            )
+            output = output['strong'] * output['weak']
 
         output_array.append(output.detach().to('cpu').numpy())
 

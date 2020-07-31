@@ -23,8 +23,7 @@ class DynamicDepthSeparableConv1d(nn.Module):
             in_channels,
             out_channels,
             1,
-            bias=bias
-        )
+            bias=bias)
 
         self.intermediate_nonlinearity = intermediate_nonlinearity
 
@@ -36,8 +35,7 @@ class DynamicDepthSeparableConv1d(nn.Module):
         self.num_kernels = len(kernel_sizes)
 
         self.dynamic_gate = nn.Parameter(
-          torch.Tensor([1.0 / self.num_kernels for _ in self.kernel_sizes])
-        )
+          torch.Tensor([1.0 / self.num_kernels for _ in self.kernel_sizes]))
 
         self.dynamic_depthwise = nn.ModuleList()
         for kernel_size in self.kernel_sizes:
@@ -49,8 +47,7 @@ class DynamicDepthSeparableConv1d(nn.Module):
                 padding=padding,
                 dilation=dilation,
                 groups=out_channels,
-                bias=bias
-            )
+                bias=bias)
             self.dynamic_depthwise.append(conv)
 
     def get_gate(self):
@@ -74,8 +71,7 @@ class DynamicDepthSeparableConv1d(nn.Module):
                     dynamic_out,
                     dim=-1
                 ) * F.softmax(self.dynamic_gate, dim=-1),
-                dim=-1
-            )
+                dim=-1)
         else:
             out = dynamic_out[0]
 
@@ -101,8 +97,7 @@ class DynamicDepthSeparableConv1dMultiheadAttention(nn.Module):
         self.to_queries = DynamicDepthSeparableConv1d(
             c,
             c * heads,
-            kernel_sizes=kernel_sizes
-        )
+            kernel_sizes=kernel_sizes)
 
         if share_encoder:
             self.to_keys = self.to_queries
@@ -110,14 +105,12 @@ class DynamicDepthSeparableConv1dMultiheadAttention(nn.Module):
             self.to_keys = DynamicDepthSeparableConv1d(
                 c,
                 c * heads,
-                kernel_sizes=kernel_sizes
-            )
+                kernel_sizes=kernel_sizes)
 
         self.to_values = DynamicDepthSeparableConv1d(
             c,
             c * heads,
-            kernel_sizes=kernel_sizes
-        )
+            kernel_sizes=kernel_sizes)
 
         # This unifies the outputs of the different heads into a single
         # c-vector
@@ -201,8 +194,7 @@ class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
         self.to_queries = DynamicDepthSeparableConv1d(
             qk_c,
             qk_c * heads,
-            kernel_sizes=kernel_sizes
-        )
+            kernel_sizes=kernel_sizes)
 
         if share_encoder:
             self.to_keys = self.to_queries
@@ -210,14 +202,12 @@ class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
             self.to_keys = DynamicDepthSeparableConv1d(
                 qk_c,
                 qk_c * heads,
-                kernel_sizes=kernel_sizes
-            )
+                kernel_sizes=kernel_sizes)
 
         self.to_values = DynamicDepthSeparableConv1d(
             v_c,
             v_c * heads,
-            kernel_sizes=kernel_sizes
-        )
+            kernel_sizes=kernel_sizes)
 
         # This unifies the outputs of the different heads into a single
         # v_c-vector
@@ -327,8 +317,7 @@ class DynamicDepthSeparableConv1dTransformerBlock(nn.Module):
             heads=heads,
             kernel_sizes=kernel_sizes,
             share_encoder=share_encoder,
-            save_attn=save_attn
-        )
+            save_attn=save_attn)
 
         # Instance norm instead of layer norm
         self.norm1 = nn.InstanceNorm1d(c, affine=True)
@@ -339,8 +328,7 @@ class DynamicDepthSeparableConv1dTransformerBlock(nn.Module):
             c,
             depth_multiplier * c,
             c,
-            num_layers=2
-        )
+            num_layers=2)
 
         # 2D Dropout to simulate spatial dropout of entire channels
         self.dropout = nn.Dropout2d(dropout)
@@ -355,7 +343,7 @@ class DynamicDepthSeparableConv1dTransformerBlock(nn.Module):
         return out
 
 
-class TimeSeriesAttentionPooling(nn.Module):
+class TimeSeriesQueryAttentionPooling(nn.Module):
     def __init__(
         self,
         c,
@@ -363,7 +351,7 @@ class TimeSeriesAttentionPooling(nn.Module):
         num_queries=1,
         save_attn=False
     ):
-        super(TimeSeriesAttentionPooling, self).__init__()
+        super(TimeSeriesQueryAttentionPooling, self).__init__()
         self.heads = heads
         self.num_queries = num_queries
         self.save_attn = save_attn
@@ -434,7 +422,7 @@ class DDSCTransformer(nn.Module):
         dropout=0.1,
         use_templates=False,
         cat_templates=False,
-        aggregator_mode='query',
+        aggregator_mode='query_attn_pool',
         aggregator_num_heads=1,
         output_num_classes=1,
         output_num_layers=1,
@@ -452,16 +440,14 @@ class DDSCTransformer(nn.Module):
         if normalize:
             self.normalization_layer = DAIN_Layer(
                 mode=normalization_mode,
-                input_dim=in_channels
-            )
+                input_dim=in_channels)
         else:
             self.normalization_layer = nn.Identity()
 
         self.init_encoder = nn.Conv1d(
             in_channels,
             transformer_channels,
-            1
-        )
+            1)
 
         # The sequence of transformer blocks that does all the
         # heavy lifting
@@ -475,9 +461,7 @@ class DDSCTransformer(nn.Module):
                     share_encoder=share_encoder,
                     save_attn=save_attn,
                     depth_multiplier=depth_multiplier,
-                    dropout=dropout
-                )
-            )
+                    dropout=dropout))
         self.t_blocks = nn.Sequential(*t_blocks)
 
         t_out_channels = transformer_channels
@@ -490,9 +474,7 @@ class DDSCTransformer(nn.Module):
                     heads=heads,
                     kernel_sizes=kernel_sizes,
                     share_encoder=share_encoder,
-                    save_attn=save_attn
-                )
-            )
+                    save_attn=save_attn))
 
         if self.cat_templates:
             t_out_channels += 1
@@ -501,20 +483,18 @@ class DDSCTransformer(nn.Module):
 
         # Aggregates output to aggregator_num_classes value(s) per batch item
         if self.aggregator_mode == 'query':
-            self.output_aggregator = TimeSeriesAttentionPooling(
+            self.output_aggregator = TimeSeriesQueryAttentionPooling(
                 c=t_out_channels,
                 heads=aggregator_num_heads,
                 num_queries=output_num_classes,
-                save_attn=save_attn
-            )
+                save_attn=save_attn)
 
         # Maps the final output state(s) to logits
         self.to_logits = Conv1dFeedForwardNetwork(
             t_out_channels,
             t_out_channels,
             output_num_classes,
-            num_layers=output_num_layers
-        )
+            num_layers=output_num_layers)
 
         # Maps the final logits to probabilities
         self.to_probs = nn.Sigmoid()
@@ -550,22 +530,26 @@ class DDSCTransformer(nn.Module):
 
         out_dict = {}
 
-        if self.aggregator_mode == 'mask':
-            out = self.to_logits(out)
-            out_dict['strong'] = self.to_probs(out)
-            attn_mask = F.softmax(out, dim=2)
+        out_dict['strong'] = self.to_logits(out)
+
+        if self.aggregator_mode == 'max_pool':
+            out_dict['weak'] = self.to_logits(out.max(dim=2).values)
+        elif self.aggregator_mode == 'avg_pool':
+            out_dict['weak'] = self.to_logits(out.mean(dim=2))
+        elif self.aggregator_mode == 'attn_pool':
+            attn_mask = F.softmax(out_dict['strong'], dim=2)
+            out_dict['strong'] = self.to_probs(out_dict['strong'])
             out_dict['weak'] = (
                 torch.sum(
                     out_dict['strong']
                     * attn_mask, dim=2)
                 / torch.sum(attn_mask, dim=2))
-        elif self.aggregator_mode == 'query':
-            out_dict['strong'] = self.to_logits(out)
+        elif self.aggregator_mode == 'query_attn_pool':
             out_dict['weak'] = self.to_logits(self.output_aggregator(out))
         else:
             raise NotImplementedError
 
-        if self.probs and self.aggregator_mode == 'query':
+        if self.probs and self.aggregator_mode != 'attn_pool':
             for mode in out_dict:
                 out_dict[mode] = self.to_probs(out_dict[mode])
 
