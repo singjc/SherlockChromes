@@ -39,8 +39,8 @@ class BaselineTransformer(nn.Module):
         seq_length=175,
         normalize=False,
         normalization_mode='full',
-        aggregator_mode='max_pool',
-        output_mode='strong'
+        aggregator_mode='instance_linear_softmax',
+        output_mode='loc'
     ):
         super(BaselineTransformer, self).__init__()
         self.aggregator_mode = aggregator_mode
@@ -53,11 +53,10 @@ class BaselineTransformer(nn.Module):
         else:
             self.normalization_layer = nn.Identity()
 
-        self.init_encoder = nn.Conv1d(in_channels, k, 1)
+        self.init_encoder = nn.Linear(in_channels, k)
         self.pos_emb = nn.Embedding(seq_length, k)
-
-        device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        self.pos_array = torch.arange(seq_length).to(device)
+        self.pos_array = torch.arange(seq_length)
+        self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
         # The sequence of transformer blocks that does all the
         # heavy lifting
@@ -72,46 +71,53 @@ class BaselineTransformer(nn.Module):
 
     def forward(self, x):
         x = self.normalization_layer(x)
-        x = self.init_encoder(x)
         x = x.transpose(1, 2).contiguous()
         b, t, k = x.size()
 
+        x = self.init_encoder(x)
+
         # generate position embeddings
-        positions = self.pos_emb(self.pos_array)[None, :, :].expand(b, t, k)
+        positions = self.pos_emb(
+            self.pos_array.to(self.device))[None, :, :].expand(b, t, k)
 
         x = x + positions
         x = self.t_blocks(x)
 
         out_dict = {}
+        out_dict['attn'] = torch.zeros(b, t, 1)
 
-        out_dict['strong'] = self.to_logits(x)
-
-        if self.aggregator_mode == 'max_pool':
-            out_dict['weak'] = self.to_logits(x.max(dim=1)[0])
-        elif self.aggregator_mode == 'avg_pool':
-            out_dict['weak'] = self.to_logits(x.mean(dim=1))
-        elif self.aggregator_mode == 'attn_pool':
-            attn_mask = F.softmax(out_dict['strong'], dim=1)
-            out_dict['strong'] = self.to_probs(out_dict['strong'])
-            out_dict['weak'] = (
-                torch.sum(
-                    out_dict['strong']
-                    * attn_mask, dim=1)
-                / torch.sum(attn_mask, dim=1))
+        if self.aggregator_mode == 'instance_linear_softmax':
+            out_dict['loc'] = self.to_logits(x)
+            attn = torch.sigmoid(out_dict['loc'])
+            out_dict['loc'] = self.to_probs(out_dict['loc'])
+            attn = attn / torch.sum(attn, dim=1, keepdim=True)
+            out_dict['attn'] = attn
+            out_dict['cla'] = torch.sum(
+                out_dict['loc'] * out_dict['attn'], dim=1)
+        elif self.aggregator_mode == 'embed_linear_softmax':
+            out_dict['loc'] = self.to_logits(x)
+            attn = torch.sigmoid(out_dict['loc'])
+            attn = attn / torch.sum(attn, dim=1, keepdim=True)
+            out_dict['attn'] = attn
+            out_dict['cla'] = self.to_logits(
+                torch.sum(x * out_dict['attn'], dim=1, keepdim=True))
         else:
             raise NotImplementedError
 
-        if self.aggregator_mode != 'attn_pool':
+        if 'embed' in self.aggregator_mode:
             for mode in out_dict:
+                if 'trainable_norm' in self.aggregator_mode and mode == 'loc':
+                    continue
+
                 out_dict[mode] = self.to_probs(out_dict[mode])
 
-        out_dict['strong'] = out_dict['strong'].view(b, -1)
+        out_dict['loc'] = out_dict['loc'].view(b, -1)
 
-        if self.output_mode == 'strong':
-            return out_dict['strong']
-        elif self.output_mode == 'weak':
-            return out_dict['weak']
-        elif self.output_mode == 'both':
+        if self.output_mode == 'loc':
+            return out_dict['loc']
+        elif self.output_mode == 'cla':
+            return out_dict['cla']
+        elif self.output_mode == 'all':
             return out_dict
         else:
             raise NotImplementedError

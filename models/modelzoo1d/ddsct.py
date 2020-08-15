@@ -120,8 +120,11 @@ class DynamicDepthSeparableConv1dMultiheadAttention(nn.Module):
             self.unify_heads = nn.Identity()
 
         self.attn = None
+        self.norm_attn = None
 
-    def get_attn(self):
+    def get_attn(self, norm=False):
+        if norm:
+            return self.norm_attn
         return self.attn
 
     def forward(self, q, k=None, v=None):
@@ -158,17 +161,20 @@ class DynamicDepthSeparableConv1dMultiheadAttention(nn.Module):
         dot = torch.bmm(keys.transpose(1, 2), queries)
         # dot now has size (b*h, k_l, q_l) containing raw weights
 
+        if self.save_attn:
+            self.attn = dot.view(b, h, k_l, q_l)
+
         dot = F.softmax(dot, dim=1)
         # dot now has channel-wise self-attention probabilities
+
+        if self.save_attn:
+            self.norm_attn = dot.view(b, h, k_l, q_l)
 
         # Apply the self attention to the values
         out = torch.bmm(values, dot).view(b, h * c, q_l)
 
         # Unify heads
         out = self.unify_heads(out)
-
-        if self.save_attn:
-            self.attn = dot.view(b, h, k_l, q_l)
 
         return out
 
@@ -217,8 +223,11 @@ class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
             self.unify_heads = nn.Identity()
 
         self.attn = None
+        self.norm_attn = None
 
-    def get_attn(self):
+    def get_attn(self, norm=False):
+        if norm:
+            return self.norm_attn
         return self.attn
 
     def forward(self, queries, keys, values):
@@ -250,8 +259,14 @@ class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
             # dot now has size (q_b*h, kv_b*h, length, length) containing raw
             # weights
 
+            if self.save_attn:
+                self.attn = dot
+
             dot = F.softmax(dot, dim=2)
             # dot now has channel-wise self-attention probabilities
+
+            if self.save_attn:
+                self.norm_attn = dot
 
             # Apply the attention to the values
             out = torch.matmul(values, dot)
@@ -263,8 +278,14 @@ class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
             dot = torch.matmul(keys.transpose(1, 2), queries)
             # dot now has size (q_b*h, length, length) containing raw weights
 
+            if self.save_attn:
+                self.attn = dot
+
             dot = F.softmax(dot, dim=1)
             # dot now has channel-wise self-attention probabilities
+
+            if self.save_attn:
+                self.norm_attn = dot
 
             # Apply the attention to the values
             out = torch.matmul(values, dot)
@@ -274,9 +295,6 @@ class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
 
         # Unify heads
         out = self.unify_heads(out)
-
-        if self.save_attn:
-            self.attn = dot
 
         return out
 
@@ -361,16 +379,32 @@ class TimeSeriesQueryAttentionPooling(nn.Module):
             torch.randn(self.heads, c, self.num_queries))
 
         self.attn = None
+        self.norm_attn = None
 
         # This unifies the outputs of the different heads into a single
         # c-vector
         if self.heads > 1:
             self.unify_heads = nn.Conv1d(heads * c, c, 1)
+            self.unify_attn = nn.Conv1d(
+                heads * self.num_queries, self.num_queries, 1)
         else:
             self.unify_heads = nn.Identity()
+            self.unify_attn = nn.Identity()
 
-    def get_attn(self):
+    def get_attn(self, norm=False):
+        if norm:
+            return self.norm_attn
         return self.attn
+
+    def get_trainable_attn(self, norm=False):
+        b, h, l, n_q = self.attn.size()
+
+        if norm:
+            b, h, l, n_q = self.norm_attn.size()
+
+            return self.unify_attn(
+                self.norm_attn.transpose(1, 2).view(b, h * n_q, l))
+        return self.unify_attn(self.attn.transpose(1, 2).view(b, h * n_q, l))
 
     def forward(self, x):
         b, c, length = x.size()
@@ -389,8 +423,14 @@ class TimeSeriesQueryAttentionPooling(nn.Module):
         dot = torch.bmm(keys.transpose(1, 2), queries)
         # dot now has size (b*h, length, num_queries) containing raw weights
 
+        if self.save_attn:
+            self.attn = dot.view(b, h, length, self.num_queries)
+
         dot = F.softmax(dot, dim=1)
         # dot now has channel-wise self-attention probabilities
+
+        if self.save_attn:
+            self.norm_attn = dot.view(b, h, length, self.num_queries)
 
         # Apply the self attention to the values
         out = torch.bmm(values, dot).view(b, h * c, self.num_queries)
@@ -422,11 +462,12 @@ class DDSCTransformer(nn.Module):
         dropout=0.1,
         use_templates=False,
         cat_templates=False,
-        aggregator_mode='query_attn_pool',
+        aggregator_mode='embed_pure_query_attn_pool',
         aggregator_num_heads=1,
         output_num_classes=1,
         output_num_layers=1,
-        output_mode='strong',
+        output_mode='loc',
+        multilabel=True,
         probs=True
     ):
         super(DDSCTransformer, self).__init__()
@@ -482,12 +523,15 @@ class DDSCTransformer(nn.Module):
             t_out_channels = 1
 
         # Aggregates output to aggregator_num_classes value(s) per batch item
-        if self.aggregator_mode == 'query_attn_pool':
+        if 'query_attn' in self.aggregator_mode:
             self.output_aggregator = TimeSeriesQueryAttentionPooling(
                 c=t_out_channels,
                 heads=aggregator_num_heads,
                 num_queries=output_num_classes,
-                save_attn=save_attn)
+                save_attn=True)
+        elif 'attn' in self.aggregator_mode:
+            self.to_loc = nn.Conv1d(t_out_channels, output_num_classes, 1)
+            self.to_cla = nn.Conv1d(t_out_channels, output_num_classes, 1)
 
         # Maps the final output state(s) to logits
         self.to_logits = Conv1dFeedForwardNetwork(
@@ -497,7 +541,10 @@ class DDSCTransformer(nn.Module):
             num_layers=output_num_layers)
 
         # Maps the final logits to probabilities
-        self.to_probs = nn.Sigmoid()
+        if output_num_classes > 1 and not multilabel:
+            self.to_probs = nn.Softmax(dim=1)
+        else:
+            self.to_probs = nn.Sigmoid()
 
         self.normalized = None
 
@@ -508,7 +555,7 @@ class DDSCTransformer(nn.Module):
         self.probs = val
 
     def forward(self, x, templates=None, templates_label=None):
-        b, _, _ = x.size()
+        b, _, length = x.size()
         x = self.normalization_layer(x)
 
         if self.save_normalized:
@@ -529,39 +576,116 @@ class DDSCTransformer(nn.Module):
                 return out_weighted
 
         out_dict = {}
+        out_dict['attn'] = torch.zeros(b, 1, length)
 
-        out_dict['strong'] = self.to_logits(out)
-
-        if self.aggregator_mode == 'max_pool':
-            out_dict['weak'] = self.to_logits(out.max(dim=2, keepdim=True)[0])
-        elif self.aggregator_mode == 'avg_pool':
-            out_dict['weak'] = self.to_logits(out.mean(dim=2, keepdim=True))
-        elif self.aggregator_mode == 'attn_pool':
-            attn_mask = F.softmax(out_dict['strong'], dim=2)
-            out_dict['strong'] = self.to_probs(out_dict['strong'])
-            out_dict['weak'] = (
-                torch.sum(
-                    out_dict['strong']
-                    * attn_mask, dim=2)
-                / torch.sum(attn_mask, dim=2))
-        elif self.aggregator_mode == 'query_attn_pool':
-            out_dict['weak'] = self.to_logits(self.output_aggregator(out))
+        if self.aggregator_mode == 'instance_max_pool':
+            out_dict['loc'] = self.to_probs(self.to_logits(out))
+            out_dict['cla'] = out_dict['loc'].max(dim=2)[0]
+        elif self.aggregator_mode == 'embed_max_pool':
+            out_dict['loc'] = self.to_logits(out)
+            out_dict['cla'] = self.to_logits(out.max(dim=2, keepdim=True)[0])
+        elif self.aggregator_mode == 'instance_avg_pool':
+            out_dict['loc'] = self.to_probs(self.to_logits(out))
+            out_dict['cla'] = out_dict['loc'].mean(dim=2)
+        elif self.aggregator_mode == 'embed_avg_pool':
+            out_dict['loc'] = self.to_logits(out)
+            out_dict['cla'] = self.to_logits(out.mean(dim=2, keepdim=True))
+        elif self.aggregator_mode == 'instance_linear_softmax':
+            out_dict['loc'] = self.to_logits(out)
+            attn = torch.sigmoid(out_dict['loc'])
+            out_dict['loc'] = self.to_probs(out_dict['loc'])
+            attn = attn / torch.sum(attn, dim=2, keepdim=True)
+            out_dict['attn'] = attn
+            out_dict['cla'] = torch.sum(
+                out_dict['loc'] * out_dict['attn'], dim=2)
+        elif self.aggregator_mode == 'embed_linear_softmax':
+            out_dict['loc'] = self.to_logits(out)
+            attn = torch.sigmoid(out_dict['loc'])
+            attn = attn / torch.sum(attn, dim=2, keepdim=True)
+            out_dict['attn'] = attn
+            out_dict['cla'] = self.to_logits(
+                torch.sum(out * out_dict['attn'], dim=2, keepdim=True))
+        elif self.aggregator_mode == 'instance_exp_softmax':
+            out_dict['loc'] = self.to_logits(out)
+            attn = F.softmax(torch.sigmoid(out_dict['loc']), dim=2)
+            out_dict['loc'] = self.to_probs(out_dict['loc'])
+            out_dict['attn'] = attn
+            out_dict['cla'] = torch.sum(
+                out_dict['loc'] * out_dict['attn'], dim=2)
+        elif self.aggregator_mode == 'embed_exp_softmax':
+            out_dict['loc'] = self.to_logits(out)
+            attn = F.softmax(torch.sigmoid(out_dict['loc']), dim=2)
+            out_dict['attn'] = attn
+            out_dict['cla'] = self.to_logits(
+                torch.sum(out * out_dict['attn'], dim=2, keepdim=True))
+        elif self.aggregator_mode == 'instance_attn_pool':
+            out_dict['loc'] = self.to_probs(self.to_loc(out))
+            attn = torch.sigmoid(self.to_cla(out))
+            attn = attn / torch.sum(attn, dim=2, keepdim=True)
+            out_dict['attn'] = attn
+            out_dict['cla'] = torch.sum(
+                out_dict['loc'] * out_dict['attn'], dim=2, keepdim=True)
+        elif self.aggregator_mode == 'embed_attn_pool':
+            out_dict['loc'] = self.to_loc(out)
+            attn = torch.sigmoid(self.to_cla(out))
+            attn = attn / torch.sum(attn, dim=2, keepdim=True)
+            out_dict['attn'] = attn
+            out_dict['cla'] = self.to_logits(
+                torch.sum(out * out_dict['attn'], dim=2, keepdim=True))
+        elif self.aggregator_mode == 'instance_query_attn_pool':
+            out_dict['loc'] = self.to_probs(self.to_logits(out))
+            self.output_aggregator(out)
+            attn = torch.sigmoid(
+                self.output_aggregator.get_trainable_attn(norm=False))
+            out_dict['attn'] = attn
+            out_dict['cla'] = torch.sum(
+                out_dict['loc'] * out_dict['attn'], dim=2)
+        elif self.aggregator_mode == 'instance_query_norm_attn_pool':
+            out_dict['loc'] = self.to_probs(self.to_logits(out))
+            self.output_aggregator(out)
+            attn = torch.sigmoid(
+                self.output_aggregator.get_trainable_attn(norm=True))
+            out_dict['attn'] = attn
+            out_dict['cla'] = torch.sum(
+                out_dict['loc'] * out_dict['attn'], dim=2)
+        elif self.aggregator_mode == 'embed_pure_query_attn_pool':
+            out_dict['loc'] = self.to_logits(out)
+            out_dict['cla'] = self.to_logits(self.output_aggregator(out))
+            out_dict['attn'] = self.output_aggregator.get_trainable_attn(
+                norm=True)
+        elif self.aggregator_mode == 'embed_query_trainable_attn_pool':
+            out_dict['cla'] = self.to_logits(self.output_aggregator(out))
+            out_dict['loc'] = self.output_aggregator.get_trainable_attn(
+                norm=False)
+            out_dict['attn'] = self.output_aggregator.get_trainable_attn(
+                norm=True)
+        elif self.aggregator_mode == 'embed_query_trainable_norm_attn_pool':
+            out_dict['cla'] = self.to_logits(self.output_aggregator(out))
+            out_dict['loc'] = self.output_aggregator.get_trainable_attn(
+                norm=True)
+            out_dict['attn'] = self.output_aggregator.get_trainable_attn(
+                norm=True)
         else:
             raise NotImplementedError
 
-        if self.probs and self.aggregator_mode != 'attn_pool':
+        if self.probs and 'embed' in self.aggregator_mode:
             for mode in out_dict:
+                if 'trainable_norm' in self.aggregator_mode and mode == 'loc':
+                    continue
+
                 out_dict[mode] = self.to_probs(out_dict[mode])
 
         for mode in out_dict:
             if len(out_dict[mode].size()) > 2:
                 out_dict[mode] = out_dict[mode].view(b, -1)
 
-        if self.output_mode == 'strong':
-            return out_dict['strong']
-        elif self.output_mode == 'weak':
-            return out_dict['weak']
-        elif self.output_mode == 'both':
+        if self.output_mode == 'loc':
+            return out_dict['loc']
+        elif self.output_mode == 'cla':
+            return out_dict['cla']
+        elif self.output_mode == 'attn':
+            return out_dict['attn']
+        elif self.output_mode == 'all':
             return out_dict
         else:
             raise NotImplementedError

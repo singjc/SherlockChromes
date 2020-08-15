@@ -115,7 +115,7 @@ def train(
     for epoch in range(kwargs['max_epochs']):
         iters, avg_loss = 0, 0
         model.train()
-        model.output_mode = 'weak'
+        model.output_mode = 'cla'
 
         for i, sample in enumerate(train_loader):
             train_batch, labels = sample
@@ -142,7 +142,7 @@ def train(
         outputs_for_metrics = []
         losses = []
         model.eval()
-        model.output_mode = 'weak'
+        model.output_mode = 'cla'
 
         for batch, labels in val_loader:
             with torch.no_grad():

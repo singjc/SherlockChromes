@@ -114,8 +114,8 @@ def create_output_array(
         else:
             output = model(chromatograms)
 
-        if hasattr(model, 'output_mode') and model.output_mode = 'both':
-            output = output['strong'] * output['weak']
+        if hasattr(model, 'output_mode') and model.output_mode == 'all':
+            output = output['loc'] * output['cla']
 
         output_array.append(output.detach().to('cpu').numpy())
 
@@ -349,7 +349,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '-model_pth', '--model_pth', type=str, default='model.pth')
     parser.add_argument(
-        '-output_mode', '--output_mode', type=str, default='strong')
+        '-output_mode', '--output_mode', type=str, default='loc')
     parser.add_argument(
         '-out_dir', '--out_dir', type=str, default='results')
     parser.add_argument(

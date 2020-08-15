@@ -33,13 +33,13 @@ class DAIN_Layer(nn.Module):
 
         # Do simple average normalization
         elif self.mode == 'avg':
-            avg = torch.mean(x, 2)
+            avg = torch.mean(x, dim=2)
             avg = avg.unsqueeze(-1)
             x = x - avg
 
         # Perform only the first step (adaptive averaging)
         elif self.mode == 'adaptive_avg':
-            avg = torch.mean(x, 2)
+            avg = torch.mean(x, dim=2)
             adaptive_avg = self.mean_layer(avg)
             adaptive_avg = adaptive_avg.unsqueeze(-1)
             x = x - adaptive_avg
@@ -48,13 +48,13 @@ class DAIN_Layer(nn.Module):
         elif self.mode == 'adaptive_scale':
 
             # Step 1:
-            avg = torch.mean(x, 2)
+            avg = torch.mean(x, dim=2)
             adaptive_avg = self.mean_layer(avg)
             adaptive_avg = adaptive_avg.unsqueeze(-1)
             x = x - adaptive_avg
 
             # Step 2:
-            std = torch.mean(x ** 2, 2)
+            std = torch.mean(x ** 2, dim=2)
             std = torch.sqrt(std + self.eps)
             adaptive_std = self.scaling_layer(std)
             adaptive_std[adaptive_std <= self.eps] = 1
@@ -65,13 +65,13 @@ class DAIN_Layer(nn.Module):
         elif self.mode == 'full':
 
             # Step 1:
-            avg = torch.mean(x, 2)
+            avg = torch.mean(x, dim=2)
             adaptive_avg = self.mean_layer(avg)
             adaptive_avg = adaptive_avg.unsqueeze(-1)
             x = x - adaptive_avg
 
             # # Step 2:
-            std = torch.mean(x ** 2, 2)
+            std = torch.mean(x ** 2, dim=2)
             std = torch.sqrt(std + self.eps)
             adaptive_std = self.scaling_layer(std)
             adaptive_std[adaptive_std <= self.eps] = 1
@@ -80,7 +80,7 @@ class DAIN_Layer(nn.Module):
             x = x / adaptive_std
 
             # Step 3:
-            avg = torch.mean(x, 2)
+            avg = torch.mean(x, dim=2)
             gate = torch.sigmoid(self.gating_layer(avg))
             gate = gate.unsqueeze(-1)
             x = x * gate

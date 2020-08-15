@@ -64,9 +64,9 @@ class TemperatureScaler(nn.Module):
 
                 if hasattr(self.model, 'output_mode'):
                     logits = (
-                        logits['strong']
-                        / torch.max(logits['strong'], dim=1).values.view(b, 1)
-                        * logits['weak']
+                        logits['loc']
+                        / torch.max(logits['loc'], dim=1).values.view(b, 1)
+                        * logits['cla']
                     )
 
                 logits_list.append(logits)
@@ -134,7 +134,7 @@ class AlignmentTemperatureScaler(TemperatureScaler):
 
         if hasattr(self.model, 'output_mode'):
             orig_setting = self.model.output_mode
-            self.model.output_mode = 'both'
+            self.model.output_mode = 'all'
 
         # First: collect all the logits and labels for the validation set
         logits_list = []
@@ -149,9 +149,9 @@ class AlignmentTemperatureScaler(TemperatureScaler):
 
                 if hasattr(self.model, 'output_mode'):
                     logits = (
-                        logits['strong']
-                        / torch.max(logits['strong'], dim=1).values.view(b, 1)
-                        * logits['weak']
+                        logits['loc']
+                        / torch.max(logits['loc'], dim=1).values.view(b, 1)
+                        * logits['cla']
                     )
 
                 logits_list.append(logits)

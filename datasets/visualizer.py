@@ -71,8 +71,8 @@ def plot_whole_chromatogram(
 
                 if regions_of_interest:
                     scores = [np.sum(labels[r])
-                        for r 
-                        in regions_of_interest]
+                              for r
+                              in regions_of_interest]
                     best_region_idx = np.argmax(scores)
                     best_region = regions_of_interest[best_region_idx][0]
 
@@ -435,6 +435,11 @@ def test_model(dataset, model, mode='whole'):
         break_loop = input("Enter 'break' to exit: ")
         if break_loop == 'break':
             break
+        elif break_loop == 'reload':
+            model_filename = input('Model pth: ')
+            model = torch.load(model_filename)
+            model.to('cpu')
+            model.eval()
 
 def create_results_file(
     root_dir,

@@ -176,7 +176,7 @@ def train(
         losses = []
         model.eval()
         orig_output_mode, model.model.output_mode = (
-            model.model.output_mode, 'both')
+            model.model.output_mode, 'all')
 
         for batch, labels in val_loader:
             with torch.no_grad():
@@ -184,18 +184,15 @@ def train(
                 labels = labels.to(device=device)
                 labels_for_metrics.append(labels.cpu())
                 preds = model(batch)
-                strong_preds = preds['strong']
-                weak_preds = preds['weak']
+                strong_preds = preds['loc']
+                weak_preds = preds['cla']
 
-                if kwargs['use_weak_labels']:
+                if (
+                    kwargs['use_weak_labels']
+                    or kwargs['enforce_weak_consistency']
+                ):
                     b, _ = strong_preds.size()
-                    strong_preds = (
-                        strong_preds
-                        / torch.max(
-                            strong_preds, dim=1
-                        ).values.view(b, 1)
-                        * weak_preds
-                    )
+                    strong_preds = strong_preds * weak_preds
 
                 binarized_preds = np.where(strong_preds.cpu() >= 0.5, 1, 0)
                 inverse_binarized_preds = (1 - binarized_preds)
