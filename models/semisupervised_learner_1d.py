@@ -406,11 +406,11 @@ class SemiSupervisedLearner1d(nn.Module):
 
             if self.enforce_sparse_loc:
                 labeled_loss = labeled_loss + torch.mean(
-                    torch.norm(strong_output, p=1, dim=2))
+                    torch.norm(strong_output, p=1, dim=1))
 
             if self.enforce_sparse_attn:
                 labeled_loss = labeled_loss + torch.mean(
-                    torch.norm(attn, p=1, dim=2))
+                    torch.norm(attn, p=1, dim=1))
 
             strongly_augmented = self.normalization_layer(
                 self.strong_augmentator(unlabeled_batch)
@@ -550,13 +550,13 @@ class SemiSupervisedLearner1d(nn.Module):
                 unlabeled_loss = (
                     unlabeled_loss
                     + strong_quality_modulator * torch.mean(
-                        torch.norm(strong_output, p=1, dim=2)))
+                        torch.norm(strong_output, p=1, dim=1)))
 
             if self.enforce_sparse_attn:
                 unlabeled_loss = (
                     unlabeled_loss
                     + strong_quality_modulator * torch.mean(
-                        torch.norm(attn, p=1, dim=2)))
+                        torch.norm(attn, p=1, dim=1)))
 
             if self.debug:
                 if self.use_weak_labels:
