@@ -6,6 +6,7 @@ import random
 from collections import defaultdict
 from itertools import chain
 
+
 class StratifiedSampler(object):
     """Sample through class stratified strategy."""
 
@@ -22,15 +23,16 @@ class StratifiedSampler(object):
             n_test = int(n * test_batch_proportion)
             n_train = n - 2 * n_test
 
-            train_idx+= idx[:n_train]
-            val_idx+= idx[n_train:(n_train + n_test)]
-            test_idx+= idx[(n_train + n_test):]
+            train_idx += idx[:n_train]
+            val_idx += idx[n_train:(n_train + n_test)]
+            test_idx += idx[(n_train + n_test):]
 
         random.shuffle(train_idx)
         random.shuffle(val_idx)
         random.shuffle(test_idx)
 
         return train_idx, val_idx, test_idx
+
 
 class StratifiedSubSampler(object):
     """Subsample in stratified manner such that there are equal amounts of
@@ -57,15 +59,16 @@ class StratifiedSubSampler(object):
                 n_test = n_test_positive
                 n_train = n_train_positive
 
-            train_idx+= idx[:n_train]
-            val_idx+= idx[n_train:(n_train + n_test)]
-            test_idx+= idx[(n_train + n_test):]
+            train_idx += idx[:n_train]
+            val_idx += idx[n_train:(n_train + n_test)]
+            test_idx += idx[(n_train + n_test):]
 
         random.shuffle(train_idx)
         random.shuffle(val_idx)
         random.shuffle(test_idx)
 
         return train_idx, val_idx, test_idx
+
 
 class LoadingSampler(object):
     """Load pre-existing idx numpy txt files."""
@@ -82,7 +85,7 @@ class LoadingSampler(object):
             self.dt = np.float32
         elif self.dt == 'int':
             self.dt = np.int32
-            
+
         idxs = []
         for filename in self.filenames:
             idxs.append(list(np.loadtxt(filename, dtype=self.dt)))
@@ -93,8 +96,9 @@ class LoadingSampler(object):
 
         return idxs
 
+
 class GroupBySequenceSampler(object):
-    """Sample by sequence groups. 
+    """Sample by sequence groups.
     Naked sequences are sequences without modifications."""
 
     def __init__(self, **kwargs):
@@ -133,6 +137,7 @@ class GroupBySequenceSampler(object):
         random.shuffle(test_idx)
 
         return train_idx, val_idx, test_idx
+
 
 class GroupByRunSampler(object):
     """Sample by mass spec runs."""
