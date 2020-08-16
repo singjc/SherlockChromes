@@ -206,6 +206,7 @@ class SemiSupervisedLearner1d(nn.Module):
         enforce_weak_consistency=False,
         enforce_sparse_loc=False,
         enforce_sparse_attn=False,
+        sparsity_modulator=1e-4,
         augmentator_p=0.5,
         augmentator_mz_bins=6,
         augmentator_augment_precursor=False,
@@ -243,6 +244,7 @@ class SemiSupervisedLearner1d(nn.Module):
         self.enforce_weak_consistency = enforce_weak_consistency
         self.enforce_sparse_loc = enforce_sparse_loc
         self.enforce_sparse_attn = enforce_sparse_attn
+        self.sparsity_modulator = sparsity_modulator
         self.device = model_device
 
         self.weak_augmentator = ChromatogramScaler(
@@ -406,11 +408,12 @@ class SemiSupervisedLearner1d(nn.Module):
 
             if self.enforce_sparse_loc:
                 labeled_loss = labeled_loss + torch.mean(
-                    torch.norm(strong_output, p=1, dim=1))
+                    torch.norm(strong_output, p=1, dim=1)
+                    * self.sparsity_modulator)
 
             if self.enforce_sparse_attn:
                 labeled_loss = labeled_loss + torch.mean(
-                    torch.norm(attn, p=1, dim=1))
+                    torch.norm(attn, p=1, dim=1) * self.sparsity_modulator)
 
             strongly_augmented = self.normalization_layer(
                 self.strong_augmentator(unlabeled_batch)
@@ -550,13 +553,15 @@ class SemiSupervisedLearner1d(nn.Module):
                 unlabeled_loss = (
                     unlabeled_loss
                     + strong_quality_modulator * torch.mean(
-                        torch.norm(strong_output, p=1, dim=1)))
+                        torch.norm(strong_output, p=1, dim=1)
+                        * self.sparsity_modulator))
 
             if self.enforce_sparse_attn:
                 unlabeled_loss = (
                     unlabeled_loss
                     + strong_quality_modulator * torch.mean(
-                        torch.norm(attn, p=1, dim=1)))
+                        torch.norm(attn, p=1, dim=1)
+                        * self.sparsity_modulator))
 
             if self.debug:
                 if self.use_weak_labels:
@@ -614,6 +619,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
         enforce_weak_consistency=False,
         enforce_sparse_loc=False,
         enforce_sparse_attn=False,
+        sparsity_modulator=1e-4,
         augmentator_p=0.5,
         augmentator_mz_bins=6,
         augmentator_augment_precursor=False,
@@ -651,6 +657,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
             enforce_weak_consistency=enforce_weak_consistency,
             enforce_sparse_loc=enforce_sparse_loc,
             enforce_sparse_attn=enforce_sparse_attn,
+            sparsity_modulator=sparsity_modulator,
             augmentator_p=augmentator_p,
             augmentator_mz_bins=augmentator_mz_bins,
             augmentator_augment_precursor=augmentator_augment_precursor,
