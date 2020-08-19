@@ -106,9 +106,6 @@ class BaselineTransformer(nn.Module):
 
         if 'embed' in self.aggregator_mode:
             for mode in out_dict:
-                if 'trainable_norm' in self.aggregator_mode and mode == 'loc':
-                    continue
-
                 out_dict[mode] = self.to_probs(out_dict[mode])
 
         out_dict['loc'] = out_dict['loc'].view(b, -1)
@@ -117,6 +114,8 @@ class BaselineTransformer(nn.Module):
             return out_dict['loc']
         elif self.output_mode == 'cla':
             return out_dict['cla']
+        elif self.output_mode == 'attn':
+            return out_dict['attn']
         elif self.output_mode == 'all':
             return out_dict
         else:

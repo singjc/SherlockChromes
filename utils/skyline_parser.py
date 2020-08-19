@@ -67,7 +67,7 @@ def create_skyline_augmented_osw_dataset(
             try:
                 lib_rt = int(lib_rt)
                 lib_rt = ms1_rt_arrays[repl][lib_rt]
-            except:
+            except e:
                 lib_rt = float(lib_rt)
 
             segment_l, segment_r = get_subsequence_idxs(
