@@ -403,8 +403,8 @@ class TimeSeriesQueryAttentionPooling(nn.Module):
             b, h, l, n_q = self.norm_attn.size()
 
             return self.unify_attn(
-                self.norm_attn.transpose(1, 2).view(b, h * n_q, l))
-        return self.unify_attn(self.attn.transpose(1, 2).view(b, h * n_q, l))
+                self.norm_attn.transpose(2, 3).view(b, h * n_q, l))
+        return self.unify_attn(self.attn.transpose(2, 3).view(b, h * n_q, l))
 
     def forward(self, x):
         b, c, length = x.size()
