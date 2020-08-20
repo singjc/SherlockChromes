@@ -72,9 +72,8 @@ class BaselineTransformer(nn.Module):
     def forward(self, x):
         x = self.normalization_layer(x)
         x = x.transpose(1, 2).contiguous()
-        b, t, k = x.size()
-
         x = self.init_encoder(x)
+        b, t, k = x.size()
 
         # generate position embeddings
         positions = self.pos_emb(
@@ -105,10 +104,12 @@ class BaselineTransformer(nn.Module):
             raise NotImplementedError
 
         if 'embed' in self.aggregator_mode:
-            for mode in out_dict:
+            for mode in ['loc', 'cla']:
                 out_dict[mode] = self.to_probs(out_dict[mode])
 
-        out_dict['loc'] = out_dict['loc'].view(b, -1)
+        for mode in out_dict:
+            if len(out_dict[mode].size()) > 2:
+                out_dict[mode] = out_dict[mode].view(b, -1)
 
         if self.output_mode == 'loc':
             return out_dict['loc']

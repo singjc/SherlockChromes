@@ -460,6 +460,7 @@ class DDSCTransformer(nn.Module):
         save_attn=False,
         depth_multiplier=4,
         dropout=0.1,
+        use_pos_emb=False,
         use_templates=False,
         cat_templates=False,
         aggregator_mode='embed_pure_query_attn_pool',
@@ -472,6 +473,7 @@ class DDSCTransformer(nn.Module):
     ):
         super(DDSCTransformer, self).__init__()
         self.save_normalized = save_normalized
+        self.use_pos_emb = use_pos_emb
         self.use_templates = use_templates
         self.cat_templates = self.use_templates and cat_templates
         self.aggregator_mode = aggregator_mode
@@ -489,6 +491,9 @@ class DDSCTransformer(nn.Module):
             in_channels,
             transformer_channels,
             1)
+
+        self.pos_emb = None
+        self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
         # The sequence of transformer blocks that does all the
         # heavy lifting
@@ -555,13 +560,23 @@ class DDSCTransformer(nn.Module):
         self.probs = val
 
     def forward(self, x, templates=None, templates_label=None):
-        b, _, length = x.size()
         x = self.normalization_layer(x)
 
         if self.save_normalized:
             self.normalized = x
 
         out = self.init_encoder(x)
+        b, c, length = out.size()
+
+        if self.use_pos_emb:
+            if not self.pos_emb:
+                self.pos_emb = nn.Embedding(length, c).to(self.device)
+
+            encoded_positions = self.pos_emb(
+                torch.arange(length).to(self.device)).unsqueeze(0).expand(
+                    b, length, c).transpose(1, 2)
+            out = out + encoded_positions
+
         out = self.t_blocks(out)
 
         if self.use_templates:
@@ -669,7 +684,7 @@ class DDSCTransformer(nn.Module):
             raise NotImplementedError
 
         if self.probs and 'embed' in self.aggregator_mode:
-            for mode in out_dict:
+            for mode in ['loc', 'cla']:
                 if 'trainable_norm' in self.aggregator_mode and mode == 'loc':
                     continue
 
