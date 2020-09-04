@@ -158,8 +158,8 @@ def get_feature_data_table(osw_filename, decoy=0, spectral_info=True):
 
     if spectral_info:
         query = \
-            """SELECT r.FILENAME, p2.MODIFIED_SEQUENCE, p1.CHARGE,
-            f.LEFT_WIDTH, f.RIGHT_WIDTH, ms1.VAR_MASSDEV_SCORE,
+            """SELECT r.FILENAME, p2.MODIFIED_SEQUENCE,
+            f.LEFT_WIDTH, f.RIGHT_WIDTH, p1.CHARGE, ms1.VAR_MASSDEV_SCORE,
             ms1.VAR_ISOTOPE_CORRELATION_SCORE, ms1.VAR_ISOTOPE_OVERLAP_SCORE,
             ms1.VAR_XCORR_COELUTION, ms1.VAR_XCORR_SHAPE,
             ms2.VAR_BSERIES_SCORE, ms2.VAR_DOTPROD_SCORE,
@@ -172,7 +172,7 @@ def get_feature_data_table(osw_filename, decoy=0, spectral_info=True):
             ms2.VAR_MASSDEV_SCORE_WEIGHTED, ms2.VAR_NORM_RT_SCORE,
             ms2.VAR_XCORR_COELUTION, ms2.VAR_XCORR_COELUTION_WEIGHTED,
             ms2.VAR_XCORR_SHAPE, ms2.VAR_XCORR_SHAPE_WEIGHTED,
-            ms2.VAR_YSERIES_SCORE, ms2.VAR_ELUTION_MODEL_FIT_SCORE
+            ms2.VAR_YSERIES_SCORE
             FROM PRECURSOR p1
             LEFT JOIN PRECURSOR_PEPTIDE_MAPPING ppm ON p1.ID = ppm.PRECURSOR_ID
             LEFT JOIN PEPTIDE p2 ON p2.ID = ppm.PEPTIDE_ID
@@ -183,8 +183,8 @@ def get_feature_data_table(osw_filename, decoy=0, spectral_info=True):
             WHERE p1.DECOY = {0}""".format(decoy)
     else:
         query = \
-            """SELECT r.FILENAME, p2.MODIFIED_SEQUENCE, p1.CHARGE,
-            f.LEFT_WIDTH, f.RIGHT_WIDTH, ms1.VAR_XCORR_COELUTION,
+            """SELECT r.FILENAME, p2.MODIFIED_SEQUENCE,
+            f.LEFT_WIDTH, f.RIGHT_WIDTH, p1.CHARGE, ms1.VAR_XCORR_COELUTION,
             ms1.VAR_XCORR_SHAPE, ms2.VAR_DOTPROD_SCORE,
             ms2.VAR_INTENSITY_SCORE, ms2.VAR_LIBRARY_CORR,
             ms2.VAR_LIBRARY_DOTPROD, ms2.VAR_LIBRARY_MANHATTAN,
@@ -192,8 +192,7 @@ def get_feature_data_table(osw_filename, decoy=0, spectral_info=True):
             ms2.VAR_LIBRARY_SANGLE, ms2.VAR_LOG_SN_SCORE,
             ms2.VAR_MANHATTAN_SCORE, ms2.VAR_NORM_RT_SCORE,
             ms2.VAR_XCORR_COELUTION, ms2.VAR_XCORR_COELUTION_WEIGHTED,
-            ms2.VAR_XCORR_SHAPE, ms2.VAR_XCORR_SHAPE_WEIGHTED,
-            ms2.VAR_ELUTION_MODEL_FIT_SCORE
+            ms2.VAR_XCORR_SHAPE, ms2.VAR_XCORR_SHAPE_WEIGHTED
             FROM PRECURSOR p1
             LEFT JOIN PRECURSOR_PEPTIDE_MAPPING ppm ON p1.ID = ppm.PRECURSOR_ID
             LEFT JOIN PEPTIDE p2 ON p2.ID = ppm.PEPTIDE_ID
@@ -241,7 +240,7 @@ def create_feature_data(
         if None in feature_data_table[i]:
             continue
 
-        filename, mod_seq, charge, left, right = feature_data_table[i][0:5]
+        filename, mod_seq, left, right, charge = feature_data_table[i][0:5]
         filename = '_'.join(
             [filename.split('/')[-1].split('.')[0], mod_seq, str(charge)])
         label = 0
@@ -278,7 +277,7 @@ def create_feature_data(
 
         feature_idx += 1
 
-        feature_data_array.append(feature_data_table[i][5:])
+        feature_data_array.append(feature_data_table[i][4:])
 
     if decoys:
         decoy_feature_data_table = get_feature_data_table(
@@ -290,7 +289,7 @@ def create_feature_data(
             if None in decoy_feature_data_table[i]:
                 continue
 
-            filename, mod_seq, charge, left, right = (
+            filename, mod_seq, left, right, charge = (
                 decoy_feature_data_table[i][0:5])
             filename = '_'.join(
                 [filename.split('/')[-1].split('.')[0], mod_seq, str(charge)])
@@ -311,7 +310,7 @@ def create_feature_data(
                     None,
                     None])
             feature_idx += 1
-            feature_data_array.append(decoy_feature_data_table[i][5:])
+            feature_data_array.append(decoy_feature_data_table[i][4:])
 
     feature_data_array = np.array(feature_data_array, dtype=np.float32)
     labels = np.array(labels, dtype=np.float32)

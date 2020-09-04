@@ -185,6 +185,8 @@ def create_chromatogram(
             lib_intensities,
             ms1_rt_array.shape[-1]).reshape(num_traces, -1))
     chromatogram.append(np.expand_dims(abs(ms1_rt_array - lib_rt), axis=0))
+    chromatogram.append(
+        np.expand_dims(np.repeat(prec_charge, ms1_rt_array.shape[-1]), axis=0))
     chromatogram = np.concatenate(chromatogram, axis=0)
     osw_label_left_idx, osw_label_right_idx = None, None
     ss_left_idx, ss_right_idx = None, None
@@ -373,7 +375,7 @@ def create_repl_chromatograms_array(
             segmentation_labels_array.astype(np.int32)
         )
 
-        classificaton_labels_array = np.array(
+        classification_labels_array = np.array(
             classification_labels_array, dtype=np.int32).reshape((-1, 1))
 
         # Change labels from decoy to non-decoy as positive class
@@ -381,7 +383,7 @@ def create_repl_chromatograms_array(
 
         print(
             f'Saving classification labels array for {repl} of shape '
-            f'{classificaton_labels_array.shape}'
+            f'{classification_labels_array.shape}'
         )
 
         np.save(
