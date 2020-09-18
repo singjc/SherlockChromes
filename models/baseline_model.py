@@ -39,6 +39,7 @@ class BaselineTransformer(nn.Module):
         seq_length=175,
         normalize=False,
         normalization_mode='full',
+        use_pos_emb=True,
         aggregator_mode='instance_linear_softmax',
         output_mode='loc'
     ):
@@ -54,6 +55,7 @@ class BaselineTransformer(nn.Module):
             self.normalization_layer = nn.Identity()
 
         self.init_encoder = nn.Linear(in_channels, k)
+        self.use_pos_emb = use_pos_emb
         self.pos_emb = nn.Embedding(seq_length, k)
         self.pos_array = torch.arange(seq_length)
         self.device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
@@ -75,11 +77,13 @@ class BaselineTransformer(nn.Module):
         x = self.init_encoder(x)
         b, t, k = x.size()
 
-        # generate position embeddings
-        positions = self.pos_emb(
-            self.pos_array.to(self.device))[None, :, :].expand(b, t, k)
+        if self.use_pos_emb:
+            # generate position embeddings
+            positions = self.pos_emb(
+                self.pos_array.to(self.device))[None, :, :].expand(b, t, k)
 
-        x = x + positions
+            x = x + positions
+
         x = self.t_blocks(x)
 
         out_dict = {}
