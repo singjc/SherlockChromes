@@ -401,7 +401,8 @@ def get_cnn_data(
                 if exp_rt and delta_rt:
                     exp_rt = exp_rt - delta_rt
                 else:
-                    print(f'Skipped {chromatogram_filename} due to missing rt')
+                    print(
+                        f'Skipped {chromatograms_filename} due to missing rt')
 
                     continue
             else:
@@ -552,7 +553,7 @@ if __name__ == '__main__':
         if args.mode == 'npy':
             out = args.out
         elif args.mode == 'hdf5':
-            out = hfpy.File(args.out + '.hdf5', 'w')
+            out = h5py.File(args.out + '.hdf5', 'w')
         elif args.mode == 'tar':
             out = tarfile.open(args.out + '.tar', 'w|')
 
