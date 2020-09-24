@@ -573,45 +573,45 @@ class SemiSupervisedLearner1d(nn.Module):
             else:
                 unlabeled_loss = 0
 
-        if self.debug:
-            if self.semisupervised:
-                if self.use_weak_labels:
-                    num_positive = int(torch.sum(labels).item())
-                else:
-                    num_positive = 'n/a'
-
-                if self.enforce_weak_consistency:
-                    if isinstance(weak_unlabeled_loss, float):
-                        weak_unlabeled_loss_debug = weak_unlabeled_loss
+            if self.debug:
+                if self.semisupervised:
+                    if self.use_weak_labels:
+                        num_positive = int(torch.sum(labels).item())
                     else:
+                        num_positive = 'n/a'
+
+                    if self.enforce_weak_consistency:
+                        if isinstance(weak_unlabeled_loss, float):
+                            weak_unlabeled_loss_debug = weak_unlabeled_loss
+                        else:
+                            weak_unlabeled_loss_debug = (
+                                weak_unlabeled_loss.item())
+
                         weak_unlabeled_loss_debug = (
-                            weak_unlabeled_loss.item())
+                            f'{weak_unlabeled_loss_debug:.8f}')
+                        weak_quality_modulator_debug = torch.mean(
+                            weak_quality_modulator).item()
+                        weak_quality_modulator_debug = (
+                            f'{weak_quality_modulator_debug:.8f}')
+                    else:
+                        weak_unlabeled_loss_debug = 'n/a'
+                        weak_quality_modulator_debug = 'n/a'
 
-                    weak_unlabeled_loss_debug = (
-                        f'{weak_unlabeled_loss_debug:.8f}')
-                    weak_quality_modulator_debug = torch.mean(
-                        weak_quality_modulator).item()
-                    weak_quality_modulator_debug = (
-                        f'{weak_quality_modulator_debug:.8f}')
+                    print(
+                        f'L Loss: {labeled_loss.item():.8f}, '
+                        f'# Positive: {num_positive}, '
+                        f'UL Loss: {unlabeled_loss.item():.8f}, '
+                        'Weak Quality Modulator u: '
+                        f'{weak_quality_modulator_debug}, '
+                        f'Weak UL Loss: {weak_unlabeled_loss_debug}, '
+                        'Strong Quality Modulator u: '
+                        f'{strong_quality_modulator.item():.8f}, '
+                        f'Strong UL Loss: {strong_unlabeled_loss.item():.8f}, '
+                        'Weighted UL Loss: '
+                        f'{self.wu * unlabeled_loss.item():.8f}'
+                    )
                 else:
-                    weak_unlabeled_loss_debug = 'n/a'
-                    weak_quality_modulator_debug = 'n/a'
-
-                print(
-                    f'L Loss: {labeled_loss.item():.8f}, '
-                    f'# Positive: {num_positive}, '
-                    f'UL Loss: {unlabeled_loss.item():.8f}, '
-                    'Weak Quality Modulator u: '
-                    f'{weak_quality_modulator_debug}, '
-                    f'Weak UL Loss: {weak_unlabeled_loss_debug}, '
-                    'Strong Quality Modulator u: '
-                    f'{strong_quality_modulator.item():.8f}, '
-                    f'Strong UL Loss: {strong_unlabeled_loss.item():.8f}, '
-                    'Weighted UL Loss: '
-                    f'{self.wu * unlabeled_loss.item():.8f}'
-                )
-            else:
-                print(f'L Loss: {labeled_loss.item():.8f}')
+                    print(f'L Loss: {labeled_loss.item():.8f}')
 
             return labeled_loss + self.wu * unlabeled_loss
         else:
