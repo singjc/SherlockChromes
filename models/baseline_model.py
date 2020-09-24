@@ -8,9 +8,10 @@ from models.modelzoo1d.transformer import TransformerBlock
 
 
 class BaselineSegmentationNet(nn.Module):
-    def __init__(self):
+    def __init__(self, output_mode='loc'):
         super(BaselineSegmentationNet, self).__init__()
-        self.convnet = nn.Sequential(nn.Conv1d(29, 64, 11, padding=5),
+        self.output_mode = output_mode
+        self.convnet = nn.Sequential(nn.Conv1d(498, 64, 11, padding=5),
                                      nn.BatchNorm1d(64),
                                      nn.ReLU(),
                                      nn.Conv1d(64, 32, 9, padding=4),
@@ -24,9 +25,23 @@ class BaselineSegmentationNet(nn.Module):
                                      nn.Sigmoid())
 
     def forward(self, x):
+        b, _, length = x.size()
         output = self.convnet(x)
+        out_dict = {}
+        out_dict['attn'] = torch.zeros(b, length, 1)
+        out_dict['loc'] = output
+        out_dict['cla'] = output.max(dim=2)[0]
 
-        return output
+        if self.output_mode == 'loc':
+            return out_dict['loc']
+        elif self.output_mode == 'cla':
+            return out_dict['cla']
+        elif self.output_mode == 'attn':
+            return out_dict['attn']
+        elif self.output_mode == 'all':
+            return out_dict
+        else:
+            raise NotImplementedError
 
 
 class BaselineTransformer(nn.Module):
