@@ -17,6 +17,7 @@ def main(
         device):
     model_kwargs = {}
     for kw in [
+        'semisupervised',
         'wu',
         'threshold',
         'use_weak_labels',

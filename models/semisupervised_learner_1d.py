@@ -200,6 +200,7 @@ class SemiSupervisedLearner1d(nn.Module):
     def __init__(
         self,
         model,
+        semisupervised=True,
         wu=1,
         threshold=0.95,
         use_weak_labels=False,
@@ -238,6 +239,7 @@ class SemiSupervisedLearner1d(nn.Module):
     ):
         super(SemiSupervisedLearner1d, self).__init__()
         self.model = copy.deepcopy(model)
+        self.semisupervised = semisupervised
         self.wu = wu
         self.threshold = threshold
         self.use_weak_labels = use_weak_labels
@@ -356,14 +358,12 @@ class SemiSupervisedLearner1d(nn.Module):
         return (noise_image_smoothed > threshold).astype(float)
 
     def forward(self, unlabeled_batch, labeled_batch=None, labels=None):
-        b_ul, c_ul, l_ul = unlabeled_batch.size()
-
-        if labeled_batch is not None:
-            labeled_batch = self.normalization_layer(labeled_batch)
-
         if self.training:
             assert labeled_batch is not None, 'missing labeled data!'
             assert labels is not None, 'missing labels!'
+
+            b_ul, c_ul, l_ul = unlabeled_batch.size()
+            labeled_batch = self.normalization_layer(labeled_batch)
 
             if self.regularizer_mode == 'cutmix':
                 if b_ul % 2 != 0:
@@ -415,155 +415,166 @@ class SemiSupervisedLearner1d(nn.Module):
                 labeled_loss = labeled_loss + torch.mean(
                     torch.norm(attn, p=1, dim=1) * self.sparsity_modulator)
 
-            strongly_augmented = self.normalization_layer(
-                self.strong_augmentator(unlabeled_batch)
-            )
-            weakly_augmented = self.normalization_layer(
-                self.weak_augmentator(unlabeled_batch)
-            )
-
-            if self.enforce_weak_consistency:
-                self.model.output_mode = 'all'
-                out_dict = self.model(weakly_augmented)
-                weak_output, strong_output = (
-                    out_dict['cla'],
-                    out_dict['loc']
+            if self.semisupervised:
+                strongly_augmented = self.normalization_layer(
+                    self.strong_augmentator(unlabeled_batch)
+                )
+                weakly_augmented = self.normalization_layer(
+                    self.weak_augmentator(unlabeled_batch)
                 )
 
-                weak_pseudo_labels = (self.to_out(weak_output) >= 0.5).float()
-                weak_quality_modulator = (
-                    (self.to_out(weak_output) >= self.threshold).float()
-                    + (self.to_out(weak_output) <= (1 - self.threshold))
-                ).reshape(1, -1).squeeze()
+                if self.enforce_weak_consistency:
+                    self.model.output_mode = 'all'
+                    out_dict = self.model(weakly_augmented)
+                    weak_output, strong_output = (
+                        out_dict['cla'],
+                        out_dict['loc']
+                    )
+
+                    weak_pseudo_labels = (
+                        self.to_out(weak_output) >= 0.5).float()
+                    weak_quality_modulator = (
+                        (self.to_out(weak_output) >= self.threshold).float()
+                        + (self.to_out(weak_output) <= (1 - self.threshold))
+                    ).reshape(1, -1).squeeze()
+
+                    # Variable required for cutmix
+                    lam = None
+                else:
+                    self.model.output_mode = 'loc'
+                    strong_output = self.model(strongly_augmented)
+
+                strong_pseudo_labels = (
+                    self.to_out(strong_output) >= 0.5).float()
+
+                strong_quality_modulator = (
+                    (self.to_out(strong_output) >= self.threshold).float()
+                    + (self.to_out(strong_output) <= (1 - self.threshold))
+                )
 
                 # Variable required for cutmix
-                lam = None
-            else:
-                self.model.output_mode = 'loc'
-                strong_output = self.model(strongly_augmented)
+                b_ul_half = b_ul // 2
 
-            strong_pseudo_labels = (
-                self.to_out(strong_output) >= 0.5).float()
-
-            strong_quality_modulator = (
-                (self.to_out(strong_output) >= self.threshold).float()
-                + (self.to_out(strong_output) <= (1 - self.threshold))
-            )
-
-            # Variable required for cutmix
-            b_ul_half = b_ul // 2
-
-            if self.regularizer_mode != 'none':
-                regularizer_mask = torch.from_numpy(
-                    self.generate_zebra_mask(
-                        l_ul,
-                        sigma_min=self.regularizer_sigma_min,
-                        sigma_max=self.regularizer_sigma_max,
-                        p_min=self.regularizer_p_min,
-                        p_max=self.regularizer_p_max
-                    )
-                ).float().to(self.device)
-
-                if self.regularizer_mode == 'cutout':
-                    strongly_augmented = strongly_augmented * regularizer_mask
-                    strong_quality_modulator = (
-                        strong_quality_modulator * regularizer_mask)
-                elif self.regularizer_mode == 'cutmix':
-                    if self.enforce_weak_consistency:
-                        lam = (
-                            torch.sum(regularizer_mask)
-                            / regularizer_mask.nelement()
+                if self.regularizer_mode != 'none':
+                    regularizer_mask = torch.from_numpy(
+                        self.generate_zebra_mask(
+                            l_ul,
+                            sigma_min=self.regularizer_sigma_min,
+                            sigma_max=self.regularizer_sigma_max,
+                            p_min=self.regularizer_p_min,
+                            p_max=self.regularizer_p_max
                         )
+                    ).float().to(self.device)
 
-                    strongly_augmented = (
-                        (strongly_augmented[0:b_ul_half] * regularizer_mask)
-                        + (strongly_augmented[b_ul_half:]
-                            * (1 - regularizer_mask)))
-                    strong_pseudo_labels = (
-                        (strong_pseudo_labels[0:b_ul_half] * regularizer_mask)
-                        + (strong_pseudo_labels[b_ul_half:]
-                            * (1 - regularizer_mask)))
-                    strong_quality_modulator = (
-                        (strong_quality_modulator[0:b_ul_half]
-                            * regularizer_mask)
-                        + (strong_quality_modulator[b_ul_half:]
-                            * (1 - regularizer_mask)))
+                    if self.regularizer_mode == 'cutout':
+                        strongly_augmented = (
+                            strongly_augmented * regularizer_mask)
+                        strong_quality_modulator = (
+                            strong_quality_modulator * regularizer_mask)
+                    elif self.regularizer_mode == 'cutmix':
+                        if self.enforce_weak_consistency:
+                            lam = (
+                                torch.sum(regularizer_mask)
+                                / regularizer_mask.nelement()
+                            )
 
-            strong_quality_modulator = torch.mean(
-                strong_quality_modulator.reshape(1, -1).squeeze())
+                        strongly_augmented = (
+                            (
+                                strongly_augmented[0:b_ul_half]
+                                * regularizer_mask)
+                            + (strongly_augmented[b_ul_half:]
+                                * (1 - regularizer_mask)))
+                        strong_pseudo_labels = (
+                            (
+                                strong_pseudo_labels[0:b_ul_half]
+                                * regularizer_mask)
+                            + (strong_pseudo_labels[b_ul_half:]
+                                * (1 - regularizer_mask)))
+                        strong_quality_modulator = (
+                            (strong_quality_modulator[0:b_ul_half]
+                                * regularizer_mask)
+                            + (strong_quality_modulator[b_ul_half:]
+                                * (1 - regularizer_mask)))
 
-            self.model.output_mode = 'all'
-            out_dict = self.model(strongly_augmented)
-            weak_output, strong_output, attn = (
-                out_dict['cla'],
-                out_dict['loc'],
-                out_dict['attn']
-            )
+                strong_quality_modulator = torch.mean(
+                    strong_quality_modulator.reshape(1, -1).squeeze())
 
-            if (
-                self.enforce_weak_consistency
-                and self.regularizer_mode == 'cutmix'
-            ):
-                weak_unlabeled_loss_a = lam * torch.mean(
-                    self.loss(
-                        weak_output,
-                        weak_pseudo_labels[:b_ul_half]
-                    )[weak_quality_modulator[:b_ul_half].bool()]
+                self.model.output_mode = 'all'
+                out_dict = self.model(strongly_augmented)
+                weak_output, strong_output, attn = (
+                    out_dict['cla'],
+                    out_dict['loc'],
+                    out_dict['attn']
                 )
 
-                if torch.isnan(weak_unlabeled_loss_a):
-                    weak_unlabeled_loss_a = 0.0
+                if (
+                    self.enforce_weak_consistency
+                    and self.regularizer_mode == 'cutmix'
+                ):
+                    weak_unlabeled_loss_a = lam * torch.mean(
+                        self.loss(
+                            weak_output,
+                            weak_pseudo_labels[:b_ul_half]
+                        )[weak_quality_modulator[:b_ul_half].bool()]
+                    )
 
-                weak_unlabeled_loss_b = (1 - lam) * torch.mean(
-                    self.loss(
-                        weak_output,
-                        weak_pseudo_labels[b_ul_half:]
-                    )[weak_quality_modulator[b_ul_half:].bool()]
+                    if torch.isnan(weak_unlabeled_loss_a):
+                        weak_unlabeled_loss_a = 0.0
+
+                    weak_unlabeled_loss_b = (1 - lam) * torch.mean(
+                        self.loss(
+                            weak_output,
+                            weak_pseudo_labels[b_ul_half:]
+                        )[weak_quality_modulator[b_ul_half:].bool()]
+                    )
+
+                    if torch.isnan(weak_unlabeled_loss_b):
+                        weak_unlabeled_loss_b = 0.0
+
+                    weak_unlabeled_loss = (
+                        weak_unlabeled_loss_a + weak_unlabeled_loss_b
+                    )
+                elif self.enforce_weak_consistency:
+                    weak_unlabeled_loss = torch.mean(
+                        self.loss(
+                            weak_output,
+                            weak_pseudo_labels
+                        )[weak_quality_modulator.bool()]
+                    )
+
+                    if torch.isnan(weak_unlabeled_loss):
+                        weak_unlabeled_loss = 0.0
+
+                strong_unlabeled_loss = strong_quality_modulator * torch.mean(
+                    self.loss(strong_output, strong_pseudo_labels)
                 )
 
-                if torch.isnan(weak_unlabeled_loss_b):
-                    weak_unlabeled_loss_b = 0.0
+                self.model.output_mode = orig_setting
 
-                weak_unlabeled_loss = (
-                    weak_unlabeled_loss_a + weak_unlabeled_loss_b
-                )
-            elif self.enforce_weak_consistency:
-                weak_unlabeled_loss = torch.mean(
-                    self.loss(
-                        weak_output,
-                        weak_pseudo_labels
-                    )[weak_quality_modulator.bool()]
-                )
+                if self.enforce_weak_consistency:
+                    unlabeled_loss = (
+                        weak_unlabeled_loss + strong_unlabeled_loss)
+                else:
+                    unlabeled_loss = strong_unlabeled_loss
 
-                if torch.isnan(weak_unlabeled_loss):
-                    weak_unlabeled_loss = 0.0
+                if self.enforce_sparse_loc:
+                    unlabeled_loss = (
+                        unlabeled_loss
+                        + strong_quality_modulator * torch.mean(
+                            torch.norm(strong_output, p=1, dim=1)
+                            * self.sparsity_modulator))
 
-            strong_unlabeled_loss = strong_quality_modulator * torch.mean(
-                self.loss(strong_output, strong_pseudo_labels)
-            )
-
-            self.model.output_mode = orig_setting
-
-            if self.enforce_weak_consistency:
-                unlabeled_loss = weak_unlabeled_loss + strong_unlabeled_loss
+                if self.enforce_sparse_attn:
+                    unlabeled_loss = (
+                        unlabeled_loss
+                        + strong_quality_modulator * torch.mean(
+                            torch.norm(attn, p=1, dim=1)
+                            * self.sparsity_modulator))
             else:
-                unlabeled_loss = strong_unlabeled_loss
+                unlabeled_loss = 0
 
-            if self.enforce_sparse_loc:
-                unlabeled_loss = (
-                    unlabeled_loss
-                    + strong_quality_modulator * torch.mean(
-                        torch.norm(strong_output, p=1, dim=1)
-                        * self.sparsity_modulator))
-
-            if self.enforce_sparse_attn:
-                unlabeled_loss = (
-                    unlabeled_loss
-                    + strong_quality_modulator * torch.mean(
-                        torch.norm(attn, p=1, dim=1)
-                        * self.sparsity_modulator))
-
-            if self.debug:
+        if self.debug:
+            if self.semisupervised:
                 if self.use_weak_labels:
                     num_positive = int(torch.sum(labels).item())
                 else:
@@ -573,7 +584,8 @@ class SemiSupervisedLearner1d(nn.Module):
                     if isinstance(weak_unlabeled_loss, float):
                         weak_unlabeled_loss_debug = weak_unlabeled_loss
                     else:
-                        weak_unlabeled_loss_debug = weak_unlabeled_loss.item()
+                        weak_unlabeled_loss_debug = (
+                            weak_unlabeled_loss.item())
 
                     weak_unlabeled_loss_debug = (
                         f'{weak_unlabeled_loss_debug:.8f}')
@@ -595,8 +607,11 @@ class SemiSupervisedLearner1d(nn.Module):
                     'Strong Quality Modulator u: '
                     f'{strong_quality_modulator.item():.8f}, '
                     f'Strong UL Loss: {strong_unlabeled_loss.item():.8f}, '
-                    f'Weighted UL Loss: {self.wu * unlabeled_loss.item():.8f}'
+                    'Weighted UL Loss: '
+                    f'{self.wu * unlabeled_loss.item():.8f}'
                 )
+            else:
+                print(f'L Loss: {labeled_loss.item():.8f}')
 
             return labeled_loss + self.wu * unlabeled_loss
         else:
@@ -613,6 +628,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
     def __init__(
         self,
         model,
+        semisupervised=True,
         wu=1,
         threshold=0.85,
         use_weak_labels=False,
@@ -651,6 +667,7 @@ class SemiSupervisedAlignmentLearner1d(SemiSupervisedLearner1d):
     ):
         super(SemiSupervisedAlignmentLearner1d, self).__init__(
             model,
+            semisupervised=semisupervised,
             wu=wu,
             threshold=threshold,
             use_weak_labels=use_weak_labels,
