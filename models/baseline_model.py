@@ -32,6 +32,10 @@ class BaselineSegmentationNet(nn.Module):
         out_dict['loc'] = output
         out_dict['cla'] = output.max(dim=2)[0]
 
+        for mode in out_dict:
+            if len(out_dict[mode].size()) > 2:
+                out_dict[mode] = out_dict[mode].view(b, -1)
+
         if self.output_mode == 'loc':
             return out_dict['loc']
         elif self.output_mode == 'cla':
