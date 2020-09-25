@@ -6,9 +6,11 @@ import scipy.ndimage
 import sys
 import torch
 
-from sklearn.metrics import average_precision_score, confusion_matrix, precision_recall_curve
+from sklearn.metrics import (
+    average_precision_score, confusion_matrix, precision_recall_curve)
 
 from chromatograms_dataset import NpyChromatogramsDataset
+
 
 def plot_whole_chromatogram(
     chromatogram_id,
@@ -19,7 +21,8 @@ def plot_whole_chromatogram(
     threshold=0.5,
     num_traces=6,
     mode='subsection',
-    width=30):
+    width=30
+):
     """
     Args:
         chromatogram_id (str): chromatogram id in dataset
@@ -90,13 +93,15 @@ def plot_whole_chromatogram(
     plt.subplot(212)
 
     if mode == 'subsection':
-        plt.plot(np.pad(labels, (15, 0), 'constant'), label='raw network output')
+        plt.plot(
+            np.pad(labels, (15, 0), 'constant'), label='raw network output')
     elif mode == 'point':
         plt.plot(labels, label='raw network output')
 
     plt.legend()
 
     plt.show()
+
 
 def plot_chromatogram_subsection(chromatogram, labels=None):
     """
@@ -137,6 +142,7 @@ def plot_chromatogram_subsection(chromatogram, labels=None):
 
     plt.legend()
     plt.show()
+
 
 def plot_confusion_matrix(y_true, y_pred, classes,
                           normalize=False,
@@ -192,11 +198,13 @@ def plot_confusion_matrix(y_true, y_pred, classes,
 
     return ax
 
+
 def plot_binary_precision_recall_curve(
     y_true,
     y_pred,
     y_true_2=None,
-    y_pred_2=None):
+    y_pred_2=None
+):
     """
     This function plots a binary precision recall curve.
     """
@@ -237,13 +245,15 @@ def plot_binary_precision_recall_curve(
 
     return precision, recall, thresholds
 
+
 def count_outcomes(
     dataset,
     model,
     root_dir,
     idx_filename,
     threshold=0.5,
-    mode='val'):
+    mode='val'
+):
     """
     This function counts the number of instances of each possible outcome.
     """
@@ -261,31 +271,38 @@ def count_outcomes(
         num_boxes = (labels == 1).sum()
         num_boxes_predicted = (output >= threshold).sum()
         if num_boxes_predicted == 0:
-            counter1+= 1
+            counter1 += 1
             no_boxes.append(idx)
         elif 0 < num_boxes_predicted < num_boxes:
-            counter2+= 1
+            counter2 += 1
             less_boxes.append(idx)
         elif num_boxes_predicted == num_boxes:
-            counter3+= 1
+            counter3 += 1
             equal_boxes.append(idx)
         elif num_boxes_predicted > num_boxes:
-            counter4+= 1
+            counter4 += 1
             more_boxes.append(idx)
 
-    np.savetxt(os.path.join(root_dir, mode + '_no_boxes.txt'), np.array(no_boxes))
-    np.savetxt(os.path.join(root_dir, mode + '_less_boxes.txt'), np.array(less_boxes))
-    np.savetxt(os.path.join(root_dir, mode + '_equal_boxes.txt'), np.array(equal_boxes))
-    np.savetxt(os.path.join(root_dir, mode + '_more_boxes.txt'), np.array(more_boxes))
+    np.savetxt(
+        os.path.join(root_dir, mode + '_no_boxes.txt'), np.array(no_boxes))
+    np.savetxt(
+        os.path.join(root_dir, mode + '_less_boxes.txt'), np.array(less_boxes))
+    np.savetxt(
+        os.path.join(
+            root_dir, mode + '_equal_boxes.txt'), np.array(equal_boxes))
+    np.savetxt(
+        os.path.join(root_dir, mode + '_more_boxes.txt'), np.array(more_boxes))
 
     print(counter1, counter2, counter3, counter4)
+
 
 def pseudo_binary_precision_recall(
     dataset,
     model,
     root_dir,
     idx_filename,
-    mode='val'):
+    mode='val'
+):
     """
     This function calculates a pseudo binary precision recall curve by taking
     the score and label of the highest value from each chromatogram.
@@ -330,6 +347,7 @@ def pseudo_binary_precision_recall(
     np.savetxt(os.path.join(root_dir, mode + '_recall.txt'), recall)
     np.savetxt(os.path.join(root_dir, mode + '_thresholds.txt'), thresholds)
 
+
 def plot_layer_output(x, layer, extra=[], extra_labels=[]):
     dims = x.shape
     output = layer(
@@ -341,7 +359,8 @@ def plot_layer_output(x, layer, extra=[], extra_labels=[]):
 
     for channel in range(channels):
         plt.subplot(channels + len(extra), 1, channel + 1)
-        plt.plot(output.numpy()[channel, :], label='transition_' + str(channel))
+        plt.plot(
+            output.numpy()[channel, :], label='transition_' + str(channel))
 
     if extra:
         for i in range(len(extra)):
@@ -351,6 +370,7 @@ def plot_layer_output(x, layer, extra=[], extra_labels=[]):
     plt.legend()
 
     plt.show()
+
 
 def test_model(dataset, model, mode='whole'):
     """
@@ -383,7 +403,7 @@ def test_model(dataset, model, mode='whole'):
             idx = int(float(retrieve))
 
         chromatogram, true_label = dataset[idx]
-        
+
         print('Chromatogram/subsection id: {}'.format(idx))
 
         if mode != 'whole':
@@ -441,6 +461,7 @@ def test_model(dataset, model, mode='whole'):
             model.to('cpu')
             model.eval()
 
+
 def create_results_file(
     root_dir,
     chromatograms_filename,
@@ -450,7 +471,8 @@ def create_results_file(
     skyline_filename,
     results_filename,
     threshold=0.5,
-    mode='subsection'):
+    mode='subsection'
+):
     chromatograms = pd.read_csv(os.path.join(
         root_dir, chromatograms_filename))
 
@@ -503,10 +525,10 @@ def create_results_file(
                     start_idx, end_idx = largest_idx, largest_idx
 
                     while output[start_idx - 1] >= threshold:
-                        start_idx-= 1
-                    
+                        start_idx -= 1
+
                     while output[end_idx + 1] >= threshold:
-                        end_idx+= 1
+                        end_idx += 1
 
                     left_width = start_idx * 0.0569
                     right_width = end_idx * 0.0569
@@ -545,7 +567,7 @@ if __name__ == "__main__":
         labels=labels_filename,
         num_features=num_features)
 
-    # e.g. ../../../data/output/custom_3_layer_21_kernel_osw_points_wrt/custom_3_layer_21_kernel_osw_points_wrt_model_150.pth
+    # .pth file
     model_filename = input('Model pth: ')
     model = torch.load(model_filename)
     model.to('cpu')

@@ -46,18 +46,15 @@ def get_data_loaders(
         np.savetxt(
             os.path.join(outdir_path, 'labeled_idx.txt'),
             np.array(labeled_idx),
-            fmt='%i'
-        )
+            fmt='%i')
         np.savetxt(
             os.path.join(outdir_path, 'unlabeled_idx.txt'),
             np.array(unlabeled_idx),
-            fmt='%i'
-        )
+            fmt='%i')
         np.savetxt(
             os.path.join(outdir_path, 'val_idx.txt'),
             np.array(val_idx),
-            fmt='%i'
-        )
+            fmt='%i')
 
     labeled_set = Subset(data, labeled_idx, use_weak_labels)
     unlabeled_set = Subset(data, unlabeled_idx, False)
@@ -133,8 +130,7 @@ def train(
     if 'transfer_model_path' in kwargs:
         model.load_state_dict(
             torch.load(kwargs['transfer_model_path']).state_dict(),
-            strict=False
-        )
+            strict=False)
 
     unlabeled_loader = iter(cycle(unlabeled_loader))
 
@@ -223,8 +219,7 @@ def train(
                 outputs_for_metrics.append(global_preds)
                 loss_out = loss(
                     torch.from_numpy(global_preds).to(device=device).float(),
-                    labels
-                )
+                    labels)
                 losses.append(loss_out.item())
 
         model.model.output_mode = orig_output_mode
@@ -232,8 +227,7 @@ def train(
         outputs_for_metrics = np.concatenate(outputs_for_metrics, axis=0)
         accuracy = accuracy_score(labels_for_metrics, outputs_for_metrics)
         bacc = balanced_accuracy_score(
-            labels_for_metrics, outputs_for_metrics
-        )
+            labels_for_metrics, outputs_for_metrics)
         precision = precision_score(labels_for_metrics, outputs_for_metrics)
         recall = recall_score(labels_for_metrics, outputs_for_metrics)
         dice = f1_score(labels_for_metrics, outputs_for_metrics)
@@ -248,16 +242,14 @@ def train(
             f'Recall: {recall:.8f} '
             f'Dice: {dice:.8f} '
             f'IoU: {iou:.8f} '
-            f'Avg loss: {avg_loss:.8f} '
-        )
+            f'Avg loss: {avg_loss:.8f} ')
 
         save_path = ''
 
         if bacc > highest_bacc:
             save_path = os.path.join(
                 kwargs['outdir_path'],
-                f"{kwargs['model_savename']}_model_{epoch}_bacc={bacc}.pth"
-            )
+                f"{kwargs['model_savename']}_model_{epoch}_bacc={bacc}.pth")
 
             highest_bacc = bacc
 
@@ -272,8 +264,7 @@ def train(
         elif dice > highest_dice:
             save_path = os.path.join(
                 kwargs['outdir_path'],
-                f"{kwargs['model_savename']}_model_{epoch}_dice={dice}.pth"
-            )
+                f"{kwargs['model_savename']}_model_{epoch}_dice={dice}.pth")
 
             highest_dice = dice
 
@@ -285,8 +276,7 @@ def train(
         elif iou > highest_iou:
             save_path = os.path.join(
                 kwargs['outdir_path'],
-                f"{kwargs['model_savename']}_model_{epoch}_iou={iou}.pth"
-            )
+                f"{kwargs['model_savename']}_model_{epoch}_iou={iou}.pth")
             highest_iou = iou
 
             if avg_loss < lowest_loss:
@@ -294,8 +284,8 @@ def train(
         elif avg_loss < lowest_loss:
             save_path = os.path.join(
                 kwargs['outdir_path'],
-                f"{kwargs['model_savename']}_model_{epoch}_loss={avg_loss}.pth"
-            )
+                f"{kwargs['model_savename']}_model_{epoch}_loss={avg_loss}"
+                '.pth')
             lowest_loss = avg_loss
 
         if save_path:
