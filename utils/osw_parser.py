@@ -159,13 +159,14 @@ def create_data_from_transition_ids(
     left_width,
     right_width,
     prec_id=None,
+    prec_charge=None,
     isotopes=[],
     library_intensities=[],
     exp_rt=None,
     extra_features=[],
     csv_only=False,
-    window_size=201,
-    mode='tar'
+    window_size=175,
+    mode='npy'
 ):
     con = sqlite3.connect(os.path.join(sqMass_dir, sqMass_filename))
 
@@ -207,6 +208,9 @@ def create_data_from_transition_ids(
             num_expected_extra_features += 6
 
         if 'exp_rt' in extra_features:
+            num_expected_extra_features += 1
+
+        if 'prec_charge' in extra_features:
             num_expected_extra_features += 1
 
         chromatogram = np.zeros((num_expected_features, len_times))
@@ -273,6 +277,11 @@ def create_data_from_transition_ids(
             extra_meta['exp_rt'] = free_idx
             free_idx += 1
 
+        if 'prec_charge' in extra_features:
+            extra[free_idx:free_idx + 1] = prec_charge
+            extra_meta['prec_charge'] = free_idx
+            free_idx += 1
+
         if window_size >= 0:
             subsection_left, subsection_right = get_subsequence_idxs(
                 times, exp_rt, window_size)
@@ -336,13 +345,13 @@ def get_cnn_data(
     osw_dir='.',
     osw_filename='merged.osw',
     sqMass_roots=[],
-    extra_features=['ms1', 'lib_int', 'exp_rt'],
+    extra_features=['ms1', 'lib_int', 'exp_rt', 'prec_charge'],
     isotopes=[0],
     csv_only=False,
     window_size=201,
     use_rt=False,
     scored=False,
-    mode='tar'
+    mode='npy'
 ):
     label_matrix, chromatograms_array, chromatograms_csv = [], [], []
 
@@ -436,6 +445,7 @@ def get_cnn_data(
                     left_width,
                     right_width,
                     prec_id=prec_id,
+                    prec_charge=prec_charge,
                     isotopes=isotopes,
                     library_intensities=library_intensities,
                     exp_rt=exp_rt,
@@ -520,7 +530,7 @@ if __name__ == '__main__':
         '-extra_features',
         '--extra_features',
         type=str,
-        default='ms1,lib_int,exp_rt')
+        default='ms1,lib_int,exp_rt,prec_charge')
     parser.add_argument('-isotopes', '--isotopes', type=str, default='0')
     parser.add_argument(
         '-csv_only',
@@ -538,7 +548,7 @@ if __name__ == '__main__':
         '--scored',
         action='store_true',
         default=False)
-    parser.add_argument('-mode', '--mode', type=str, default='tar')
+    parser.add_argument('-mode', '--mode', type=str, default='npy')
     args = parser.parse_args()
 
     args.in_folder = args.in_folder.split(',')
