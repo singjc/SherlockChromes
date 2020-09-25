@@ -119,7 +119,7 @@ def create_output_array(
 
         output_array.append(output.detach().to('cpu').numpy())
 
-    output_array = np.vstack(output_array)
+    output_array = np.concatenate(output_array, axis=0)
 
     if len(output_array.shape) > 2:
         output_array = output_array.reshape(output_array.shape[0], -1)

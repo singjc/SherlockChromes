@@ -311,7 +311,7 @@ def create_data_from_transition_ids(
                 bb_start, bb_end = None, None
 
         if mode == 'npy':
-            chromatogram = np.concatenate([chromatogram, extra], axis=0)
+            chromatogram = np.concatenate((chromatogram, extra), axis=0)
 
             return row_labels, bb_start, bb_end, chromatogram
         elif mode == 'hdf5':
@@ -483,14 +483,15 @@ def get_cnn_data(
         if mode == 'npy':
             np.save(
                 chromatograms_filename,
-                np.vstack(chromatograms_array).astype(np.float32)
-            )
-            np.save(labels_filename, np.vstack(label_matrix).astype(np.int32))
+                np.array(chromatograms_array, dtype=np.float32))
+            np.save(
+                labels_filename,
+                np.array(label_matrix, dtype=np.float32))
         elif mode == 'hdf5':
             out.create_dataset(
-                labels_filename, data=np.vstack(label_matrix))
+                labels_filename, data=np.array(label_matrix))
         elif mode == 'tar':
-            data = np.vstack(label_matrix).tobytes()
+            data = np.array(label_matrix).tobytes()
             with io.BytesIO(data) as f:
                 info = tarfile.TarInfo(labels_filename)
                 info.size = len(data)

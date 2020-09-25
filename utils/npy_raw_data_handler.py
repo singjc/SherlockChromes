@@ -350,7 +350,7 @@ def create_repl_chromatograms_array(
         ])
         idx += 1
 
-    chromatograms_array = np.stack(chromatograms_array, axis=0)
+    chromatograms_array = np.array(chromatograms_array, dtype=np.float32)
 
     print(
         f'Saving chromatograms array for {repl} of shape '
@@ -359,11 +359,12 @@ def create_repl_chromatograms_array(
 
     np.save(
         os.path.join(work_dir, f'{repl}_chromatograms_array'),
-        chromatograms_array.astype(np.float32)
+        chromatograms_array
     )
 
     if create_label_arrays:
-        segmentation_labels_array = np.stack(segmentation_labels_array, axis=0)
+        segmentation_labels_array = np.array(
+            segmentation_labels_array, dtype=np.int32)
 
         print(
             f'Saving segmentation labels array for {repl} of shape '
@@ -372,7 +373,7 @@ def create_repl_chromatograms_array(
 
         np.save(
             os.path.join(work_dir, f'{repl}_segmentation_labels_array'),
-            segmentation_labels_array.astype(np.int32)
+            segmentation_labels_array
         )
 
         classification_labels_array = np.array(

@@ -91,7 +91,7 @@ def merge_chromatogram_and_decoy_chromatogram_file(
         writer.writerows(merged_file)
 
     decoy_labels = np.zeros((num_decoys, chromatogram_labels.shape[1]))
-    final_labels = np.vstack((chromatogram_labels, decoy_labels))
+    final_labels = np.concatenate((chromatogram_labels, decoy_labels), axis=0)
 
     assert final_labels.shape == (
         chromatogram_labels.shape[0] + num_decoys,

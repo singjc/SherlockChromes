@@ -39,7 +39,8 @@ class ExtraTraceConsumer():
                 if b'GrpIsotopeCorr' == name or b'GrpIsotopeOverlap' == name:
                     continue
 
-                ms2_array_npy = np.array([i for i in ms2_array])
+                ms2_array_npy = np.array(
+                    [i for i in ms2_array], dtype=np.float32)
 
                 if b'logSNScore' == name:
                     ms2_array_npy = np.nan_to_num(ms2_array_npy, posinf=0.0)
@@ -148,9 +149,9 @@ class RawData2DExtractionConsumer():
             ms1_rt_filename = f'{self.mzml_filename}_ms1_rt_array'
             ms2_rt_filename = f'{self.mzml_filename}_ms2_rt_array'
             self.ms1_array = np.array(
-                self.ms1_array).transpose((1, 0), dtype=np.float32)
+                self.ms1_array, dtype=np.float32).transpose((1, 0))
             self.ms2_array = np.array(
-                self.ms2_array).transpose((0, 2, 1), dtype=np.float32)
+                self.ms2_array, dtype=np.float32).transpose((0, 2, 1))
             self.ms1_rt_array = np.array(self.ms1_rt_array, dtype=np.float32)
             self.ms2_rt_array = np.array(self.ms2_rt_array, dtype=np.float32)
 
