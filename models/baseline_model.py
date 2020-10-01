@@ -11,18 +11,28 @@ class BaselineSegmentationNet(nn.Module):
     def __init__(self, output_mode='loc'):
         super(BaselineSegmentationNet, self).__init__()
         self.output_mode = output_mode
-        self.convnet = nn.Sequential(nn.Conv1d(498, 64, 11, padding=5),
-                                     nn.BatchNorm1d(64),
-                                     nn.ReLU(),
-                                     nn.Conv1d(64, 32, 9, padding=4),
-                                     nn.BatchNorm1d(32),
-                                     nn.ReLU(),
-                                     nn.Conv1d(32, 16, 7, padding=3),
-                                     nn.BatchNorm1d(16),
-                                     nn.ReLU(),
-                                     nn.Conv1d(16, 1, 3, padding=1),
-                                     nn.BatchNorm1d(1),
-                                     nn.Sigmoid())
+        self.convnet = nn.Sequential(
+            nn.Conv1d(498, 64, 13, padding=6),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Conv1d(64, 64, 11, padding=5),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Conv1d(64, 32, 9, padding=4),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.Conv1d(32, 32, 7, padding=3),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.Conv1d(32, 16, 5, padding=2),
+            nn.BatchNorm1d(16),
+            nn.ReLU(),
+            nn.Conv1d(16, 16, 3, padding=1),
+            nn.BatchNorm1d(16),
+            nn.ReLU(),
+            nn.Conv1d(16, 1, 1, padding=0),
+            nn.BatchNorm1d(1),
+            nn.Sigmoid())
 
     def forward(self, x):
         b, _, length = x.size()

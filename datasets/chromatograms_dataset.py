@@ -194,7 +194,7 @@ class HDF5ChromatogramsDataset(Dataset):
         return chromatogram, label
 
     def load_dataset(self, name, extra=False):
-        dataset = self.hdf5[first_level][name][:]
+        dataset = self.hdf5['first_level'][name][:]
 
         return dataset
 
