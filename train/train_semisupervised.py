@@ -337,7 +337,7 @@ def train(
                 strong_preds = strong_preds.cpu().numpy()
                 weak_preds = weak_preds.cpu().numpy()
                 label_idx = np.argwhere(
-                    strong_labels.cpu() == 1).astype(np.int32)
+                    strong_labels == 1).astype(np.int32)
                 label_idx = np.split(
                     label_idx[:, 1],
                     np.unique(label_idx[:, 0], return_index=True)[1])[1:]
