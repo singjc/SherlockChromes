@@ -319,7 +319,9 @@ def train(
             with torch.no_grad():
                 batch = batch.to(device=device)
                 strong_labels = labels.to(device=device)
-                weak_labels = torch.max(strong_labels, dim=1, keepdim=True)[0]
+                weak_labels = torch.max(
+                    strong_labels, dim=1, keepdim=True)[0].cpu().numpy()
+                strong_labels = strong_labels.cpu().numpy()
                 decoy = 1 - weak_labels
                 preds = model(batch)
                 strong_preds = preds['loc']
@@ -332,13 +334,15 @@ def train(
                     b, _ = strong_preds.size()
                     strong_preds = strong_preds * weak_preds
 
+                strong_preds = strong_preds.cpu().numpy()
+                weak_preds = weak_preds.cpu().numpy()
                 label_idx = np.argwhere(
                     strong_labels.cpu() == 1).astype(np.int32)
                 label_idx = np.split(
                     label_idx[:, 1],
                     np.unique(label_idx[:, 0], return_index=True)[1])[1:]
                 binarized_preds = np.where(
-                    strong_preds.cpu() >= 0.5, 1, 0).astype(np.int32)
+                    strong_preds >= 0.5, 1, 0).astype(np.int32)
                 inverse_binarized_preds = (1 - binarized_preds)
 
                 for i in range(len(strong_preds)):
