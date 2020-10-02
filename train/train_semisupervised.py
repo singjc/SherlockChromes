@@ -336,11 +336,6 @@ def train(
 
                 strong_preds = strong_preds.cpu().numpy()
                 weak_preds = weak_preds.cpu().numpy()
-                label_idx = np.argwhere(
-                    strong_labels == 1).astype(np.int32)
-                label_idx = np.split(
-                    label_idx[:, 1],
-                    np.unique(label_idx[:, 0], return_index=True)[1])[1:]
                 binarized_preds = np.where(
                     strong_preds >= 0.5, 1, 0).astype(np.int32)
                 inverse_binarized_preds = (1 - binarized_preds)
@@ -357,10 +352,12 @@ def train(
                             binarized_preds[i][gap.start:gap.stop] = 1
 
                     label_left_width, label_right_width = None, None
+                    label_idx = np.argwhere(
+                        strong_labels[i] == 1).astype(np.int32).ravel()
 
-                    if not negative[i] and label_idx[i]:
+                    if not negative[i] and label_idx.size > 2:
                         label_left_width, label_right_width = (
-                            label_idx[i][0], label_idx[i][-1])
+                            label_idx[0], label_idx[-1])
                     else:
                         negative[i] = 1
 
