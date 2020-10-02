@@ -68,17 +68,17 @@ def overlaps(
     pred_max,
     target_min,
     target_max,
-    threshold=0.5
+    iou_threshold=0.5
 ):
     if not pred_min or not pred_max or not target_min or not target_max:
         return False
 
-    overlap = min(pred_max, target_max) - max(pred_min, target_min)
-    percent_overlap = overlap / (target_max - target_min)
+    intersection = min(pred_max, target_max) - max(pred_min, target_min)
+    intersection = max(intersection, 0)
+    union = (pred_max - pred_min) + (target_max - target_min) - intersection
+    iou = intersection / union
 
-    if percent_overlap >= threshold:
-        return True
-    elif (pred_min > target_min) and (pred_max < target_max):
+    if iou >= iou_threshold:
         return True
 
     return False

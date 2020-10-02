@@ -396,7 +396,7 @@ def train(
                             mod_right_width,
                             label_left_width,
                             label_right_width,
-                            threshold=0.33
+                            iou_threshold=kwargs['iou_threshold']
                         ):
                             # False Positive
                             y_true.append(0)
