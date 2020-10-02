@@ -356,8 +356,12 @@ def train(
                         if gap_length < 3:
                             binarized_preds[i][gap.start:gap.stop] = 1
 
-                    label_left_width, label_right_width = (
+                    label_left_width, label_right_width = None, None
+
+                    if not decoy[i]:
+                        label_left_width, label_right_width = (
                             label_idx[i][0], label_idx[i][-1])
+
                     not_decoy = weak_labels[i]
                     regions_of_interest = scipy.ndimage.find_objects(
                         scipy.ndimage.label(binarized_preds[i])[0])
@@ -406,7 +410,7 @@ def train(
                         y_pred.append(1)
                         y_score.append(score)
 
-                    if not overlap_found:
+                    if not decoy[i] and not overlap_found:
                         # False Negative
                         label_region_score = np.sum(
                             strong_preds[i][
