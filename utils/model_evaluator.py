@@ -273,9 +273,9 @@ def create_results_file(
             scipy.ndimage.label(binarized_output)[0])
 
         if regions_of_interest:
-            scores = [np.max(output[r])
-                      for r
-                      in regions_of_interest]
+            scores = [
+                np.sum(output[r])
+                for r in regions_of_interest]
             best_region_idx = np.argmax(scores)
             best_region = regions_of_interest[best_region_idx][0]
 

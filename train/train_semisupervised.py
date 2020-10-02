@@ -8,33 +8,35 @@ import torch
 
 from sklearn.metrics import (
     accuracy_score,
+    average_precision_score,
     balanced_accuracy_score,
     precision_score,
     recall_score,
     f1_score,
-    jaccard_score
-)
+    jaccard_score)
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader
 
 from datasets.chromatograms_dataset import Subset
 from optimizers.focal_loss import FocalLossBinary
+from utils.general_utils import overlaps
 
 
 def get_data_loaders(
     data,
     test_batch_proportion=0.1,
     use_weak_labels=False,
+    eval_by_cla=True,
     batch_size=1,
     u_ratio=7,
     sampling_fn=None,
     collate_fn=None,
     outdir_path=None
 ):
-
+    # Currently only LoadingSampler returns 4 sets of idxs
     if sampling_fn:
-        labeled_idx, unlabeled_idx, val_idx = sampling_fn(
+        labeled_idx, unlabeled_idx, val_idx, test_idx = sampling_fn(
             data, test_batch_proportion)
     else:
         raise NotImplementedError
@@ -55,10 +57,15 @@ def get_data_loaders(
             os.path.join(outdir_path, 'val_idx.txt'),
             np.array(val_idx),
             fmt='%i')
+        np.savetxt(
+            os.path.join(outdir_path, 'test_idx.txt'),
+            np.array(test_idx),
+            fmt='%i')
 
     labeled_set = Subset(data, labeled_idx, use_weak_labels)
     unlabeled_set = Subset(data, unlabeled_idx, False)
-    val_set = Subset(data, val_idx, True)
+    val_set = Subset(data, val_idx, eval_by_cla)
+    test_set = Subset(data, test_idx, False)
 
     if collate_fn:
         labeled_loader = DataLoader(
@@ -73,6 +80,10 @@ def get_data_loaders(
             val_set,
             batch_size=batch_size,
             collate_fn=collate_fn)
+        test_loader = DataLoader(
+            test_set,
+            batch_size=batch_size,
+            collate_fn=collate_fn)
     else:
         labeled_loader = DataLoader(
             labeled_set,
@@ -83,8 +94,11 @@ def get_data_loaders(
         val_loader = DataLoader(
             val_set,
             batch_size=batch_size)
+        test_loader = DataLoader(
+            test_set,
+            batch_size=batch_size)
 
-    return labeled_loader, unlabeled_loader, val_loader
+    return labeled_loader, unlabeled_loader, val_loader, test_loader
 
 
 def cycle(iterable):
@@ -107,11 +121,13 @@ def train(
     (
         labeled_loader,
         unlabeled_loader,
-        val_loader
+        val_loader,
+        test_loader
     ) = get_data_loaders(
             data,
             kwargs['test_batch_proportion'],
             kwargs['use_weak_labels'],
+            kwargs['eval_by_cla'],
             kwargs['batch_size'],
             kwargs['uratio'],
             sampling_fn,
@@ -293,6 +309,133 @@ def train(
                 torch.save(model, save_path)
             else:
                 torch.save(model.state_dict(), save_path)
+
+        y_true, y_pred, y_score = [], [], []
+        model.eval()
+        orig_output_mode, model.model.output_mode = (
+            model.model.output_mode, 'all')
+
+        for batch, labels in test_loader:
+            with torch.no_grad():
+                batch = batch.to(device=device)
+                strong_labels = labels.to(device=device)
+                weak_labels = torch.max(strong_labels, dim=1, keepdim=True)[0]
+                decoy = 1 - weak_labels
+                preds = model(batch)
+                strong_preds = preds['loc']
+                weak_preds = preds['cla']
+
+                if (
+                    kwargs['use_weak_labels']
+                    or kwargs['enforce_weak_consistency']
+                ):
+                    b, _ = strong_preds.size()
+                    strong_preds = strong_preds * weak_preds
+
+                label_idx = np.argwhere(strong_labels == 1).astype(np.int32)
+                label_idx = np.split(
+                    label_idx[:, 1],
+                    np.unique(label_idx[:, 0], return_index=True)[1])[1:]
+                binarized_preds = np.where(
+                    strong_preds.cpu() >= 0.5, 1, 0).astype(np.int32)
+                inverse_binarized_preds = (1 - binarized_preds)
+
+                for i in range(len(strong_preds)):
+                    gaps = scipy.ndimage.find_objects(
+                        scipy.ndimage.label(inverse_binarized_preds[i])[0])
+
+                    for gap in gaps:
+                        gap = gap[0]
+                        gap_length = gap.stop - gap.start
+
+                        if gap_length < 3:
+                            binarized_preds[i][gap.start:gap.stop] = 1
+
+                    label_left_width, label_right_width = (
+                            label_idx[i][0], label_idx[i][-1])
+                    not_decoy = weak_labels[i]
+                    regions_of_interest = scipy.ndimage.find_objects(
+                        scipy.ndimage.label(binarized_preds[i])[0])
+                    overlap_found = False
+
+                    if decoy[i] and not regions_of_interest:
+                        # True Negative
+                        y_true.append(0)
+                        y_pred.append(0)
+
+                        if (
+                            kwargs['use_weak_labels']
+                            or kwargs['enforce_weak_consistency']
+                        ):
+                            y_score.append(weak_preds[i][0])
+                        else:
+                            y_score.append(np.max(strong_preds[i]))
+
+                    for j in range(len(regions_of_interest)):
+                        mod_left_width, mod_right_width = None, None
+                        region = regions_of_interest[j]
+                        score = np.sum(strong_preds[i][region])
+                        region = region[0]
+                        start_idx, end_idx = region.start, region.stop
+                        mod_left_width, mod_right_width = (
+                            region.start, region.stop - 1)
+                        score = score / (region.stop - region.start)
+
+                        if decoy[i]:
+                            # False Positive
+                            y_true.append(0)
+                        elif not overlaps(
+                            mod_left_width,
+                            mod_right_width,
+                            label_left_width,
+                            label_right_width,
+                            threshold=0.33
+                        ):
+                            # False Positive
+                            y_true.append(0)
+                        else:
+                            # True Positive
+                            y_true.append(1)
+                            overlap_found = True
+
+                        y_pred.append(1)
+                        y_score.append(score)
+
+                    if not overlap_found:
+                        # False Negative
+                        label_region_score = np.sum(
+                            strong_preds[i][
+                                label_left_width:label_right_width + 1])
+                        label_region_score = (
+                            label_region_score
+                            / label_right_width + 1 - label_left_width)
+                        y_true.append(1)
+                        y_pred.append(0)
+                        y_score.append(label_region_score)
+
+        model.model.output_mode = orig_output_mode
+        y_true, y_pred, y_score = (
+            np.array(y_true, dtype=np.int32),
+            np.array(y_pred, dtype=np.int32),
+            np.array(y_score, dtype=np.int32))
+        accuracy = accuracy_score(y_true, y_pred)
+        avg_precision = average_precision_score(y_true, y_score)
+        bacc = balanced_accuracy_score(
+            y_true, y_pred)
+        precision = precision_score(y_true, y_pred)
+        recall = recall_score(y_true, y_pred)
+        dice = f1_score(y_true, y_pred)
+        iou = jaccard_score(y_true, y_pred)
+
+        print(
+            f'Test - Epoch: {epoch} '
+            f'Accuracy: {accuracy:.4f} '
+            f'Avg Precision: {avg_precision} '
+            f'Balanced accuracy: {bacc:.4f} '
+            f'Precision: {precision:.4f} '
+            f'Recall: {recall:.4f} '
+            f'Dice: {dice:.4f} '
+            f'IoU: {iou:.4f}')
 
     save_path = save_path = os.path.join(
                 kwargs['outdir_path'],

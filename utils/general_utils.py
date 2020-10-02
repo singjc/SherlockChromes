@@ -68,7 +68,7 @@ def overlaps(
     pred_max,
     target_min,
     target_max,
-    threshold=0.7
+    threshold=0.5
 ):
     if not pred_min or not pred_max or not target_min or not target_max:
         return False
@@ -78,6 +78,9 @@ def overlaps(
 
     if percent_overlap >= threshold:
         return True
+    elif (pred_min > target_min) and (pred_max < target_max):
+        return True
+
     return False
 
 
