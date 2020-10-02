@@ -437,7 +437,7 @@ def train(
         print(
             f'Test - Epoch: {epoch} '
             f'Accuracy: {accuracy:.4f} '
-            f'Avg Precision: {avg_precision} '
+            f'Avg Precision: {avg_precision:.4f} '
             f'Balanced accuracy: {bacc:.4f} '
             f'Precision: {precision:.4f} '
             f'Recall: {recall:.4f} '
