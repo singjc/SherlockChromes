@@ -322,7 +322,7 @@ def train(
                 weak_labels = torch.max(
                     strong_labels, dim=1, keepdim=True)[0].cpu().numpy()
                 strong_labels = strong_labels.cpu().numpy()
-                decoy = 1 - weak_labels
+                negative = 1 - weak_labels
                 preds = model(batch)
                 strong_preds = preds['loc']
                 weak_preds = preds['cla']
@@ -358,16 +358,17 @@ def train(
 
                     label_left_width, label_right_width = None, None
 
-                    if not decoy[i]:
+                    if not negative[i] and label_idx[i]:
                         label_left_width, label_right_width = (
                             label_idx[i][0], label_idx[i][-1])
+                    else:
+                        negative[i] = 1
 
-                    not_decoy = weak_labels[i]
                     regions_of_interest = scipy.ndimage.find_objects(
                         scipy.ndimage.label(binarized_preds[i])[0])
                     overlap_found = False
 
-                    if decoy[i] and not regions_of_interest:
+                    if negative[i] and not regions_of_interest:
                         # True Negative
                         y_true.append(0)
                         y_pred.append(0)
@@ -390,7 +391,7 @@ def train(
                             region.start, region.stop - 1)
                         score = score / (region.stop - region.start)
 
-                        if decoy[i]:
+                        if negative[i]:
                             # False Positive
                             y_true.append(0)
                         elif not overlaps(
@@ -410,7 +411,7 @@ def train(
                         y_pred.append(1)
                         y_score.append(score)
 
-                    if not decoy[i] and not overlap_found:
+                    if not negative[i] and not overlap_found:
                         # False Negative
                         label_region_score = np.sum(
                             strong_preds[i][
