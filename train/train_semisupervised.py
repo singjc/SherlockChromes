@@ -203,7 +203,6 @@ def train(
                     kwargs['use_weak_labels']
                     or kwargs['enforce_weak_consistency']
                 ):
-                    b, _ = strong_preds.size()
                     strong_preds = strong_preds * weak_preds
 
                 binarized_preds = np.where(strong_preds.cpu() >= 0.5, 1, 0)
@@ -331,7 +330,6 @@ def train(
                     kwargs['use_weak_labels']
                     or kwargs['enforce_weak_consistency']
                 ):
-                    b, _ = strong_preds.size()
                     strong_preds = strong_preds * weak_preds
 
                 strong_preds = strong_preds.cpu().numpy()
@@ -369,14 +367,7 @@ def train(
                         # True Negative
                         y_true.append(0)
                         y_pred.append(0)
-
-                        if (
-                            kwargs['use_weak_labels']
-                            or kwargs['enforce_weak_consistency']
-                        ):
-                            y_score.append(weak_preds[i][0])
-                        else:
-                            y_score.append(np.max(strong_preds[i]))
+                        y_score.append(np.max(strong_preds[i]))
 
                     for j in range(len(regions_of_interest)):
                         mod_left_width, mod_right_width = None, None

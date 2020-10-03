@@ -1,4 +1,3 @@
-import sys
 import torch.optim as optim
 
 from models.semisupervised_learner_1d import SemiSupervisedLearner1d
