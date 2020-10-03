@@ -4,10 +4,6 @@ import torch
 
 from train.eval_semisupervised import evaluate
 
-sys.path.insert(0, '..')
-sys.path.insert(0, '../models')
-sys.path.insert(0, '../models/modelzoo1d')
-
 
 def main(
         data,
@@ -15,6 +11,8 @@ def main(
         collate_fn,
         eval_kwargs,
         device):
+    sys.path.insert(0, eval_kwargs['path_to_root'])
+
     if 'mode' in eval_kwargs and eval_kwargs['mode'] == 'interactive':
         loop = True
 
