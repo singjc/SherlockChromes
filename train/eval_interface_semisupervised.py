@@ -19,7 +19,7 @@ def main(
 
         while loop:
             pattern = input('Input model filename pattern to glob for: ')
-            model_filenames = glob.glob(f'{pattern}')
+            model_filenames = sorted(glob.glob(f'{pattern}'))
 
             for model_filename in model_filenames:
                 model = torch.load(model_filename)
