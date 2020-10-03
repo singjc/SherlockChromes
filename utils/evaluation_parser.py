@@ -132,7 +132,9 @@ def parse_model_evaluation_file(
                                 mod_start,
                                 mod_end))
                 else:
-                    if overlaps(osw_start, osw_end, mod_start, mod_end):
+                    if overlaps(
+                        osw_start, osw_end + 1, mod_start, mod_end + 1
+                    ):
                         mod_stats['tp'] += 1
                         mod_tp.append(
                             (
@@ -270,7 +272,9 @@ def parse_amended_model_evaluation_file(
                             osw_end))
                     osw_target.append(0)
                 else:
-                    if overlaps(manual_start, manual_end, osw_start, osw_end):
+                    if overlaps(
+                        manual_start, manual_end + 1, osw_start, osw_end + 1
+                    ):
                         osw_stats['tp'] += 1
                         osw_tp.append(
                             (
@@ -322,7 +326,9 @@ def parse_amended_model_evaluation_file(
                             mod_end))
                     mod_target.append(0)
                 else:
-                    if overlaps(manual_start, manual_end, mod_start, mod_end):
+                    if overlaps(
+                        manual_start, manual_end + 1, mod_start, mod_end + 1
+                    ):
                         mod_stats['tp'] += 1
                         mod_tp.append(
                             (

@@ -393,9 +393,9 @@ def train(
                             y_true.append(0)
                         elif not overlaps(
                             mod_left_width,
-                            mod_right_width,
+                            mod_right_width + 1,
                             label_left_width,
-                            label_right_width,
+                            label_right_width + 1,
                             iou_threshold=kwargs['iou_threshold']
                         ):
                             # False Positive

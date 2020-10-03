@@ -252,9 +252,9 @@ def create_feature_data(
             continue
         elif overlaps(
             left,
-            right,
+            right + 1,
             filename_to_annotation[filename]['start_time'],
-            filename_to_annotation[filename]['end_time'],
+            filename_to_annotation[filename]['end_time'] + 1,
             threshold
         ):
             label = 1
