@@ -1,7 +1,12 @@
 import glob
+import sys
 import torch
 
 from train.eval_semisupervised import evaluate
+
+sys.path.insert(0, '..')
+sys.path.insert(0, '../models')
+sys.path.insert(0, '../models/modelzoo1d')
 
 
 def main(
