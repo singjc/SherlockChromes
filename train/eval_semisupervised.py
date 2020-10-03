@@ -29,8 +29,7 @@ def get_data_loaders(
     eval_by_cla=True,
     batch_size=1,
     sampling_fn=None,
-    collate_fn=None,
-    outdir_path=None
+    collate_fn=None
 ):
     # Currently only LoadingSampler returns 2 sets of idxs
     if sampling_fn:
@@ -38,19 +37,6 @@ def get_data_loaders(
             data, test_batch_proportion)
     else:
         raise NotImplementedError
-
-    if outdir_path:
-        if not os.path.isdir(outdir_path):
-            os.mkdir(outdir_path)
-
-        np.savetxt(
-            os.path.join(outdir_path, 'val_idx.txt'),
-            np.array(val_idx),
-            fmt='%i')
-        np.savetxt(
-            os.path.join(outdir_path, 'test_idx.txt'),
-            np.array(test_idx),
-            fmt='%i')
 
     val_set = Subset(data, val_idx, eval_by_cla)
     test_set = Subset(data, test_idx, eval_by_cla)
@@ -290,25 +276,20 @@ def evaluate(
     if 'batch_size' not in kwargs:
         kwargs['batch_size'] = 512
 
-    if 'outdir_path' not in kwargs:
-        kwargs['outdir_path'] = '.'
-
     val_loader_cla, test_loader_cla = get_data_loaders(
         data,
         kwargs['test_batch_proportion'],
         True,
         kwargs['batch_size'],
         sampling_fn,
-        collate_fn,
-        kwargs['outdir_path'])
+        collate_fn)
     val_loader_loc, test_loader_loc = get_data_loaders(
         data,
         kwargs['test_batch_proportion'],
         False,
         kwargs['batch_size'],
         sampling_fn,
-        collate_fn,
-        kwargs['outdir_path'])
+        collate_fn)
 
     model.to(device)
 
