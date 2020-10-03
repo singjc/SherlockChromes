@@ -23,6 +23,8 @@ def main(
 
             for model_filename in model_filenames:
                 model = torch.load(model_filename)
+                print(f'Loaded {model_filename}')
+
                 evaluate(
                     data,
                     model,
