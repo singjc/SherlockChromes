@@ -11,7 +11,8 @@ def main(
         collate_fn,
         eval_kwargs,
         device):
-    sys.path.insert(0, eval_kwargs['path_to_root'])
+    sys.path.insert(0, f"{eval_kwargs['path_to_root']}/models")
+    sys.path.insert(0, f"{eval_kwargs['path_to_root']}/models/modelzoo1d")
 
     if 'mode' in eval_kwargs and eval_kwargs['mode'] == 'interactive':
         loop = True
