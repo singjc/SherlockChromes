@@ -63,7 +63,14 @@ def get_data_loaders(
     return val_loader, test_loader
 
 
-def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
+def eval_by_cla(
+    model,
+    loader,
+    strong_label_loader,
+    device='cpu',
+    modulate_by_cla=True,
+    **kwargs
+):
     labels_for_metrics = []
     outputs_for_metrics = []
     scores_for_metrics = []
@@ -76,7 +83,12 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
         with torch.no_grad():
             batch = batch.to(device=device)
             labels = labels.to(device=device)
-            labels_for_metrics.append(labels.cpu())
+            _, strong_labels = next(strong_label_loader)
+            derived_weak_labels = torch.max(
+                strong_labels, dim=1)[0].cpu().numpy().ravel()
+            labels = (
+                labels.cpu().numpy().ravel() * derived_weak_labels)
+            labels_for_metrics.append(labels)
             preds = model(batch)
             strong_preds = preds['loc']
             weak_preds = preds['cla']
@@ -315,6 +327,13 @@ def evaluate(
         kwargs['batch_size'],
         sampling_fn,
         collate_fn)
+    val_loader_cla_sl, test_loader_cla_sl = get_data_loaders(
+        data,
+        kwargs['test_batch_proportion'],
+        False,
+        kwargs['batch_size'],
+        sampling_fn,
+        collate_fn)
     val_loader_loc_wl, test_loader_loc_wl = get_data_loaders(
         data,
         kwargs['test_batch_proportion'],
@@ -322,6 +341,8 @@ def evaluate(
         kwargs['batch_size'],
         sampling_fn,
         collate_fn)
+    val_loader_cla_sl, test_loader_cla_sl = (
+        iter(cycle(val_loader_cla_sl)), iter(cycle(test_loader_cla_sl)))
     val_loader_loc_wl, test_loader_loc_wl = (
         iter(cycle(val_loader_loc_wl)), iter(cycle(test_loader_loc_wl)))
 
@@ -331,7 +352,12 @@ def evaluate(
     print('Modulated')
     modulate_by_cla = True
     eval_by_cla(
-        model, val_loader_cla, device, modulate_by_cla, **kwargs)
+        model,
+        val_loader_cla,
+        val_loader_cla_sl,
+        device,
+        modulate_by_cla,
+        **kwargs)
 
     for iou_threshold in [0.1, 0.25, 0.5, 0.75, 0.9]:
         eval_by_loc(
@@ -346,7 +372,12 @@ def evaluate(
     print('Unmodulated')
     modulate_by_cla = False
     eval_by_cla(
-        model, val_loader_cla, device, modulate_by_cla, **kwargs)
+        model,
+        val_loader_cla,
+        val_loader_cla_sl,
+        device,
+        modulate_by_cla,
+        **kwargs)
 
     for iou_threshold in [0.1, 0.25, 0.5, 0.75, 0.9]:
         eval_by_loc(
@@ -362,7 +393,12 @@ def evaluate(
     print('Modulated')
     modulate_by_cla = True
     eval_by_cla(
-        model, test_loader_cla, device, modulate_by_cla, **kwargs)
+        model,
+        test_loader_cla,
+        test_loader_cla_sl,
+        device,
+        modulate_by_cla,
+        **kwargs)
 
     for iou_threshold in [0.1, 0.25, 0.5, 0.75, 0.9]:
         eval_by_loc(
@@ -377,7 +413,12 @@ def evaluate(
     print('Unmodulated')
     modulate_by_cla = False
     eval_by_cla(
-        model, test_loader_cla, device, modulate_by_cla, **kwargs)
+        model,
+        test_loader_cla,
+        test_loader_cla_sl,
+        device,
+        modulate_by_cla,
+        **kwargs)
 
     for iou_threshold in [0.1, 0.25, 0.5, 0.75, 0.9]:
         eval_by_loc(
