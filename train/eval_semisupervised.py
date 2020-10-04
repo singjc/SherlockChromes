@@ -113,12 +113,12 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
                         break
 
             outputs_for_metrics.append(global_preds)
-            scores_for_metrics.append(weak_preds[i])
+            scores_for_metrics.append(weak_preds[i].cpu())
 
     model.model.output_mode = orig_output_mode
     labels_for_metrics = np.concatenate(labels_for_metrics, axis=0)
     outputs_for_metrics = np.concatenate(outputs_for_metrics, axis=0)
-    scores_for_metrics = np.concatenate(scores_for_metrics.cpu(), axis=0)
+    scores_for_metrics = np.concatenate(scores_for_metrics, axis=0)
     accuracy = accuracy_score(labels_for_metrics, outputs_for_metrics)
     avg_precision = average_precision_score(scores_for_metrics)
     bacc = balanced_accuracy_score(
