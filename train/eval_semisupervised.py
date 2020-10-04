@@ -159,9 +159,9 @@ def eval_by_loc(
             strong_labels = labels.to(device=device)
             _, weak_labels = next(weak_label_loader)
             derived_weak_labels = torch.max(
-                strong_labels, dim=1)[0].cpu().numpy()
+                strong_labels, dim=1)[0].cpu().numpy().ravel()
             weak_labels = (
-                weak_labels.cpu().numpy() * derived_weak_labels)
+                weak_labels.cpu().numpy().ravel() * derived_weak_labels)
             strong_labels = strong_labels.cpu().numpy()
             negative = 1 - weak_labels
             preds = model(batch)
