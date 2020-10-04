@@ -120,7 +120,8 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
     outputs_for_metrics = np.concatenate(outputs_for_metrics, axis=0)
     scores_for_metrics = np.concatenate(scores_for_metrics, axis=0)
     accuracy = accuracy_score(labels_for_metrics, outputs_for_metrics)
-    avg_precision = average_precision_score(scores_for_metrics)
+    avg_precision = average_precision_score(
+        labels_for_metrics, scores_for_metrics)
     bacc = balanced_accuracy_score(
         labels_for_metrics, outputs_for_metrics)
     precision = precision_score(labels_for_metrics, outputs_for_metrics)
