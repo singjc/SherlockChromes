@@ -293,7 +293,7 @@ def create_results_file(
             roi_length = end_idx - start_idx
 
             if (
-                2 < roi_length < 60
+                3 <= roi_length <= 30
                 and start_idx < max_idx < end_idx
                 and 'DECOY_' not in row['Filename']
             ):

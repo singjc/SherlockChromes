@@ -86,15 +86,16 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
             global_preds = np.zeros(labels.shape)
 
             for i in range(len(strong_preds)):
-                gaps = scipy.ndimage.find_objects(
-                    scipy.ndimage.label(inverse_binarized_preds[i])[0])
+                if 'fill_gaps' in kwargs and kwargs['fill_gaps']:
+                    gaps = scipy.ndimage.find_objects(
+                        scipy.ndimage.label(inverse_binarized_preds[i])[0])
 
-                for gap in gaps:
-                    gap = gap[0]
-                    gap_length = gap.stop - gap.start
+                    for gap in gaps:
+                        gap = gap[0]
+                        gap_length = gap.stop - gap.start
 
-                    if gap_length < 3:
-                        binarized_preds[i][gap.start:gap.stop] = 1
+                        if gap_length < 3:
+                            binarized_preds[i][gap.start:gap.stop] = 1
 
                 regions_of_interest = scipy.ndimage.find_objects(
                     scipy.ndimage.label(binarized_preds[i])[0])
@@ -103,7 +104,7 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
                     roi = roi[0]
                     roi_length = roi.stop - roi.start
 
-                    if 2 < roi_length < 60:
+                    if 3 <= roi_length <= 30:
                         global_preds[i] = 1
                         break
 
@@ -165,15 +166,16 @@ def eval_by_loc(
             inverse_binarized_preds = (1 - binarized_preds)
 
             for i in range(len(strong_preds)):
-                gaps = scipy.ndimage.find_objects(
-                    scipy.ndimage.label(inverse_binarized_preds[i])[0])
+                if 'fill_gaps' in kwargs and kwargs['fill_gaps']:
+                    gaps = scipy.ndimage.find_objects(
+                        scipy.ndimage.label(inverse_binarized_preds[i])[0])
 
-                for gap in gaps:
-                    gap = gap[0]
-                    gap_length = gap.stop - gap.start
+                    for gap in gaps:
+                        gap = gap[0]
+                        gap_length = gap.stop - gap.start
 
-                    if gap_length < 3:
-                        binarized_preds[i][gap.start:gap.stop] = 1
+                        if gap_length < 3:
+                            binarized_preds[i][gap.start:gap.stop] = 1
 
                 label_left_width, label_right_width = None, None
                 label_idx = np.argwhere(
@@ -201,6 +203,12 @@ def eval_by_loc(
                     score = np.sum(strong_preds[i][region])
                     region = region[0]
                     start_idx, end_idx = region.start, region.stop
+
+                    if end_idx - start_idx < 3:
+                        continue
+                    elif end_idx - start_idx > 30:
+                        continue
+
                     mod_left_width, mod_right_width = (
                         region.start, region.stop - 1)
                     score = score / (region.stop - region.start)

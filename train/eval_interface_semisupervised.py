@@ -37,6 +37,15 @@ def main(
 
             if end_loop_command == 'break':
                 break
+            else:
+                replace_kwargs = input("Enter 'y' to replace kwarg values: ")
+
+                if replace_kwargs == 'y':
+                    replacements = input("CSVs with keyword:new_value pairs: ")
+
+                    for replacement in replacements.split(','):
+                        key, val = replacement.split(':')
+                        eval_kwargs[key] = val
     else:
         evaluate(
             data,
