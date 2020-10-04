@@ -82,7 +82,8 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
             if modulate_by_cla:
                 strong_preds = strong_preds * weak_preds
 
-            binarized_preds = np.where(strong_preds.cpu() >= 0.5, 1, 0)
+            binarized_preds = np.where(
+                strong_preds.cpu() >= kwargs['output_threshold'], 1, 0)
             inverse_binarized_preds = (1 - binarized_preds)
             global_preds = np.zeros(labels.shape)
 
@@ -147,6 +148,8 @@ def eval_by_loc(
     model.eval()
     orig_output_mode, model.model.output_mode = (
         model.model.output_mode, 'all')
+    txt_line_num = 0
+    false_negative_line_nums = []
 
     for batch, labels in loader:
         with torch.no_grad():
@@ -165,10 +168,12 @@ def eval_by_loc(
             strong_preds = strong_preds.cpu().numpy()
             weak_preds = weak_preds.cpu().numpy()
             binarized_preds = np.where(
-                strong_preds >= 0.5, 1, 0).astype(np.int32)
+                strong_preds >= kwargs['output_threshold'], 1, 0).astype(
+                    np.int32)
             inverse_binarized_preds = (1 - binarized_preds)
 
             for i in range(len(strong_preds)):
+                txt_line_num += 1
                 if 'fill_gaps' in kwargs and kwargs['fill_gaps']:
                     gaps = scipy.ndimage.find_objects(
                         scipy.ndimage.label(inverse_binarized_preds[i])[0])
@@ -181,45 +186,33 @@ def eval_by_loc(
                             binarized_preds[i][gap.start:gap.stop] = 1
 
                 label_left_width, label_right_width = None, None
-                label_idx = np.argwhere(
-                    strong_labels[i] == 1).astype(np.int32).ravel()
 
-                if not negative[i] and label_idx.size > 2:
+                if not negative[i]:
+                    label_idx = np.argwhere(
+                        strong_labels[i] == 1).astype(np.int32).ravel()
                     label_left_width, label_right_width = (
                         label_idx[0], label_idx[-1])
-                else:
-                    negative[i] = 1
 
                 regions_of_interest = scipy.ndimage.find_objects(
                     scipy.ndimage.label(binarized_preds[i])[0])
+                regions_of_interest = [
+                    roi[0] for roi in regions_of_interest
+                    if 3 <= roi[0].stop - roi[0].start <= 30]
                 overlap_found = False
 
                 if negative[i] and not regions_of_interest:
                     # True Negative
                     y_true.append(0)
                     y_pred.append(0)
-                    y_score.append(np.max(strong_preds[i]))
+                    y_score.append(0)
 
-                for j in range(len(regions_of_interest)):
+                for roi in regions_of_interest:
                     mod_left_width, mod_right_width = None, None
-                    region = regions_of_interest[j]
-                    score = np.sum(strong_preds[i][region])
-                    region = region[0]
-                    start_idx, end_idx = region.start, region.stop
+                    score = np.sum(strong_preds[i][roi.start:roi.stop])
+                    score = score / (roi.stop - roi.start)
+                    mod_left_width, mod_right_width = roi.start, roi.stop - 1
 
-                    if end_idx - start_idx < 3:
-                        continue
-                    elif end_idx - start_idx > 30:
-                        continue
-
-                    mod_left_width, mod_right_width = (
-                        region.start, region.stop - 1)
-                    score = score / (region.stop - region.start)
-
-                    if negative[i]:
-                        # False Positive
-                        y_true.append(0)
-                    elif not overlaps(
+                    if negative[i] or not overlaps(
                         mod_left_width,
                         mod_right_width + 1,
                         label_left_width,
@@ -237,6 +230,7 @@ def eval_by_loc(
                     y_score.append(score)
 
                 if not negative[i] and not overlap_found:
+                    false_negative_line_nums.append(txt_line_num)
                     # False Negative
                     label_region_score = np.sum(
                         strong_preds[i][
@@ -262,7 +256,7 @@ def eval_by_loc(
     dice = f1_score(y_true, y_pred)
     iou = jaccard_score(y_true, y_pred)
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
-
+    print(false_negative_line_nums)
     print(
         f'Eval By Loc Performance at IoU Threshold {iou_threshold} - '
         f'Accuracy: {accuracy:.4f} '
@@ -288,6 +282,9 @@ def evaluate(
 
     if 'batch_size' not in kwargs:
         kwargs['batch_size'] = 512
+
+    if 'output_threshold' not in kwargs:
+        kwargs['output_threshold'] = 0.5
 
     val_loader_cla, test_loader_cla = get_data_loaders(
         data,

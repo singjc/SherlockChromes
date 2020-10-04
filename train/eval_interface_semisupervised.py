@@ -45,6 +45,17 @@ def main(
 
                     for replacement in replacements.split(','):
                         key, val = replacement.split(':')
+
+                        if val.replace('.', '', 1).isdigit():
+                            if '.' in val:
+                                val = float(val)
+                            else:
+                                val = int(val)
+                        elif val == 'True':
+                            val = True
+                        elif val == 'False':
+                            val = False
+
                         eval_kwargs[key] = val
     else:
         evaluate(

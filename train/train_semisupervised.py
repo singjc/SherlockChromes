@@ -351,45 +351,34 @@ def train(
                                 binarized_preds[i][gap.start:gap.stop] = 1
 
                     label_left_width, label_right_width = None, None
-                    label_idx = np.argwhere(
-                        strong_labels[i] == 1).astype(np.int32).ravel()
 
-                    if not negative[i] and label_idx.size > 2:
+                    if not negative[i]:
+                        label_idx = np.argwhere(
+                            strong_labels[i] == 1).astype(np.int32).ravel()
                         label_left_width, label_right_width = (
                             label_idx[0], label_idx[-1])
-                    else:
-                        negative[i] = 1
 
                     regions_of_interest = scipy.ndimage.find_objects(
                         scipy.ndimage.label(binarized_preds[i])[0])
+                    regions_of_interest = [
+                        roi[0] for roi in regions_of_interest
+                        if 3 <= roi[0].stop - roi[0].start <= 30]
                     overlap_found = False
 
                     if negative[i] and not regions_of_interest:
                         # True Negative
                         y_true.append(0)
                         y_pred.append(0)
-                        y_score.append(np.max(strong_preds[i]))
+                        y_score.append(0)
 
-                    for j in range(len(regions_of_interest)):
+                    for roi in regions_of_interest:
                         mod_left_width, mod_right_width = None, None
-                        region = regions_of_interest[j]
-                        score = np.sum(strong_preds[i][region])
-                        region = region[0]
-                        start_idx, end_idx = region.start, region.stop
-
-                        if end_idx - start_idx < 3:
-                            continue
-                        elif end_idx - start_idx > 30:
-                            continue
-
+                        score = np.sum(strong_preds[i][roi.start:roi.stop])
+                        score = score / (roi.stop - roi.start)
                         mod_left_width, mod_right_width = (
-                            region.start, region.stop - 1)
-                        score = score / (region.stop - region.start)
+                            roi.start, roi.stop - 1)
 
-                        if negative[i]:
-                            # False Positive
-                            y_true.append(0)
-                        elif not overlaps(
+                        if negative[i] or not overlaps(
                             mod_left_width,
                             mod_right_width + 1,
                             label_left_width,
