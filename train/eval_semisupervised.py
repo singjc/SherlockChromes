@@ -121,7 +121,8 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
     recall = recall_score(labels_for_metrics, outputs_for_metrics)
     dice = f1_score(labels_for_metrics, outputs_for_metrics)
     iou = jaccard_score(labels_for_metrics, outputs_for_metrics)
-    cm = confusion_matrix(labels_for_metrics, outputs_for_metrics)
+    tn, fp, fn, tp = confusion_matrix(
+        labels_for_metrics, outputs_for_metrics).ravel()
 
     print(
         'Eval By Cla Performance - '
@@ -131,7 +132,7 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
         f'Recall: {recall:.4f} '
         f'Dice: {dice:.4f} '
         f'IoU: {iou:.4f} '
-        f'Confusion matrix: {cm}')
+        f'TN/FP/FN/TP: {tn}/{fp}/{fn}/{tp}')
 
 
 def eval_by_loc(
@@ -260,7 +261,7 @@ def eval_by_loc(
     recall = recall_score(y_true, y_pred)
     dice = f1_score(y_true, y_pred)
     iou = jaccard_score(y_true, y_pred)
-    cm = confusion_matrix(y_true, y_pred)
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
 
     print(
         f'Eval By Loc Performance at IoU Threshold {iou_threshold} - '
@@ -271,7 +272,7 @@ def eval_by_loc(
         f'Recall: {recall:.4f} '
         f'Dice: {dice:.4f} '
         f'IoU: {iou:.4f} '
-        f'Confusion matrix: {cm}')
+        f'TN/FP/FN/TP: {tn}/{fp}/{fn}/{tp}')
 
 
 def evaluate(
