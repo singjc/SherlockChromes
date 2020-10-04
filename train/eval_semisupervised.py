@@ -331,7 +331,7 @@ def evaluate(
         eval_by_loc(
             model,
             val_loader_loc,
-            val_loader_cla,
+            val_loader_loc_wl,
             device,
             modulate_by_cla,
             iou_threshold,
@@ -346,7 +346,7 @@ def evaluate(
         eval_by_loc(
             model,
             val_loader_loc,
-            val_loader_cla,
+            val_loader_loc_wl,
             device,
             modulate_by_cla,
             iou_threshold,
@@ -362,7 +362,7 @@ def evaluate(
         eval_by_loc(
             model,
             test_loader_loc,
-            test_loader_cla,
+            test_loader_loc_wl,
             device,
             modulate_by_cla,
             iou_threshold,
@@ -377,7 +377,7 @@ def evaluate(
         eval_by_loc(
             model,
             test_loader_loc,
-            test_loader_cla,
+            test_loader_loc_wl,
             device,
             modulate_by_cla,
             iou_threshold,
