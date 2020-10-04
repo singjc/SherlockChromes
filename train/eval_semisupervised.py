@@ -256,7 +256,7 @@ def eval_by_loc(
     dice = f1_score(y_true, y_pred)
     iou = jaccard_score(y_true, y_pred)
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
-    print(false_negative_line_nums)
+
     print(
         f'Eval By Loc Performance at IoU Threshold {iou_threshold} - '
         f'Accuracy: {accuracy:.4f} '
@@ -267,6 +267,9 @@ def eval_by_loc(
         f'Dice: {dice:.4f} '
         f'IoU: {iou:.4f} '
         f'TN/FP/FN/TP: {tn}/{fp}/{fn}/{tp}')
+
+    if iou_threshold == 0.1:
+        print(false_negative_line_nums)
 
 
 def evaluate(
