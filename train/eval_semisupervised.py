@@ -309,8 +309,15 @@ def evaluate(
         kwargs['batch_size'],
         sampling_fn,
         collate_fn)
-    val_loader_cla, test_loader_cla = (
-        iter(cycle(val_loader_cla)), iter(cycle(test_loader_cla)))
+    val_loader_loc_wl, test_loader_loc_wl = get_data_loaders(
+        data,
+        kwargs['test_batch_proportion'],
+        True,
+        kwargs['batch_size'],
+        sampling_fn,
+        collate_fn)
+    val_loader_loc_wl, test_loader_loc_wl = (
+        iter(cycle(val_loader_loc_wl)), iter(cycle(test_loader_loc_wl)))
 
     model.to(device)
 
