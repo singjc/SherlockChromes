@@ -51,7 +51,12 @@ def create_skyline_augmented_osw_dataset(
             idx, filename, lib_rt, win_size = (
                 line[0], line[1], line[3], line[4])
 
-            if filename not in annotations:
+            if 'DECOY' in filename:
+                # By default, includes positive labels even for decoys
+                # since based on OSW unscored boundaries
+                orig_labels[int(idx)] = np.zeros(orig_labels[int(idx)].shape)
+                continue
+            elif filename not in annotations:
                 continue
             elif annotations[filename] == {'start': None, 'end': None}:
                 orig_labels[int(idx)] = np.zeros(orig_labels[int(idx)].shape)

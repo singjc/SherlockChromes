@@ -19,6 +19,7 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader
 
+from .train_semisupervised import cycle
 from datasets.chromatograms_dataset import Subset
 from optimizers.focal_loss import FocalLossBinary
 from utils.general_utils import overlaps
@@ -139,6 +140,7 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
 def eval_by_loc(
     model,
     loader,
+    weak_label_loader,
     device='cpu',
     modulate_by_cla=True,
     iou_threshold=0.5,
@@ -155,7 +157,11 @@ def eval_by_loc(
         with torch.no_grad():
             batch = batch.to(device=device)
             strong_labels = labels.to(device=device)
-            weak_labels = torch.max(strong_labels, dim=1)[0].cpu().numpy()
+            _, weak_labels = next(weak_label_loader)
+            derived_weak_labels = torch.max(
+                strong_labels, dim=1)[0].cpu().numpy()
+            weak_labels = (
+                weak_labels.cpu().numpy() * derived_weak_labels)
             strong_labels = strong_labels.cpu().numpy()
             negative = 1 - weak_labels
             preds = model(batch)
@@ -303,6 +309,8 @@ def evaluate(
         kwargs['batch_size'],
         sampling_fn,
         collate_fn)
+    val_loader_cla, test_loader_cla = (
+        iter(cycle(val_loader_cla)), iter(cycle(test_loader_cla)))
 
     model.to(device)
 
@@ -316,6 +324,7 @@ def evaluate(
         eval_by_loc(
             model,
             val_loader_loc,
+            val_loader_cla,
             device,
             modulate_by_cla,
             iou_threshold,
@@ -330,6 +339,7 @@ def evaluate(
         eval_by_loc(
             model,
             val_loader_loc,
+            val_loader_cla,
             device,
             modulate_by_cla,
             iou_threshold,
@@ -345,6 +355,7 @@ def evaluate(
         eval_by_loc(
             model,
             test_loader_loc,
+            test_loader_cla,
             device,
             modulate_by_cla,
             iou_threshold,
@@ -359,6 +370,7 @@ def evaluate(
         eval_by_loc(
             model,
             test_loader_loc,
+            test_loader_cla,
             device,
             modulate_by_cla,
             iou_threshold,
