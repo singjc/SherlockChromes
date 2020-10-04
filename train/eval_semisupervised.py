@@ -80,6 +80,7 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
             preds = model(batch)
             strong_preds = preds['loc']
             weak_preds = preds['cla']
+            scores_for_metrics.append(weak_preds.cpu())
 
             if modulate_by_cla:
                 strong_preds = strong_preds * weak_preds
@@ -113,7 +114,6 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
                         break
 
             outputs_for_metrics.append(global_preds)
-            scores_for_metrics.append(weak_preds[i].cpu())
 
     model.model.output_mode = orig_output_mode
     labels_for_metrics = np.concatenate(labels_for_metrics, axis=0)
