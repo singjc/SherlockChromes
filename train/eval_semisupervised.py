@@ -66,6 +66,7 @@ def get_data_loaders(
 def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
     labels_for_metrics = []
     outputs_for_metrics = []
+    scores_for_metrics = []
     losses = []
     model.eval()
     orig_output_mode, model.model.output_mode = (
@@ -112,11 +113,14 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
                         break
 
             outputs_for_metrics.append(global_preds)
+            scores_for_metrics.append(weak_preds[i])
 
     model.model.output_mode = orig_output_mode
     labels_for_metrics = np.concatenate(labels_for_metrics, axis=0)
     outputs_for_metrics = np.concatenate(outputs_for_metrics, axis=0)
+    scores_for_metrics = np.concatenate(scores_for_metrics, axis=0)
     accuracy = accuracy_score(labels_for_metrics, outputs_for_metrics)
+    avg_precision = average_precision_score(scores_for_metrics)
     bacc = balanced_accuracy_score(
         labels_for_metrics, outputs_for_metrics)
     precision = precision_score(labels_for_metrics, outputs_for_metrics)
@@ -129,6 +133,7 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
     print(
         'Eval By Cla Performance - '
         f'Accuracy: {accuracy:.4f} '
+        f'Avg precision: {avg_precision:.4f} '
         f'Balanced accuracy: {bacc:.4f} '
         f'Precision: {precision:.4f} '
         f'Recall: {recall:.4f} '
