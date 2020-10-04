@@ -10,6 +10,7 @@ from sklearn.metrics import (
     accuracy_score,
     average_precision_score,
     balanced_accuracy_score,
+    confusion_matrix,
     precision_score,
     recall_score,
     f1_score,
@@ -120,6 +121,7 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
     recall = recall_score(labels_for_metrics, outputs_for_metrics)
     dice = f1_score(labels_for_metrics, outputs_for_metrics)
     iou = jaccard_score(labels_for_metrics, outputs_for_metrics)
+    cm = confusion_matrix(labels_for_metrics, outputs_for_metrics)
 
     print(
         'Eval By Cla Performance - '
@@ -128,7 +130,8 @@ def eval_by_cla(model, loader, device='cpu', modulate_by_cla=True, **kwargs):
         f'Precision: {precision:.4f} '
         f'Recall: {recall:.4f} '
         f'Dice: {dice:.4f} '
-        f'IoU: {iou:.4f}')
+        f'IoU: {iou:.4f} '
+        f'Confusion matrix: {cm}')
 
 
 def eval_by_loc(
@@ -148,8 +151,7 @@ def eval_by_loc(
         with torch.no_grad():
             batch = batch.to(device=device)
             strong_labels = labels.to(device=device)
-            weak_labels = torch.max(
-                strong_labels, dim=1, keepdim=True)[0].cpu().numpy()
+            weak_labels = torch.max(strong_labels, dim=1)[0].cpu().numpy()
             strong_labels = strong_labels.cpu().numpy()
             negative = 1 - weak_labels
             preds = model(batch)
@@ -258,16 +260,18 @@ def eval_by_loc(
     recall = recall_score(y_true, y_pred)
     dice = f1_score(y_true, y_pred)
     iou = jaccard_score(y_true, y_pred)
+    cm = confusion_matrix(y_true, y_pred)
 
     print(
         f'Eval By Loc Performance at IoU Threshold {iou_threshold} - '
         f'Accuracy: {accuracy:.4f} '
-        f'Avg Precision: {avg_precision:.4f} '
+        f'Avg precision: {avg_precision:.4f} '
         f'Balanced accuracy: {bacc:.4f} '
         f'Precision: {precision:.4f} '
         f'Recall: {recall:.4f} '
         f'Dice: {dice:.4f} '
-        f'IoU: {iou:.4f}')
+        f'IoU: {iou:.4f} '
+        f'Confusion matrix: {cm}')
 
 
 def evaluate(

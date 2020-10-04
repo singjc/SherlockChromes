@@ -319,8 +319,7 @@ def train(
             with torch.no_grad():
                 batch = batch.to(device=device)
                 strong_labels = labels.to(device=device)
-                weak_labels = torch.max(
-                    strong_labels, dim=1, keepdim=True)[0].cpu().numpy()
+                weak_labels = torch.max(strong_labels, dim=1)[0].cpu().numpy()
                 strong_labels = strong_labels.cpu().numpy()
                 negative = 1 - weak_labels
                 preds = model(batch)
@@ -436,7 +435,7 @@ def train(
         print(
             f'Test - Epoch: {epoch} '
             f'Accuracy: {accuracy:.4f} '
-            f'Avg Precision: {avg_precision:.4f} '
+            f'Avg precision: {avg_precision:.4f} '
             f'Balanced accuracy: {bacc:.4f} '
             f'Precision: {precision:.4f} '
             f'Recall: {recall:.4f} '
