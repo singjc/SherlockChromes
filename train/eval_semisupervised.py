@@ -332,6 +332,35 @@ def eval_by_loc(
         print(set(false_positive_line_nums))
         print(false_negative_line_nums)
 
+        import matplotlib.cm as cm
+        import matplotlib.pyplot as plt
+        from sklearn.metrics import auc, precision_recall_curve
+
+        colors = iter(cm.rainbow(np.linspace(0, 1, 1)))
+        labels = ['WTF']
+
+        lines = []
+        precision, recall, threshold = precision_recall_curve(y_true, y_score)
+        auc_score = auc(recall, precision)
+
+        l, = plt.plot(recall, precision, color=next(colors), lw=2)
+        lines.append(l)
+        labels[0] += f', AP: {avg_precision}, AUC: {auc_score}'
+
+        fig = plt.gcf()
+        fig.subplots_adjust(bottom=0.25)
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xticks([i*0.05 for i in range(0, 21)])
+        plt.yticks([i*0.05 for i in range(0, 21)])
+        plt.grid()
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+        plt.title('Multi-method Precision-Recall curves')
+        plt.legend(lines, labels, loc=(0, -.38), prop=dict(size=14))
+
+        plt.show()
+
 
 def evaluate(
     data,
