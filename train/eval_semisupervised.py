@@ -242,33 +242,33 @@ def eval_by_loc(
                     regions_of_interest = [
                         slice(top_score_idx, top_score_idx + 1)]
 
-                scores = [
-                    np.max(strong_preds[i][r.start:r.stop])
-                    for r in regions_of_interest]
-                best_region_idx = np.argmax(scores)
-                best_region = regions_of_interest[best_region_idx]
-                score = scores[best_region_idx]
-                mod_left_width, mod_right_width = (
-                    best_region.start, best_region.stop - 1)
+                if regions_of_interest:
+                    scores = [
+                        np.max(strong_preds[i][r.start:r.stop])
+                        for r in regions_of_interest]
+                    best_region_idx = np.argmax(scores)
+                    best_region = regions_of_interest[best_region_idx]
+                    score = scores[best_region_idx]
+                    mod_left_width, mod_right_width = (
+                        best_region.start, best_region.stop - 1)
 
-                if negative[i] or not overlaps(
-                    mod_left_width,
-                    mod_right_width + 1,
-                    label_left_width,
-                    label_right_width + 1,
-                    iou_threshold=iou_threshold
-                ):
-                    # False Positive
-                    false_positive_line_nums.append(txt_line_num)
-                    y_true.append(0)
+                    if negative[i] or not overlaps(
+                        mod_left_width,
+                        mod_right_width + 1,
+                        label_left_width,
+                        label_right_width + 1,
+                        iou_threshold=iou_threshold
+                    ):
+                        # False Positive
+                        false_positive_line_nums.append(txt_line_num)
+                        y_true.append(0)
+                    else:
+                        # True Positive
+                        y_true.append(1)
+                        overlap_found = True
+
                     y_pred.append(1)
                     y_score.append(score)
-                else:
-                    # True Positive
-                    y_true.append(1)
-                    y_pred.append(1)
-                    y_score.append(score)
-                    overlap_found = True
 
                 # for roi in regions_of_interest:
                 #     score = np.max(strong_preds[i][roi.start:roi.stop])
