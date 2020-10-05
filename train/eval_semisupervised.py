@@ -125,8 +125,9 @@ def eval_by_cla(
                         global_preds[i] = 1
                         break
 
-                # if np.max(strong_preds[i]) >= kwargs['output_threshold']:
-                #     global_preds[i] = 1
+                if 'be_generous' in kwargs and kwargs['be_generous']:
+                    if np.max(strong_preds[i]) >= kwargs['output_threshold']:
+                        global_preds[i] = 1
 
             outputs_for_metrics.append(global_preds)
 
@@ -231,44 +232,23 @@ def eval_by_loc(
                     y_true.append(0)
                     y_pred.append(0)
                     y_score.append(0)
-                # elif (
-                #     not regions_of_interest
-                #     and weak_preds[i] >= kwargs['output_threshold']
-                # ):
-                #     # Get model best guess about peak location if
-                #     # no explicit regions of interest but positive
-                #     # global prediction
-                #     top_score_idx = np.argmax(strong_preds[i])
-                #     regions_of_interest = [
-                #         slice(top_score_idx, top_score_idx + 1)]
-
-                # if regions_of_interest:
-                #     scores = [
-                #         np.max(strong_preds[i][r.start:r.stop])
-                #         for r in regions_of_interest]
-                #     best_region_idx = np.argmax(scores)
-                #     best_region = regions_of_interest[best_region_idx]
-                #     score = scores[best_region_idx]
-                #     mod_left_width, mod_right_width = (
-                #         best_region.start, best_region.stop - 1)
-
-                #     if negative[i] or not overlaps(
-                #         mod_left_width,
-                #         mod_right_width + 1,
-                #         label_left_width,
-                #         label_right_width + 1,
-                #         iou_threshold=iou_threshold
-                #     ):
-                #         # False Positive
-                #         false_positive_line_nums.append(txt_line_num)
-                #         y_true.append(0)
-                #     else:
-                #         # True Positive
-                #         y_true.append(1)
-                #         overlap_found = True
-
-                #     y_pred.append(1)
-                #     y_score.append(score)
+                elif (
+                    'be_generous' in kwargs
+                    and kwargs['be_generous']
+                    and not regions_of_interest
+                    and weak_preds[i] >= kwargs['output_threshold']
+                ):
+                    # Get model best guesses about peak locations if
+                    # no explicit peaks with boundaries identified
+                    # but positive global prediction
+                    # top_score_idx = np.argmax(strong_preds[i])
+                    # regions_of_interest = [
+                    #     slice(top_score_idx, top_score_idx + 1)]
+                    regions_of_interest = scipy.ndimage.find_objects(
+                        scipy.ndimage.label(binarized_preds[i])[0])
+                    regions_of_interest = [
+                        roi[0] for roi in regions_of_interest
+                        if roi[0].stop - roi[0].start <= 30]
 
                 for roi in regions_of_interest:
                     score = np.max(strong_preds[i][roi.start:roi.stop])
@@ -329,37 +309,39 @@ def eval_by_loc(
         f'TN/FP/FN/TP: {tn}/{fp}/{fn}/{tp}')
 
     if iou_threshold == 0.1:
-        print(set(false_positive_line_nums))
-        print(false_negative_line_nums)
+        if 'print_failures' in kwargs and kwargs['print_failures']:
+            print(set(false_positive_line_nums))
+            print(false_negative_line_nums)
 
-        import matplotlib.cm as cm
-        import matplotlib.pyplot as plt
-        from sklearn.metrics import auc, precision_recall_curve
+        if 'plot_pr' in kwargs and kwargs['plot_pr']:
+            import matplotlib.cm as cm
+            import matplotlib.pyplot as plt
+            from sklearn.metrics import auc, precision_recall_curve
 
-        colors = iter(cm.rainbow(np.linspace(0, 1, 1)))
-        labels = ['WTF']
+            colors = iter(cm.rainbow(np.linspace(0, 1, 1)))
+            labels = ['Network']
 
-        lines = []
-        precision, recall, threshold = precision_recall_curve(y_true, y_score)
-        auc_score = auc(recall, precision)
+            lines = []
+            precision, recall, threshold = precision_recall_curve(y_true, y_score)
+            auc_score = auc(recall, precision)
 
-        l, = plt.plot(recall, precision, color=next(colors), lw=2)
-        lines.append(l)
-        labels[0] += f', AP: {avg_precision}, AUC: {auc_score}'
+            l, = plt.plot(recall, precision, color=next(colors), lw=2)
+            lines.append(l)
+            labels[0] += f', AP: {avg_precision}, AUC: {auc_score}'
 
-        fig = plt.gcf()
-        fig.subplots_adjust(bottom=0.25)
-        plt.xlim([0.0, 1.0])
-        plt.ylim([0.0, 1.05])
-        plt.xticks([i*0.05 for i in range(0, 21)])
-        plt.yticks([i*0.05 for i in range(0, 21)])
-        plt.grid()
-        plt.xlabel('Recall')
-        plt.ylabel('Precision')
-        plt.title('Multi-method Precision-Recall curves')
-        plt.legend(lines, labels, loc=(0, -.38), prop=dict(size=14))
+            fig = plt.gcf()
+            fig.subplots_adjust(bottom=0.25)
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xticks([i*0.05 for i in range(0, 21)])
+            plt.yticks([i*0.05 for i in range(0, 21)])
+            plt.grid()
+            plt.xlabel('Recall')
+            plt.ylabel('Precision')
+            plt.title('Precision-Recall curve')
+            plt.legend(lines, labels, loc=(0, -.38), prop=dict(size=14))
 
-        plt.show()
+            plt.show()
 
 
 def evaluate(
