@@ -230,15 +230,20 @@ def eval_by_loc(
                     y_true.append(0)
                     y_pred.append(0)
                     y_score.append(0)
-                elif not regions_of_interest:
+                elif (
+                    not regions_of_interest
+                    and weak_preds[i] >= kwargs['output_threshold']
+                ):
+                    # Get model best guess about peak location if
+                    # no explicit regions of interest but positive
+                    # global prediction
                     top_score_idx = np.argmax(strong_preds[i])
                     regions_of_interest = [
                         slice(top_score_idx, top_score_idx + 1)]
 
                 for roi in regions_of_interest:
                     mod_left_width, mod_right_width = None, None
-                    score = np.sum(strong_preds[i][roi.start:roi.stop])
-                    score = score / (roi.stop - roi.start)
+                    score = np.max(strong_preds[i][roi.start:roi.stop])
                     mod_left_width, mod_right_width = roi.start, roi.stop - 1
 
                     if negative[i] or not overlaps(
@@ -262,12 +267,9 @@ def eval_by_loc(
                 if not negative[i] and not overlap_found:
                     false_negative_line_nums.append(txt_line_num)
                     # False Negative
-                    label_region_score = np.sum(
+                    label_region_score = np.max(
                         strong_preds[i][
                             label_left_width:label_right_width + 1])
-                    label_region_score = (
-                        label_region_score
-                        / label_right_width + 1 - label_left_width)
                     y_true.append(1)
                     y_pred.append(0)
                     y_score.append(label_region_score)
