@@ -236,14 +236,11 @@ def eval_by_loc(
                     'be_generous' in kwargs
                     and kwargs['be_generous']
                     and not regions_of_interest
-                    and weak_preds[i] >= kwargs['output_threshold']
+                    and np.max(strong_preds[i]) >= kwargs['output_threshold']
                 ):
                     # Get model best guesses about peak locations if
                     # no explicit peaks with boundaries identified
                     # but positive global prediction
-                    # top_score_idx = np.argmax(strong_preds[i])
-                    # regions_of_interest = [
-                    #     slice(top_score_idx, top_score_idx + 1)]
                     regions_of_interest = scipy.ndimage.find_objects(
                         scipy.ndimage.label(binarized_preds[i])[0])
                     regions_of_interest = [
@@ -322,7 +319,8 @@ def eval_by_loc(
             labels = ['Network']
 
             lines = []
-            precision, recall, threshold = precision_recall_curve(y_true, y_score)
+            precision, recall, threshold = precision_recall_curve(
+                y_true, y_score)
             auc_score = auc(recall, precision)
 
             l, = plt.plot(recall, precision, color=next(colors), lw=2)
