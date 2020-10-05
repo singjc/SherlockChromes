@@ -305,41 +305,47 @@ def eval_by_loc(
         f'IoU: {iou:.4f} '
         f'TN/FP/FN/TP: {tn}/{fp}/{fn}/{tp}')
 
-    if iou_threshold == 0.1:
-        if 'print_failures' in kwargs and kwargs['print_failures']:
-            print(set(false_positive_line_nums))
-            print(false_negative_line_nums)
+    if (
+        'print_iou_threshold' in kwargs
+        and kwargs['print_iou_threshold'] == iou_threshold
+    ):
+        with np.printoptions(threshold=np.inf):
+            if 'print_failures' in kwargs and kwargs['print_failures']:
+                print(set(false_positive_line_nums))
+                print(false_negative_line_nums)
 
-        if 'plot_pr' in kwargs and kwargs['plot_pr']:
-            import matplotlib.cm as cm
-            import matplotlib.pyplot as plt
-            from sklearn.metrics import auc, precision_recall_curve
+            if 'plot_pr' in kwargs and kwargs['plot_pr']:
+                import matplotlib.cm as cm
+                import matplotlib.pyplot as plt
+                from sklearn.metrics import precision_recall_curve
 
-            colors = iter(cm.rainbow(np.linspace(0, 1, 1)))
-            labels = ['Network']
+                colors = iter(cm.rainbow(np.linspace(0, 1, 1)))
+                labels = [f'Input Network @ IoU threshold == {iou_threshold}']
 
-            lines = []
-            precision, recall, threshold = precision_recall_curve(
-                y_true, y_score)
-            auc_score = auc(recall, precision)
+                lines = []
+                precision, recall, threshold = precision_recall_curve(
+                    y_true, y_score)
 
-            l, = plt.plot(recall, precision, color=next(colors), lw=2)
-            lines.append(l)
-            labels[0] += f', AP: {avg_precision}, AUC: {auc_score}'
+                l, = plt.plot(recall, precision, color=next(colors), lw=2)
+                lines.append(l)
+                labels[0] += f', AP: {avg_precision}'
 
-            fig = plt.gcf()
-            fig.subplots_adjust(bottom=0.25)
-            plt.xlim([0.0, 1.0])
-            plt.ylim([0.0, 1.05])
-            plt.xticks([i*0.05 for i in range(0, 21)])
-            plt.yticks([i*0.05 for i in range(0, 21)])
-            plt.grid()
-            plt.xlabel('Recall')
-            plt.ylabel('Precision')
-            plt.title('Precision-Recall curve')
-            plt.legend(lines, labels, loc=(0, -.38), prop=dict(size=14))
+                fig = plt.gcf()
+                fig.subplots_adjust(bottom=0.25)
+                plt.xlim([0.0, 1.0])
+                plt.ylim([0.0, 1.05])
+                plt.xticks([i*0.05 for i in range(0, 21)])
+                plt.yticks([i*0.05 for i in range(0, 21)])
+                plt.grid()
+                plt.xlabel('Recall')
+                plt.ylabel('Precision')
+                plt.title('Precision-Recall curve')
+                plt.legend(lines, labels, loc=(0, -.38), prop=dict(size=14))
 
-            plt.show()
+                plt.show()
+
+                print(y_true)
+                print(y_score)
 
 
 def evaluate(
