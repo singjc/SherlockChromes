@@ -90,15 +90,15 @@ def eval_by_cla(
                 labels.cpu().numpy().ravel() * derived_weak_labels)
             labels_for_metrics.append(labels)
             preds = model(batch)
-            strong_preds = preds['loc']
-            weak_preds = preds['cla']
-            scores_for_metrics.append(weak_preds.cpu())
+            strong_preds = preds['loc'].cpu().numpy()
+            weak_preds = preds['cla'].cpu().numpy()
+            scores_for_metrics.append(weak_preds)
 
             if modulate_by_cla:
                 strong_preds = strong_preds * weak_preds
 
             binarized_preds = np.where(
-                strong_preds.cpu() >= kwargs['output_threshold'], 1, 0)
+                strong_preds >= kwargs['output_threshold'], 1, 0)
             inverse_binarized_preds = (1 - binarized_preds)
             global_preds = np.zeros(labels.shape)
 
@@ -187,14 +187,12 @@ def eval_by_loc(
             strong_labels = strong_labels.cpu().numpy()
             negative = 1 - weak_labels
             preds = model(batch)
-            strong_preds = preds['loc']
-            weak_preds = preds['cla']
+            strong_preds = preds['loc'].cpu().numpy()
+            weak_preds = preds['cla'].cpu().numpy()
 
             if modulate_by_cla:
                 strong_preds = strong_preds * weak_preds
 
-            strong_preds = strong_preds.cpu().numpy()
-            weak_preds = weak_preds.cpu().numpy()
             binarized_preds = np.where(
                 strong_preds >= kwargs['output_threshold'], 1, 0).astype(
                     np.int32)
