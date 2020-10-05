@@ -169,6 +169,7 @@ def eval_by_loc(
     orig_output_mode, model.model.output_mode = (
         model.model.output_mode, 'all')
     txt_line_num = 0
+    false_positive_line_nums = []
     false_negative_line_nums = []
 
     for batch, labels in loader:
@@ -229,6 +230,10 @@ def eval_by_loc(
                     y_true.append(0)
                     y_pred.append(0)
                     y_score.append(0)
+                elif not regions_of_interest:
+                    top_score_idx = np.argmax(strong_preds[i])
+                    regions_of_interest = [
+                        slice(top_score_idx, top_score_idx + 1)]
 
                 for roi in regions_of_interest:
                     mod_left_width, mod_right_width = None, None
@@ -244,6 +249,7 @@ def eval_by_loc(
                         iou_threshold=iou_threshold
                     ):
                         # False Positive
+                        false_positive_line_nums.append(txt_line_num)
                         y_true.append(0)
                     else:
                         # True Positive
@@ -293,6 +299,7 @@ def eval_by_loc(
         f'TN/FP/FN/TP: {tn}/{fp}/{fn}/{tp}')
 
     if iou_threshold == 0.1:
+        print(set(false_positive_line_nums))
         print(false_negative_line_nums)
 
 
@@ -359,7 +366,7 @@ def evaluate(
         modulate_by_cla,
         **kwargs)
 
-    for iou_threshold in [0.1, 0.25, 0.5, 0.75, 0.9]:
+    for iou_threshold in [0.01, 0.1, 0.25, 0.5, 0.75, 0.9]:
         eval_by_loc(
             model,
             val_loader_loc,
@@ -379,7 +386,7 @@ def evaluate(
         modulate_by_cla,
         **kwargs)
 
-    for iou_threshold in [0.1, 0.25, 0.5, 0.75, 0.9]:
+    for iou_threshold in [0.01, 0.1, 0.25, 0.5, 0.75, 0.9]:
         eval_by_loc(
             model,
             val_loader_loc,
@@ -400,7 +407,7 @@ def evaluate(
         modulate_by_cla,
         **kwargs)
 
-    for iou_threshold in [0.1, 0.25, 0.5, 0.75, 0.9]:
+    for iou_threshold in [0.01, 0.1, 0.25, 0.5, 0.75, 0.9]:
         eval_by_loc(
             model,
             test_loader_loc,
@@ -420,7 +427,7 @@ def evaluate(
         modulate_by_cla,
         **kwargs)
 
-    for iou_threshold in [0.1, 0.25, 0.5, 0.75, 0.9]:
+    for iou_threshold in [0.01, 0.1, 0.25, 0.5, 0.75, 0.9]:
         eval_by_loc(
             model,
             test_loader_loc,
