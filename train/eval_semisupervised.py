@@ -114,19 +114,19 @@ def eval_by_cla(
                         if gap_length < 3:
                             binarized_preds[i][gap.start:gap.stop] = 1
 
-                # regions_of_interest = scipy.ndimage.find_objects(
-                #     scipy.ndimage.label(binarized_preds[i])[0])
+                regions_of_interest = scipy.ndimage.find_objects(
+                    scipy.ndimage.label(binarized_preds[i])[0])
 
-                # for roi in regions_of_interest:
-                #     roi = roi[0]
-                #     roi_length = roi.stop - roi.start
+                for roi in regions_of_interest:
+                    roi = roi[0]
+                    roi_length = roi.stop - roi.start
 
-                #     if 3 <= roi_length <= 30:
-                #         global_preds[i] = 1
-                #         break
+                    if 3 <= roi_length <= 30:
+                        global_preds[i] = 1
+                        break
 
-                if np.max(strong_preds[i]) >= kwargs['output_threshold']:
-                    global_preds[i] = 1
+                # if np.max(strong_preds[i]) >= kwargs['output_threshold']:
+                #     global_preds[i] = 1
 
             outputs_for_metrics.append(global_preds)
 
@@ -231,48 +231,26 @@ def eval_by_loc(
                     y_true.append(0)
                     y_pred.append(0)
                     y_score.append(0)
-                elif (
-                    not regions_of_interest
-                    and weak_preds[i] >= kwargs['output_threshold']
-                ):
-                    # Get model best guess about peak location if
-                    # no explicit regions of interest but positive
-                    # global prediction
-                    top_score_idx = np.argmax(strong_preds[i])
-                    regions_of_interest = [
-                        slice(top_score_idx, top_score_idx + 1)]
+                # elif (
+                #     not regions_of_interest
+                #     and weak_preds[i] >= kwargs['output_threshold']
+                # ):
+                #     # Get model best guess about peak location if
+                #     # no explicit regions of interest but positive
+                #     # global prediction
+                #     top_score_idx = np.argmax(strong_preds[i])
+                #     regions_of_interest = [
+                #         slice(top_score_idx, top_score_idx + 1)]
 
-                if regions_of_interest:
-                    scores = [
-                        np.max(strong_preds[i][r.start:r.stop])
-                        for r in regions_of_interest]
-                    best_region_idx = np.argmax(scores)
-                    best_region = regions_of_interest[best_region_idx]
-                    score = scores[best_region_idx]
-                    mod_left_width, mod_right_width = (
-                        best_region.start, best_region.stop - 1)
-
-                    if negative[i] or not overlaps(
-                        mod_left_width,
-                        mod_right_width + 1,
-                        label_left_width,
-                        label_right_width + 1,
-                        iou_threshold=iou_threshold
-                    ):
-                        # False Positive
-                        false_positive_line_nums.append(txt_line_num)
-                        y_true.append(0)
-                    else:
-                        # True Positive
-                        y_true.append(1)
-                        overlap_found = True
-
-                    y_pred.append(1)
-                    y_score.append(score)
-
-                # for roi in regions_of_interest:
-                #     score = np.max(strong_preds[i][roi.start:roi.stop])
-                #     mod_left_width, mod_right_width = roi.start, roi.stop - 1
+                # if regions_of_interest:
+                #     scores = [
+                #         np.max(strong_preds[i][r.start:r.stop])
+                #         for r in regions_of_interest]
+                #     best_region_idx = np.argmax(scores)
+                #     best_region = regions_of_interest[best_region_idx]
+                #     score = scores[best_region_idx]
+                #     mod_left_width, mod_right_width = (
+                #         best_region.start, best_region.stop - 1)
 
                 #     if negative[i] or not overlaps(
                 #         mod_left_width,
@@ -292,6 +270,28 @@ def eval_by_loc(
                 #     y_pred.append(1)
                 #     y_score.append(score)
 
+                for roi in regions_of_interest:
+                    score = np.max(strong_preds[i][roi.start:roi.stop])
+                    mod_left_width, mod_right_width = roi.start, roi.stop - 1
+
+                    if negative[i] or not overlaps(
+                        mod_left_width,
+                        mod_right_width + 1,
+                        label_left_width,
+                        label_right_width + 1,
+                        iou_threshold=iou_threshold
+                    ):
+                        # False Positive
+                        false_positive_line_nums.append(txt_line_num)
+                        y_true.append(0)
+                    else:
+                        # True Positive
+                        y_true.append(1)
+                        overlap_found = True
+
+                    y_pred.append(1)
+                    y_score.append(score)
+
                 if not negative[i] and not overlap_found:
                     false_negative_line_nums.append(txt_line_num)
                     # False Negative
@@ -306,7 +306,7 @@ def eval_by_loc(
     y_true, y_pred, y_score = (
         np.array(y_true, dtype=np.int32),
         np.array(y_pred, dtype=np.int32),
-        np.array(y_score, dtype=np.int32))
+        np.array(y_score, dtype=np.float32))
     accuracy = accuracy_score(y_true, y_pred)
     avg_precision = average_precision_score(y_true, y_score)
     bacc = balanced_accuracy_score(
