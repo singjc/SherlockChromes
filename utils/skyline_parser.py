@@ -41,7 +41,9 @@ def create_skyline_augmented_osw_dataset(
 ):
     orig_labels = np.load(os.path.join(osw_dir, osw_labels_npy))
     ms1_rt_arrays = {}
-    counter = 0
+    decoy_counter = 0
+    skyline_counter = 0
+
 
     with open(os.path.join(osw_dir, osw_csv)) as infile:
         next(infile)
@@ -55,15 +57,16 @@ def create_skyline_augmented_osw_dataset(
                 # By default, includes positive labels even for decoys
                 # since based on OSW unscored boundaries
                 orig_labels[int(idx)] = np.zeros(orig_labels[int(idx)].shape)
+                decoy_counter += 1
                 continue
             elif filename not in annotations:
                 continue
             elif annotations[filename] == {'start': None, 'end': None}:
                 orig_labels[int(idx)] = np.zeros(orig_labels[int(idx)].shape)
-                counter += 1
+                skyline_counter += 1
                 continue
 
-            counter += 1
+            skyline_counter += 1
             repl = '_'.join(filename.split('_')[:-2])
 
             if repl not in ms1_rt_arrays:
@@ -100,10 +103,9 @@ def create_skyline_augmented_osw_dataset(
 
     print(
         f'Saving skyline augmented segmentation labels array of shape '
-        f'{orig_labels.shape} with {counter} substitutions'
-    )
+        f'{orig_labels.shape} with {skyline_counter} Skyline substitutions '
+        f'and {decoy_counter} decoy substitutions')
 
     np.save(
         os.path.join(out_dir, f'skyline_augmented_{osw_labels_npy}'),
-        orig_labels.astype(np.int32)
-    )
+        orig_labels.astype(np.int32))
