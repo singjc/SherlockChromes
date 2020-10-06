@@ -44,7 +44,6 @@ def create_skyline_augmented_osw_dataset(
     decoy_counter = 0
     skyline_counter = 0
 
-
     with open(os.path.join(osw_dir, osw_csv)) as infile:
         next(infile)
 
