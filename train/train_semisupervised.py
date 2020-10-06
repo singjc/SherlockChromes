@@ -411,7 +411,7 @@ def train(
         y_true, y_pred, y_score = (
             np.array(y_true, dtype=np.int32),
             np.array(y_pred, dtype=np.int32),
-            np.array(y_score, dtype=np.int32))
+            np.array(y_score, dtype=np.float32))
         accuracy = accuracy_score(y_true, y_pred)
         avg_precision = average_precision_score(y_true, y_score)
         bacc = balanced_accuracy_score(
