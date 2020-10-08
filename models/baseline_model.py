@@ -12,37 +12,44 @@ class BaselineSegmentationNet(nn.Module):
         super(BaselineSegmentationNet, self).__init__()
         self.output_mode = output_mode
         self.convnet = nn.Sequential(
-            nn.Conv1d(498, 64, 13, padding=6),
+            nn.Conv1d(498, 256, 13, padding=6),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Conv1d(256, 128, 11, padding=5),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Conv1d(128, 64, 9, padding=4),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Conv1d(64, 64, 11, padding=5),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Conv1d(64, 32, 9, padding=4),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-            nn.Conv1d(32, 32, 7, padding=3),
+            nn.Conv1d(64, 32, 7, padding=3),
             nn.BatchNorm1d(32),
             nn.ReLU(),
             nn.Conv1d(32, 16, 5, padding=2),
             nn.BatchNorm1d(16),
             nn.ReLU(),
-            nn.Conv1d(16, 16, 3, padding=1),
-            nn.BatchNorm1d(16),
-            nn.ReLU(),
-            nn.Conv1d(16, 1, 1, padding=0),
-            nn.BatchNorm1d(1),
-            nn.Sigmoid())
+            nn.Conv1d(16, 8, 3, padding=1),
+            nn.BatchNorm1d(8),
+            nn.ReLU())
+        self.to_logits = nn.Conv1d(8, 1, 1, padding=0)
+        self.to_probs = nn.Sigmoid()
 
     def forward(self, x):
         b, _, length = x.size()
-        output = self.convnet(x)
+        out = self.convnet(x)
         out_dict = {}
-        out_dict['attn'] = torch.zeros(b, length, 1)
-        out_dict['loc'] = output
-        out_dict['cla'] = output.max(dim=2)[0]
+        out_dict['loc'] = out
+
+        out_dict['loc'] = self.to_logits(out)
+        attn = torch.sigmoid(out_dict['loc'])
+        attn = attn / torch.sum(attn, dim=2, keepdim=True)
+        out_dict['attn'] = attn
+        out_dict['cla'] = self.to_logits(
+            torch.sum(out * out_dict['attn'], dim=2, keepdim=True))
 
         for mode in out_dict:
+            if mode in ['loc', 'cla']:
+                out_dict[mode] = self.to_probs(out_dict[mode])
+
             if len(out_dict[mode].size()) > 2:
                 out_dict[mode] = out_dict[mode].view(b, -1)
 
