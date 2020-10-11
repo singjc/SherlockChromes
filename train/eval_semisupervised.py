@@ -238,7 +238,11 @@ def eval_by_loc(
                     y_pred.append(0)
                     y_score.append(0)
 
-                if 'top_choice' in kwargs and kwargs['top_choice']:
+                if (
+                    'top_choice' in kwargs
+                    and kwargs['top_choice']
+                    and regions_of_interest
+                ):
                     scores = [
                         np.max(strong_preds[i][roi.start:roi.stop])
                         for roi in regions_of_interest]
