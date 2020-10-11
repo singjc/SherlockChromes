@@ -97,7 +97,6 @@ def create_skyline_augmented_osw_dataset(
                         < rt_segment[-1]))
             ):
                 orig_labels[int(idx)] = np.zeros(orig_labels[int(idx)].shape)
-                skyline_counter += 1
                 continue
 
             rt_segment = rt_segment[:-1]
