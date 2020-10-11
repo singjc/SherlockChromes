@@ -111,6 +111,9 @@ def create_skyline_augmented_osw_dataset(
                 skyline_right_idx = bisect.bisect_left(
                     rt_segment, annotations[filename]['end'])
 
+            if skyline_left_idx >= rt_segment.shape[0]:
+                skyline_left_idx = rt_segment.shape[0] - 1
+
             if skyline_right_idx >= rt_segment.shape[0]:
                 skyline_right_idx = rt_segment.shape[0] - 1
 
