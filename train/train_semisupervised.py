@@ -228,7 +228,7 @@ def train(
                         roi = roi[0]
                         roi_length = roi.stop - roi.start
 
-                        if 3 <= roi_length <= 30:
+                        if 3 <= roi_length <= 36:
                             global_preds[i] = 1
                             break
 
@@ -362,7 +362,7 @@ def train(
                         scipy.ndimage.label(binarized_preds[i])[0])
                     regions_of_interest = [
                         roi[0] for roi in regions_of_interest
-                        if 3 <= roi[0].stop - roi[0].start <= 30]
+                        if 3 <= roi[0].stop - roi[0].start <= 36]
                     overlap_found = False
 
                     if negative[i] and not regions_of_interest:

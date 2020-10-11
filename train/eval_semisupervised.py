@@ -121,7 +121,7 @@ def eval_by_cla(
                     roi = roi[0]
                     roi_length = roi.stop - roi.start
 
-                    if 3 <= roi_length <= 30:
+                    if 3 <= roi_length <= 36:
                         global_preds[i] = 1
                         break
 
@@ -222,9 +222,14 @@ def eval_by_loc(
 
                 regions_of_interest = scipy.ndimage.find_objects(
                     scipy.ndimage.label(binarized_preds[i])[0])
+                min_length = 3
+
+                if 'be_generous' in kwargs and kwargs['be_generous']:
+                    min_length = 1
+
                 regions_of_interest = [
                     roi[0] for roi in regions_of_interest
-                    if 3 <= roi[0].stop - roi[0].start <= 30]
+                    if min_length <= roi[0].stop - roi[0].start <= 36]
                 overlap_found = False
 
                 if negative[i] and not regions_of_interest:
@@ -232,20 +237,35 @@ def eval_by_loc(
                     y_true.append(0)
                     y_pred.append(0)
                     y_score.append(0)
-                elif (
-                    'be_generous' in kwargs
-                    and kwargs['be_generous']
-                    and not regions_of_interest
-                    and np.max(strong_preds[i]) >= kwargs['output_threshold']
-                ):
-                    # Get model best guesses about peak locations if
-                    # no explicit peaks with boundaries identified
-                    # but positive global prediction
-                    regions_of_interest = scipy.ndimage.find_objects(
-                        scipy.ndimage.label(binarized_preds[i])[0])
-                    regions_of_interest = [
-                        roi[0] for roi in regions_of_interest
-                        if roi[0].stop - roi[0].start <= 30]
+
+                if 'top_choice' in kwargs and kwargs['top_choice']:
+                    scores = [
+                        np.max(strong_preds[i][roi.start:roi.stop])
+                        for roi in regions_of_interest]
+                    best_region_idx = np.argmax(scores)
+                    score = scores[best_region_idx]
+                    best_region = regions_of_interest[best_region_idx]
+                    mod_left_width, mod_right_width = (
+                        best_region.start, best_region.stop - 1)
+
+                    if negative[i] or not overlaps(
+                        mod_left_width,
+                        mod_right_width + 1,
+                        label_left_width,
+                        label_right_width + 1,
+                        iou_threshold=iou_threshold
+                    ):
+                        # False Positive
+                        false_positive_line_nums.append(txt_line_num)
+                        y_true.append(0)
+                    else:
+                        # True Positive
+                        y_true.append(1)
+                        overlap_found = True
+
+                    y_pred.append(1)
+                    y_score.append(score)
+                    regions_of_interest = []
 
                 for roi in regions_of_interest:
                     score = np.max(strong_preds[i][roi.start:roi.stop])
