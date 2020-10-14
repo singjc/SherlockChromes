@@ -23,7 +23,7 @@ def parse_skyline_exported_annotations(annotations_dir, annotations_filename):
                 'hroest_K120808' if 'R04' not in repl else 'hroest_K120809')
             key = f'{repl_prefix}_{repl}_{seq}_{charge}'
 
-            if start == '#N/A' or end == '#N/A':
+            if start == end == rt == '#N/A':
                 annotations[key] = {'start': None, 'end': None, 'rt': None}
             else:
                 annotations[key] = (
@@ -84,22 +84,20 @@ def create_skyline_augmented_osw_dataset(
             segment_l, segment_r = get_subsequence_idxs(
                 ms1_rt_arrays[repl], lib_rt, subsequence_size=int(win_size))
 
-            rt_segment = ms1_rt_arrays[repl][segment_l:segment_r + 1]
+            rt_segment = ms1_rt_arrays[repl][segment_l:segment_r]
 
             if (
                 annotations[filename]['end'] < rt_segment[0]
-                or annotations[filename]['start'] >= rt_segment[-1]
+                or annotations[filename]['start'] > rt_segment[-1]
                 or (
                     peak_only
                     and not (
                         rt_segment[0]
                         <= annotations[filename]['rt']
-                        < rt_segment[-1]))
+                        <= rt_segment[-1]))
             ):
                 orig_labels[int(idx)] = np.zeros(orig_labels[int(idx)].shape)
                 continue
-
-            rt_segment = rt_segment[:-1]
 
             if peak_only:
                 skyline_left_idx = skyline_right_idx = bisect.bisect(
@@ -109,9 +107,6 @@ def create_skyline_augmented_osw_dataset(
                     rt_segment, annotations[filename]['start'])
                 skyline_right_idx = bisect.bisect_left(
                     rt_segment, annotations[filename]['end'])
-
-            if skyline_left_idx >= rt_segment.shape[0]:
-                skyline_left_idx = rt_segment.shape[0] - 1
 
             if skyline_right_idx >= rt_segment.shape[0]:
                 skyline_right_idx = rt_segment.shape[0] - 1
