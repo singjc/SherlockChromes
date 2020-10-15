@@ -18,8 +18,8 @@ def parse_skyline_exported_annotations(
             line = line.rstrip('\r\n').split(',')
 
             if transition_results:
-                repl, rt, start, end, charge = (
-                    line[2], line[6], line[7], line[8], line[13])
+                repl, rt, start, end, seq, charge = (
+                    line[2], line[6], line[7], line[8], line[13], line[14])
             else:
                 repl, rt, seq, charge, start, end = (
                     line[2], line[4], line[13], line[14], line[15], line[16])
