@@ -47,7 +47,7 @@ def get_precursor_ids(infile, target_file, idx_file=None):
     mod_seq_and_charge_to_precursor_ids = (
         get_mod_seq_and_charge_to_precursor_ids(con, cursor))
     mod_seq_and_charge_to_precursor_ids = {
-        {f'{row[0]}_{row[1]}': row[2]}
+        f'{row[0]}_{row[1]}': row[2]
         for row in mod_seq_and_charge_to_precursor_ids}
     con.close()
     prec_ids = []
