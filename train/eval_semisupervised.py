@@ -165,7 +165,6 @@ def eval_by_loc(
     weak_label_loader,
     device='cpu',
     modulate_by_cla=True,
-    iou_threshold=0.5,
     **kwargs
 ):
     y_true, y_pred, y_score = [], [], []
@@ -255,7 +254,7 @@ def eval_by_loc(
                         best_region.stop,
                         label_left_width,
                         label_right_width + 1,
-                        iou_threshold=iou_threshold
+                        iou_threshold=kwargs['iou_threshold']
                     ):
                         # False Positive
                         false_positive_line_nums.append(txt_line_num)
@@ -277,7 +276,7 @@ def eval_by_loc(
                         roi.stop,
                         label_left_width,
                         label_right_width + 1,
-                        iou_threshold=iou_threshold
+                        iou_threshold=kwargs['iou_threshold']
                     ):
                         # False Positive
                         false_positive_line_nums.append(txt_line_num)
@@ -436,7 +435,6 @@ def evaluate(
         val_loader_loc_wl,
         device,
         modulate_by_cla,
-        iou_threshold=kwargs['iou_threshold'],
         **kwargs)
 
     print('Unmodulated')
@@ -455,7 +453,6 @@ def evaluate(
         val_loader_loc_wl,
         device,
         modulate_by_cla,
-        iou_threshold=kwargs['iou_threshold'],
         **kwargs)
 
     print('Evaluating Test Data')
@@ -475,7 +472,6 @@ def evaluate(
         test_loader_loc_wl,
         device,
         modulate_by_cla,
-        iou_threshold=kwargs['iou_threshold'],
         **kwargs)
 
     print('Unmodulated')
@@ -494,5 +490,4 @@ def evaluate(
         test_loader_loc_wl,
         device,
         modulate_by_cla,
-        iou_threshold=kwargs['iou_threshold'],
         **kwargs)
