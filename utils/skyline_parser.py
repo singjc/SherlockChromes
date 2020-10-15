@@ -39,14 +39,17 @@ def create_skyline_augmented_osw_dataset(
     annotations,
     osw_dir,
     osw_csv,
-    osw_labels_npy,
+    osw_strong_labels_npy,
+    osw_weak_labels_npy,
     out_dir,
     peak_only=False
 ):
-    orig_labels = np.load(os.path.join(osw_dir, osw_labels_npy))
+    orig_strong_labels = np.load(os.path.join(osw_dir, osw_strong_labels_npy))
+    orig_weak_labels = np.load(os.path.join(osw_dir, osw_weak_labels_npy))
     ms1_rt_arrays = {}
     decoy_counter = 0
-    skyline_counter = 0
+    skyline_strong_counter = 0
+    skyline_weak_counter = 0
 
     with open(os.path.join(osw_dir, osw_csv)) as infile:
         next(infile)
@@ -59,17 +62,21 @@ def create_skyline_augmented_osw_dataset(
             if 'DECOY' in filename:
                 # By default, includes positive labels even for decoys
                 # since based on OSW unscored boundaries
-                orig_labels[int(idx)] = np.zeros(orig_labels[int(idx)].shape)
+                orig_strong_labels[int(idx)] = np.zeros(
+                    orig_strong_labels[int(idx)].shape)
                 decoy_counter += 1
                 continue
             elif filename not in annotations:
                 continue
             elif not annotations[filename]['start']:
-                orig_labels[int(idx)] = np.zeros(orig_labels[int(idx)].shape)
-                skyline_counter += 1
+                orig_strong_labels[int(idx)] = np.zeros(
+                    orig_strong_labels[int(idx)].shape)
+                orig_weak_labels[int(idx)] = 0
+                skyline_strong_counter += 1
+                skyline_weak_counter += 1
                 continue
 
-            skyline_counter += 1
+            skyline_strong_counter += 1
             repl = '_'.join(filename.split('_')[:-2])
 
             if repl not in ms1_rt_arrays:
@@ -96,7 +103,9 @@ def create_skyline_augmented_osw_dataset(
                         <= annotations[filename]['rt']
                         <= rt_segment[-1]))
             ):
-                orig_labels[int(idx)] = np.zeros(orig_labels[int(idx)].shape)
+                orig_strong_labels[int(idx)] = np.zeros(
+                    orig_strong_labels[int(idx)].shape)
+                orig_weak_labels[int(idx)] = 0
                 continue
 
             if peak_only:
@@ -111,20 +120,34 @@ def create_skyline_augmented_osw_dataset(
             if skyline_right_idx >= rt_segment.shape[0]:
                 skyline_right_idx = rt_segment.shape[0] - 1
 
-            orig_labels[int(idx)] = np.where(
+            orig_strong_labels[int(idx)] = np.where(
                 np.logical_and(
                     rt_segment >= rt_segment[skyline_left_idx],
-                    rt_segment <= rt_segment[skyline_right_idx]
-                ),
+                    rt_segment <= rt_segment[skyline_right_idx]),
                 1,
-                0
-            )
+                0)
+
+            new_weak_label = np.sum(orig_strong_labels[int(idx)])
+
+            if new_weak_label != orig_weak_labels[int(idx)]:
+                orig_weak_labels[int(idx)] = new_weak_label
+                skyline_weak_counter += 1
 
     print(
         f'Saving skyline augmented segmentation labels array of shape '
-        f'{orig_labels.shape} with {skyline_counter} Skyline substitutions '
+        f'{orig_strong_labels.shape} with '
+        f'{skyline_strong_counter} Skyline substitutions '
         f'and {decoy_counter} decoy substitutions')
 
     np.save(
-        os.path.join(out_dir, f'skyline_augmented_{osw_labels_npy}'),
-        orig_labels.astype(np.int32))
+        os.path.join(out_dir, f'skyline_augmented_{osw_strong_labels_npy}'),
+        orig_strong_labels.astype(np.int32))
+
+    print(
+        f'Saving skyline augmented classification labels array of shape '
+        f'{orig_weak_labels.shape} with '
+        f'{skyline_weak_counter} Skyline substitutions')
+
+    np.save(
+        os.path.join(out_dir, f'skyline_augmented_{osw_weak_labels_npy}'),
+        orig_weak_labels.astype(np.int32))
