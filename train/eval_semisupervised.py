@@ -165,7 +165,6 @@ def eval_by_loc(
     weak_label_loader,
     device='cpu',
     modulate_by_cla=True,
-    iou_threshold=0.5,
     **kwargs
 ):
     y_true, y_pred, y_score = [], [], []
@@ -249,15 +248,16 @@ def eval_by_loc(
                     best_region_idx = np.argmax(scores)
                     score = scores[best_region_idx]
                     best_region = regions_of_interest[best_region_idx]
-                    mod_left_width, mod_right_width = (
-                        best_region.start, best_region.stop - 1)
+                    relative_mod_center = (
+                        best_region.stop - best_region.start) // 2
+                    mod_center = best_region.start + relative_mod_center
 
                     if negative[i] or not overlaps(
-                        mod_left_width,
-                        mod_right_width + 1,
+                        mod_center,
+                        mod_center + 1,
                         label_left_width,
                         label_right_width + 1,
-                        iou_threshold=iou_threshold
+                        iou_threshold=0.01
                     ):
                         # False Positive
                         false_positive_line_nums.append(txt_line_num)
@@ -273,14 +273,16 @@ def eval_by_loc(
 
                 for roi in regions_of_interest:
                     score = np.max(strong_preds[i][roi.start:roi.stop])
-                    mod_left_width, mod_right_width = roi.start, roi.stop - 1
+                    relative_mod_center = (
+                        best_region.stop - best_region.start) // 2
+                    mod_center = best_region.start + relative_mod_center
 
                     if negative[i] or not overlaps(
-                        mod_left_width,
-                        mod_right_width + 1,
+                        mod_center,
+                        mod_center + 1,
                         label_left_width,
                         label_right_width + 1,
-                        iou_threshold=iou_threshold
+                        iou_threshold=0.01
                     ):
                         # False Positive
                         false_positive_line_nums.append(txt_line_num)
@@ -319,7 +321,7 @@ def eval_by_loc(
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
 
     print(
-        f'Eval By Loc Performance at IoU Threshold {iou_threshold} - '
+        f'Eval By Loc Performance - '
         f'Accuracy: {accuracy:.4f} '
         f'Avg precision: {avg_precision:.4f} '
         f'Balanced accuracy: {bacc:.4f} '
@@ -329,46 +331,42 @@ def eval_by_loc(
         f'IoU: {iou:.4f} '
         f'TN/FP/FN/TP: {tn}/{fp}/{fn}/{tp}')
 
-    if (
-        'print_iou_threshold' in kwargs
-        and kwargs['print_iou_threshold'] == iou_threshold
-    ):
-        if 'print_failures' in kwargs and kwargs['print_failures']:
-            print(set(false_positive_line_nums))
-            print(false_negative_line_nums)
+    if 'print_failures' in kwargs and kwargs['print_failures']:
+        print(set(false_positive_line_nums))
+        print(false_negative_line_nums)
 
-        if 'plot_pr' in kwargs and kwargs['plot_pr']:
-            import matplotlib.cm as cm
-            import matplotlib.pyplot as plt
-            from sklearn.metrics import precision_recall_curve
+    if 'plot_pr' in kwargs and kwargs['plot_pr']:
+        import matplotlib.cm as cm
+        import matplotlib.pyplot as plt
+        from sklearn.metrics import precision_recall_curve
 
-            colors = iter(cm.rainbow(np.linspace(0, 1, 1)))
-            labels = [f'Input Network @ IoU threshold == {iou_threshold}']
+        colors = iter(cm.rainbow(np.linspace(0, 1, 1)))
+        labels = [f'Input Network']
 
-            lines = []
-            precision, recall, threshold = precision_recall_curve(
-                y_true, y_score)
+        lines = []
+        precision, recall, threshold = precision_recall_curve(
+            y_true, y_score)
 
-            l, = plt.plot(recall, precision, color=next(colors), lw=2)
-            lines.append(l)
-            labels[0] += f', AP: {avg_precision}'
+        l, = plt.plot(recall, precision, color=next(colors), lw=2)
+        lines.append(l)
+        labels[0] += f', AP: {avg_precision}'
 
-            fig = plt.gcf()
-            fig.subplots_adjust(bottom=0.25)
-            plt.xlim([0.0, 1.0])
-            plt.ylim([0.0, 1.05])
-            plt.xticks([i*0.05 for i in range(0, 21)])
-            plt.yticks([i*0.05 for i in range(0, 21)])
-            plt.grid()
-            plt.xlabel('Recall')
-            plt.ylabel('Precision')
-            plt.title('Precision-Recall curve')
-            plt.legend(lines, labels, loc=(0, -.38), prop=dict(size=14))
+        fig = plt.gcf()
+        fig.subplots_adjust(bottom=0.25)
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xticks([i*0.05 for i in range(0, 21)])
+        plt.yticks([i*0.05 for i in range(0, 21)])
+        plt.grid()
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+        plt.title('Precision-Recall curve')
+        plt.legend(lines, labels, loc=(0, -.38), prop=dict(size=14))
 
-            plt.show()
+        plt.show()
 
-            print(y_true.tolist())
-            print(y_score.tolist())
+        print(y_true.tolist())
+        print(y_score.tolist())
 
 
 def evaluate(
@@ -434,15 +432,13 @@ def evaluate(
         modulate_by_cla,
         **kwargs)
 
-    for iou_threshold in [0.01, 0.1, 0.25, 0.5, 0.75, 0.9]:
-        eval_by_loc(
-            model,
-            val_loader_loc,
-            val_loader_loc_wl,
-            device,
-            modulate_by_cla,
-            iou_threshold,
-            **kwargs)
+    eval_by_loc(
+        model,
+        val_loader_loc,
+        val_loader_loc_wl,
+        device,
+        modulate_by_cla,
+        **kwargs)
 
     print('Unmodulated')
     modulate_by_cla = False
@@ -454,15 +450,13 @@ def evaluate(
         modulate_by_cla,
         **kwargs)
 
-    for iou_threshold in [0.01, 0.1, 0.25, 0.5, 0.75, 0.9]:
-        eval_by_loc(
-            model,
-            val_loader_loc,
-            val_loader_loc_wl,
-            device,
-            modulate_by_cla,
-            iou_threshold,
-            **kwargs)
+    eval_by_loc(
+        model,
+        val_loader_loc,
+        val_loader_loc_wl,
+        device,
+        modulate_by_cla,
+        **kwargs)
 
     print('Evaluating Test Data')
     print('Modulated')
@@ -475,15 +469,13 @@ def evaluate(
         modulate_by_cla,
         **kwargs)
 
-    for iou_threshold in [0.01, 0.1, 0.25, 0.5, 0.75, 0.9]:
-        eval_by_loc(
-            model,
-            test_loader_loc,
-            test_loader_loc_wl,
-            device,
-            modulate_by_cla,
-            iou_threshold,
-            **kwargs)
+    eval_by_loc(
+        model,
+        test_loader_loc,
+        test_loader_loc_wl,
+        device,
+        modulate_by_cla,
+        **kwargs)
 
     print('Unmodulated')
     modulate_by_cla = False
@@ -495,12 +487,10 @@ def evaluate(
         modulate_by_cla,
         **kwargs)
 
-    for iou_threshold in [0.01, 0.1, 0.25, 0.5, 0.75, 0.9]:
-        eval_by_loc(
-            model,
-            test_loader_loc,
-            test_loader_loc_wl,
-            device,
-            modulate_by_cla,
-            iou_threshold,
-            **kwargs)
+    eval_by_loc(
+        model,
+        test_loader_loc,
+        test_loader_loc_wl,
+        device,
+        modulate_by_cla,
+        **kwargs)
