@@ -248,16 +248,13 @@ def eval_by_loc(
                     best_region_idx = np.argmax(scores)
                     score = scores[best_region_idx]
                     best_region = regions_of_interest[best_region_idx]
-                    relative_mod_center = (
-                        best_region.stop - best_region.start) // 2
-                    mod_center = best_region.start + relative_mod_center
 
                     if negative[i] or not overlaps(
-                        mod_center,
-                        mod_center + 1,
+                        best_region.start,
+                        best_region.stop,
                         label_left_width,
                         label_right_width + 1,
-                        iou_threshold=0.01
+                        iou_threshold=0.5
                     ):
                         # False Positive
                         false_positive_line_nums.append(txt_line_num)
@@ -273,16 +270,13 @@ def eval_by_loc(
 
                 for roi in regions_of_interest:
                     score = np.max(strong_preds[i][roi.start:roi.stop])
-                    relative_mod_center = (
-                        best_region.stop - best_region.start) // 2
-                    mod_center = best_region.start + relative_mod_center
 
                     if negative[i] or not overlaps(
-                        mod_center,
-                        mod_center + 1,
+                        roi.start,
+                        roi.stop,
                         label_left_width,
                         label_right_width + 1,
-                        iou_threshold=0.01
+                        iou_threshold=0.5
                     ):
                         # False Positive
                         false_positive_line_nums.append(txt_line_num)
