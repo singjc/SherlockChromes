@@ -6,7 +6,9 @@ from general_utils import get_subsequence_idxs
 from pyopenms import AASequence
 
 
-def parse_skyline_exported_annotations(annotations_dir, annotations_filename):
+def parse_skyline_exported_annotations(
+    annotations_dir, annotations_filename, transition_results=False
+):
     annotations = {}
 
     with open(os.path.join(annotations_dir, annotations_filename)) as infile:
@@ -15,8 +17,13 @@ def parse_skyline_exported_annotations(annotations_dir, annotations_filename):
         for line in infile:
             line = line.rstrip('\r\n').split(',')
 
-            repl, rt, seq, charge, start, end = (
-                line[2], line[4], line[13], line[14], line[15], line[16])
+            if transition_results:
+                repl, rt, start, end, charge = (
+                    line[2], line[6], line[7], line[8], line[13])
+            else:
+                repl, rt, seq, charge, start, end = (
+                    line[2], line[4], line[13], line[14], line[15], line[16])
+
             repl = repl.replace('0R', '0PlasmaBiolR')
             seq = AASequence.fromString(seq).toUniModString().decode('utf-8')
             repl_prefix = (
@@ -42,6 +49,7 @@ def create_skyline_augmented_osw_dataset(
     osw_strong_labels_npy,
     osw_weak_labels_npy,
     out_dir,
+    prefix='skyline_augmented',
     peak_only=False
 ):
     orig_strong_labels = np.load(os.path.join(osw_dir, osw_strong_labels_npy))
@@ -140,7 +148,7 @@ def create_skyline_augmented_osw_dataset(
         f'and {decoy_counter} decoy substitutions')
 
     np.save(
-        os.path.join(out_dir, f'skyline_augmented_{osw_strong_labels_npy}'),
+        os.path.join(out_dir, f'{prefix}_{osw_strong_labels_npy}'),
         orig_strong_labels.astype(np.int32))
 
     print(
@@ -149,5 +157,5 @@ def create_skyline_augmented_osw_dataset(
         f'{skyline_weak_counter} Skyline substitutions')
 
     np.save(
-        os.path.join(out_dir, f'skyline_augmented_{osw_weak_labels_npy}'),
+        os.path.join(out_dir, f'{prefix}_{osw_weak_labels_npy}'),
         orig_weak_labels.astype(np.int32))
