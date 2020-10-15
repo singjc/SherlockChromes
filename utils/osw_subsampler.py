@@ -23,6 +23,18 @@ def get_precursor_id_from_mod_seq_and_charge(
     return tmp
 
 
+def get_mod_seq_and_charge_to_precursor_ids(con, cursor):
+    query = \
+        """SELECT peptide.MODIFIED_SEQUENCE, precursor.CHARGE, precursor.ID
+        FROM PRECURSOR precursor LEFT JOIN PRECURSOR_PEPTIDE_MAPPING mapping
+        ON precursor.ID = mapping.PRECURSOR_ID LEFT JOIN PEPTIDE peptide
+        ON mapping.PEPTIDE_ID = peptide.ID"""
+    res = cursor.execute(query)
+    tmp = res.fetchall()
+
+    return tmp
+
+
 def get_precursor_ids(infile, target_file, idx_file=None):
     if idx_file:
         target_idxs = {}
@@ -32,8 +44,12 @@ def get_precursor_ids(infile, target_file, idx_file=None):
 
     con = sqlite3.connect(infile)
     cursor = con.cursor()
-
-    processed = {}
+    mod_seq_and_charge_to_precursor_ids = (
+        get_mod_seq_and_charge_to_precursor_ids(con, cursor))
+    mod_seq_and_charge_to_precursor_ids = {
+        {f'{row[0]}_{row[1]}': row[2]}
+        for row in mod_seq_and_charge_to_precursor_ids}
+    con.close()
     prec_ids = []
 
     with open(target_file, 'r') as targets:
@@ -46,21 +62,12 @@ def get_precursor_ids(infile, target_file, idx_file=None):
                 if idx not in target_idxs:
                     continue
 
-            if target_filename in processed:
-                continue
+            mod_seq_and_charge = '_'.join(target_filename.split('_')[-2:])
 
-            mod_seq, charge = target_filename.split('_')[-2:]
-
-            target_prec_id = get_precursor_id_from_mod_seq_and_charge(
-                con, cursor, mod_seq, charge)
-
-            if target_prec_id:
-                prec_id = target_prec_id[0][0]
-                prec_ids.append(prec_id)
-
-            processed[target_filename] = True
-
-    con.close()
+            if mod_seq_and_charge in mod_seq_and_charge_to_precursor_ids:
+                target_prec_id = (
+                    mod_seq_and_charge_to_precursor_ids[mod_seq_and_charge])
+                prec_ids.append(target_prec_id)
 
     return prec_ids
 
@@ -69,7 +76,7 @@ def check_sqlite_table(con, table):
     table_present = False
     c = con.cursor()
     c.execute(
-        'SELECT count(name) FROM sqlite_master'
+        'SELECT count(name) FROM sqlite_master '
         'WHERE type="table" AND name="{}"'.format(table))
     if c.fetchone()[0] == 1:
         table_present = True
