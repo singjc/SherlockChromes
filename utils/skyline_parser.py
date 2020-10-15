@@ -127,7 +127,7 @@ def create_skyline_augmented_osw_dataset(
                 1,
                 0)
 
-            new_weak_label = np.sum(orig_strong_labels[int(idx)])
+            new_weak_label = min(1, np.sum(orig_strong_labels[int(idx)]))
 
             if new_weak_label != orig_weak_labels[int(idx)]:
                 orig_weak_labels[int(idx)] = new_weak_label
