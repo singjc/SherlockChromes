@@ -111,7 +111,7 @@ def eval_by_cla(
                         gap = gap[0]
                         gap_length = gap.stop - gap.start
 
-                        if gap_length < 3:
+                        if gap_length < kwargs['min_roi_length']:
                             binarized_preds[i][gap.start:gap.stop] = 1
 
                 regions_of_interest = scipy.ndimage.find_objects(
@@ -121,13 +121,13 @@ def eval_by_cla(
                     roi = roi[0]
                     roi_length = roi.stop - roi.start
 
-                    if 3 <= roi_length <= 36:
+                    if (
+                        kwargs['min_roi_length']
+                        <= roi_length
+                        <= kwargs['max_roi_length']
+                    ):
                         global_preds[i] = 1
                         break
-
-                if 'be_generous' in kwargs and kwargs['be_generous']:
-                    if np.max(strong_preds[i]) >= kwargs['output_threshold']:
-                        global_preds[i] = 1
 
             outputs_for_metrics.append(global_preds)
 
@@ -209,7 +209,7 @@ def eval_by_loc(
                         gap = gap[0]
                         gap_length = gap.stop - gap.start
 
-                        if gap_length < 3:
+                        if gap_length < kwargs['min_roi_length']:
                             binarized_preds[i][gap.start:gap.stop] = 1
 
                 label_left_width, label_right_width = None, None
@@ -222,14 +222,13 @@ def eval_by_loc(
 
                 regions_of_interest = scipy.ndimage.find_objects(
                     scipy.ndimage.label(binarized_preds[i])[0])
-                min_length = 3
-
-                if 'be_generous' in kwargs and kwargs['be_generous']:
-                    min_length = 1
 
                 regions_of_interest = [
                     roi[0] for roi in regions_of_interest
-                    if min_length <= roi[0].stop - roi[0].start <= 36]
+                    if (
+                        kwargs['min_roi_length']
+                        <= roi[0].stop - roi[0].start
+                        <= kwargs['max_roi_length'])]
                 overlap_found = False
 
                 if negative[i] and not regions_of_interest:
@@ -315,16 +314,17 @@ def eval_by_loc(
     iou = jaccard_score(y_true, y_pred)
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
 
-    print(
-        f'Eval By Loc Performance - '
-        f'Accuracy: {accuracy:.4f} '
-        f'Avg precision: {avg_precision:.4f} '
-        f'Balanced accuracy: {bacc:.4f} '
-        f'Precision: {precision:.4f} '
-        f'Recall: {recall:.4f} '
-        f'Dice: {dice:.4f} '
-        f'IoU: {iou:.4f} '
-        f'TN/FP/FN/TP: {tn}/{fp}/{fn}/{tp}')
+    if 'calc_only' not in kwargs or not kwargs['calc_only']:
+        print(
+            f'Eval By Loc Performance - '
+            f'Accuracy: {accuracy:.4f} '
+            f'Avg precision: {avg_precision:.4f} '
+            f'Balanced accuracy: {bacc:.4f} '
+            f'Precision: {precision:.4f} '
+            f'Recall: {recall:.4f} '
+            f'Dice: {dice:.4f} '
+            f'IoU: {iou:.4f} '
+            f'TN/FP/FN/TP: {tn}/{fp}/{fn}/{tp}')
 
     if 'print_failures' in kwargs and kwargs['print_failures']:
         print(set(false_positive_line_nums))
@@ -363,6 +363,8 @@ def eval_by_loc(
         print(y_true.tolist())
         print(y_score.tolist())
 
+    return (iou_threshold, avg_precision, recall)
+
 
 def evaluate(
     data,
@@ -383,6 +385,12 @@ def evaluate(
 
     if 'iou_thresholds' not in kwargs:
         iou_thresholds = [0.5]
+
+    if 'min_roi_length' not in kwargs:
+        kwargs['min_roi_length'] = 3
+
+    if 'max_roi_length' not in kwargs:
+        kwargs['max_roi_length'] = 36
 
     val_loader_cla, test_loader_cla = get_data_loaders(
         data,
@@ -419,60 +427,83 @@ def evaluate(
 
     model.to(device)
 
-    print('Evaluating Val Data')
-    print('Modulated')
-    modulate_by_cla = True
-    eval_by_cla(
-        model,
-        val_loader_cla,
-        val_loader_cla_sl,
-        device,
-        modulate_by_cla,
-        **kwargs)
-
-    for iou_threshold in kwargs['iou_thresholds']:
-        eval_by_loc(
+    if 'calc_only' not in kwargs or not kwargs['calc_only']:
+        print('Evaluating Val Data')
+        print('Modulated')
+        modulate_by_cla = True
+        eval_by_cla(
             model,
-            val_loader_loc,
-            val_loader_loc_wl,
+            val_loader_cla,
+            val_loader_cla_sl,
             device,
             modulate_by_cla,
-            iou_threshold=iou_threshold,
             **kwargs)
 
-    print('Unmodulated')
-    modulate_by_cla = False
-    eval_by_cla(
-        model,
-        val_loader_cla,
-        val_loader_cla_sl,
-        device,
-        modulate_by_cla,
-        **kwargs)
+        for iou_threshold in kwargs['iou_thresholds']:
+            eval_by_loc(
+                model,
+                val_loader_loc,
+                val_loader_loc_wl,
+                device,
+                modulate_by_cla,
+                iou_threshold=iou_threshold,
+                **kwargs)
 
-    for iou_threshold in kwargs['iou_thresholds']:
-        eval_by_loc(
+        print('Unmodulated')
+        modulate_by_cla = False
+        eval_by_cla(
             model,
-            val_loader_loc,
-            val_loader_loc_wl,
+            val_loader_cla,
+            val_loader_cla_sl,
             device,
             modulate_by_cla,
-            iou_threshold=iou_threshold,
             **kwargs)
 
-    print('Evaluating Test Data')
-    print('Modulated')
-    modulate_by_cla = True
-    eval_by_cla(
-        model,
-        test_loader_cla,
-        test_loader_cla_sl,
-        device,
-        modulate_by_cla,
-        **kwargs)
+        for iou_threshold in kwargs['iou_thresholds']:
+            eval_by_loc(
+                model,
+                val_loader_loc,
+                val_loader_loc_wl,
+                device,
+                modulate_by_cla,
+                iou_threshold=iou_threshold,
+                **kwargs)
+
+        print('Evaluating Test Data')
+        print('Modulated')
+        modulate_by_cla = True
+        eval_by_cla(
+            model,
+            test_loader_cla,
+            test_loader_cla_sl,
+            device,
+            modulate_by_cla,
+            **kwargs)
+
+        for iou_threshold in kwargs['iou_thresholds']:
+            eval_by_loc(
+                model,
+                test_loader_loc,
+                test_loader_loc_wl,
+                device,
+                modulate_by_cla,
+                iou_threshold=iou_threshold,
+                **kwargs)
+
+        print('Unmodulated')
+        modulate_by_cla = False
+        eval_by_cla(
+            model,
+            test_loader_cla,
+            test_loader_cla_sl,
+            device,
+            modulate_by_cla,
+            **kwargs)
+
+    metrics = []
 
     for iou_threshold in kwargs['iou_thresholds']:
-        eval_by_loc(
+        metric_at_iou_threshold = eval_by_loc(
             model,
             test_loader_loc,
             test_loader_loc_wl,
@@ -480,23 +511,7 @@ def evaluate(
             modulate_by_cla,
             iou_threshold=iou_threshold,
             **kwargs)
+        metrics.append(metric_at_iou_threshold)
 
-    print('Unmodulated')
-    modulate_by_cla = False
-    eval_by_cla(
-        model,
-        test_loader_cla,
-        test_loader_cla_sl,
-        device,
-        modulate_by_cla,
-        **kwargs)
-
-    for iou_threshold in kwargs['iou_thresholds']:
-        eval_by_loc(
-            model,
-            test_loader_loc,
-            test_loader_loc_wl,
-            device,
-            modulate_by_cla,
-            iou_threshold=iou_threshold,
-            **kwargs)
+    metrics = np.array(metrics, dtype=np.float32)
+    print(f'AP: {np.mean(metrics[:, 1])}, AR: {np.mean(metrics[:-1, 2])}')
