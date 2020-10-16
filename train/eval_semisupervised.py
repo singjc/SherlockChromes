@@ -515,4 +515,4 @@ def evaluate(
 
     metrics = np.array(metrics, dtype=np.float32)
     print(metrics)
-    print(f'AP: {np.mean(metrics[:, 1])}, AR: {np.mean(metrics[:-1, 2])}')
+    print(f'AP: {np.mean(metrics[:, 1])}, AR: {np.mean(metrics[:, 2])}')
