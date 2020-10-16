@@ -490,15 +490,15 @@ def evaluate(
                 iou_threshold=iou_threshold,
                 **kwargs)
 
-        print('Unmodulated')
-        modulate_by_cla = False
-        eval_by_cla(
-            model,
-            test_loader_cla,
-            test_loader_cla_sl,
-            device,
-            modulate_by_cla,
-            **kwargs)
+    print('Unmodulated')
+    modulate_by_cla = False
+    eval_by_cla(
+        model,
+        test_loader_cla,
+        test_loader_cla_sl,
+        device,
+        modulate_by_cla,
+        **kwargs)
 
     metrics = []
 
