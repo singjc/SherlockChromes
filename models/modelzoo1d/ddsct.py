@@ -107,10 +107,11 @@ class DynamicDepthSeparableConv1dMultiheadAttention(nn.Module):
                 c * heads,
                 kernel_sizes=kernel_sizes)
 
-        self.to_values = DynamicDepthSeparableConv1d(
+        self.to_values = nn.Conv1d(
             c,
             c * heads,
-            kernel_sizes=kernel_sizes)
+            1,
+            bias=False)
 
         # This unifies the outputs of the different heads into a single
         # c-vector
@@ -210,10 +211,11 @@ class DynamicDepthSeparableConv1dTemplateAttention(nn.Module):
                 qk_c * heads,
                 kernel_sizes=kernel_sizes)
 
-        self.to_values = DynamicDepthSeparableConv1d(
+        self.to_values = nn.Conv1d(
             v_c,
             v_c * heads,
-            kernel_sizes=kernel_sizes)
+            1,
+            bias=False)
 
         # This unifies the outputs of the different heads into a single
         # v_c-vector
