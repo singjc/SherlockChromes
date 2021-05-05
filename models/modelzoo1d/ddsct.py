@@ -1,5 +1,4 @@
 """Dynamic Depth Separable Convolutional Transformer"""
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -702,14 +701,13 @@ class DDSCTransformer(nn.Module):
             out_dict['attn'] = self.output_aggregator.get_trainable_attn(
                 norm=True)
             out_dict['loc'] = self.to_out_logits(out)
+        elif self.aggregator_mode == 'embed_multibranch':
+            pass
         else:
             raise NotImplementedError('invalid pooling method')
 
         if self.probs and 'embed' in self.aggregator_mode:
             for mode in ['loc', 'cla']:
-                if 'trainable_norm' in self.aggregator_mode and mode == 'loc':
-                    continue
-
                 out_dict[mode] = self.to_probs(out_dict[mode])
 
         for mode in out_dict:

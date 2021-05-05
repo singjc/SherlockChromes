@@ -134,6 +134,22 @@ def train(
             collate_fn,
             kwargs['outdir_path'])
 
+    if 'visualize' in kwargs and kwargs['visualize']:
+        wandb_spec = importlib.util.find_spec('wandb')
+        wandb_available = wandb_spec is not None
+
+        if wandb_available:
+            print('wandb detected!')
+            import wandb
+
+            wandb.init(
+                project='SherlockChromes',
+                group=kwargs['model_savename'],
+                name=wandb.util.generate_id(),
+                job_mode='train-semisupervised',
+                config=kwargs)
+            use_wandb = True
+
     if not optimizer:
         optimizer = torch.optim.AdamW(model.parameters())
 
@@ -181,7 +197,11 @@ def train(
                 kwargs['scheduler_step_on_iter']):
             scheduler.step()
 
-        print(f'Training - Epoch: {epoch} Avg loss: {(avg_loss / iters):.8f}')
+        loss_train = avg_loss / iters
+        print(f'Training - Epoch: {epoch} Avg loss: {loss_train:.8f}')
+
+        if use_wandb:
+            wandb.log({'Training loss': loss_train})
 
         labels_for_metrics = []
         outputs_for_metrics = []
@@ -205,42 +225,53 @@ def train(
                 ):
                     strong_preds = strong_preds * weak_preds
 
-                binarized_preds = np.where(strong_preds.cpu() >= 0.5, 1, 0)
-                inverse_binarized_preds = (1 - binarized_preds)
-                global_preds = np.zeros(labels.shape)
+                if 'postprocess' in kwargs and kwargs['postprocess']:
+                    binarized_preds = np.where(strong_preds.cpu() >= 0.5, 1, 0)
+                    inverse_binarized_preds = (1 - binarized_preds)
+                    global_preds = np.zeros(labels.shape)
 
-                for i in range(len(strong_preds)):
-                    if 'fill_gaps' in kwargs and kwargs['fill_gaps']:
-                        gaps = scipy.ndimage.find_objects(
-                            scipy.ndimage.label(inverse_binarized_preds[i])[0])
+                    for i in range(len(strong_preds)):
+                        if 'fill_gaps' in kwargs and kwargs['fill_gaps']:
+                            gaps = scipy.ndimage.find_objects(
+                                scipy.ndimage.label(inverse_binarized_preds[i])[0])
 
-                        for gap in gaps:
-                            gap = gap[0]
-                            gap_length = gap.stop - gap.start
+                            for gap in gaps:
+                                gap = gap[0]
+                                gap_length = gap.stop - gap.start
 
-                            if gap_length < 3:
-                                binarized_preds[i][gap.start:gap.stop] = 1
+                                if gap_length < 3:
+                                    binarized_preds[i][gap.start:gap.stop] = 1
 
-                    regions_of_interest = scipy.ndimage.find_objects(
-                        scipy.ndimage.label(binarized_preds[i])[0])
+                        regions_of_interest = scipy.ndimage.find_objects(
+                            scipy.ndimage.label(binarized_preds[i])[0])
 
-                    for roi in regions_of_interest:
-                        roi = roi[0]
-                        roi_length = roi.stop - roi.start
+                        for roi in regions_of_interest:
+                            roi = roi[0]
+                            roi_length = roi.stop - roi.start
 
-                        if 3 <= roi_length <= 36:
-                            global_preds[i] = 1
-                            break
+                            if 3 <= roi_length <= 36:
+                                global_preds[i] = 1
+                                break
 
-                outputs_for_metrics.append(global_preds)
-                loss_out = loss(
-                    torch.from_numpy(global_preds).to(device=device).float(),
-                    labels)
-                losses.append(loss_out.item())
+                    outputs_for_metrics.append(global_preds)
+                    loss_out = loss(
+                        torch.from_numpy(global_preds).to(device=device).float(),
+                        labels)
+                    losses.append(loss_out.item())
+                    labels_for_metrics = np.concatenate(labels_for_metrics, axis=0)
+                    outputs_for_metrics = np.concatenate(outputs_for_metrics, axis=0)
+                else:
+                    outputs_for_metrics.append(
+                        strong_preds.cpu().detach().numpy())
+                    loss_out = loss(strong_preds, labels)
+                    losses.append(loss_out.cpu().detach().numpy())
+                    labels_for_metrics = np.concatenate(
+                        labels_for_metrics, axis=0).reshape(-1, 1)
+                    outputs_for_metrics = (
+                        np.concatenate(
+                            outputs_for_metrics, axis=0) >= 0.5).reshape(-1, 1)
 
         model.model.output_mode = orig_output_mode
-        labels_for_metrics = np.concatenate(labels_for_metrics, axis=0)
-        outputs_for_metrics = np.concatenate(outputs_for_metrics, axis=0)
         accuracy = accuracy_score(labels_for_metrics, outputs_for_metrics)
         bacc = balanced_accuracy_score(
             labels_for_metrics, outputs_for_metrics)
@@ -259,6 +290,19 @@ def train(
             f'Dice: {dice:.8f} '
             f'IoU: {iou:.8f} '
             f'Avg loss: {avg_loss:.8f} ')
+
+        if use_wandb:
+            wandb.log(
+                {
+                    'Accuracy': accuracy,
+                    'Balanced accuracy': bacc,
+                    'Precision': precision,
+                    'Recall': recall,
+                    'Dice': dice,
+                    'IoU': iou,
+                    'Validation loss': avg_loss
+                }
+            )
 
         save_path = ''
 
