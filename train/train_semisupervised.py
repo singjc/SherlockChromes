@@ -134,11 +134,14 @@ def train(
             collate_fn,
             kwargs['outdir_path'])
 
+    wandb_available = False
+
     if 'visualize' in kwargs and kwargs['visualize']:
         wandb_spec = importlib.util.find_spec('wandb')
         wandb_available = wandb_spec is not None
 
         if wandb_available:
+            kwargs
             print('wandb detected!')
             import wandb
 
@@ -148,7 +151,6 @@ def train(
                 name=wandb.util.generate_id(),
                 job_mode='train-semisupervised',
                 config=kwargs)
-            use_wandb = True
 
     if not optimizer:
         optimizer = torch.optim.AdamW(model.parameters())
@@ -200,8 +202,8 @@ def train(
         loss_train = avg_loss / iters
         print(f'Training - Epoch: {epoch} Avg loss: {loss_train:.8f}')
 
-        if use_wandb:
-            wandb.log({'Training loss': loss_train})
+        if wandb_available:
+            wandb.log({'Training Loss': loss_train})
 
         labels_for_metrics = []
         outputs_for_metrics = []
@@ -291,7 +293,7 @@ def train(
             f'IoU: {iou:.8f} '
             f'Avg loss: {avg_loss:.8f} ')
 
-        if use_wandb:
+        if wandb_available:
             wandb.log(
                 {
                     'Accuracy': accuracy,
@@ -300,7 +302,7 @@ def train(
                     'Recall': recall,
                     'Dice': dice,
                     'IoU': iou,
-                    'Validation loss': avg_loss
+                    'Validation Loss': avg_loss
                 }
             )
 
@@ -417,8 +419,7 @@ def train(
 
                     for roi in regions_of_interest:
                         mod_left_width, mod_right_width = None, None
-                        score = np.sum(strong_preds[i][roi.start:roi.stop])
-                        score = score / (roi.stop - roi.start)
+                        score = np.max(strong_preds[i][roi.start:roi.stop])
                         mod_left_width, mod_right_width = (
                             roi.start, roi.stop - 1)
 
@@ -441,12 +442,9 @@ def train(
 
                     if not negative[i] and not overlap_found:
                         # False Negative
-                        label_region_score = np.sum(
+                        label_region_score = np.max(
                             strong_preds[i][
                                 label_left_width:label_right_width + 1])
-                        label_region_score = (
-                            label_region_score
-                            / label_right_width + 1 - label_left_width)
                         y_true.append(1)
                         y_pred.append(0)
                         y_score.append(label_region_score)

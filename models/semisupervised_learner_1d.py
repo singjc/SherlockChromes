@@ -316,11 +316,6 @@ class SemiSupervisedLearner1d(nn.Module):
             reduction=loss_reduction
         )
 
-        if loss_logits:
-            self.to_out = nn.Sigmoid()
-        else:
-            self.to_out = nn.Identity()
-
         self.debug = debug
         self.save_normalized = save_normalized
         self.normalized = None
@@ -431,11 +426,10 @@ class SemiSupervisedLearner1d(nn.Module):
                         out_dict['loc']
                     )
 
-                    weak_pseudo_labels = (
-                        self.to_out(weak_output) >= 0.5).float()
+                    weak_pseudo_labels = (weak_output >= 0.5).float()
                     weak_quality_modulator = (
-                        (self.to_out(weak_output) >= self.threshold).float()
-                        + (self.to_out(weak_output) <= (1 - self.threshold))
+                        (weak_output >= self.threshold).float()
+                        + (weak_output <= (1 - self.threshold))
                     ).reshape(1, -1).squeeze()
 
                     # Variable required for cutmix
@@ -444,12 +438,10 @@ class SemiSupervisedLearner1d(nn.Module):
                     self.model.output_mode = 'loc'
                     strong_output = self.model(strongly_augmented)
 
-                strong_pseudo_labels = (
-                    self.to_out(strong_output) >= 0.5).float()
-
+                strong_pseudo_labels = (strong_output >= 0.5).float()
                 strong_quality_modulator = (
-                    (self.to_out(strong_output) >= self.threshold).float()
-                    + (self.to_out(strong_output) <= (1 - self.threshold))
+                    (strong_output >= self.threshold).float()
+                    + (strong_output <= (1 - self.threshold))
                 )
 
                 # Variable required for cutmix
@@ -620,7 +612,7 @@ class SemiSupervisedLearner1d(nn.Module):
             if self.save_normalized:
                 self.normalized = normalized
 
-            return self.to_out(self.model(normalized))
+            return self.model(normalized)
 
 
 # TODO: Update forward to match parent structure

@@ -507,6 +507,9 @@ if __name__ == "__main__":
     else:
         if args.mode == 'alignment':
             if args.calibrate:
+                if hasattr(model, 'set_output_probs'):
+                    model.set_output_probs(False)
+
                 model = calibrate(
                     calibration_dataset,
                     model,
@@ -517,7 +520,8 @@ if __name__ == "__main__":
                     template_dataset=template_dataset,
                     template_batch_size=args.template_batch_size)
             else:
-                model.probs = True
+                if hasattr(model, 'set_output_probs'):
+                    model.set_output_probs(True)
 
             output_array = create_output_array(
                 dataset,

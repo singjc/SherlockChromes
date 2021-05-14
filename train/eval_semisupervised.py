@@ -68,13 +68,11 @@ def eval_by_cla(
     loader,
     strong_label_loader,
     device='cpu',
-    modulate_by_cla=True,
     **kwargs
 ):
     labels_for_metrics = []
-    outputs_for_metrics = []
     scores_for_metrics = []
-    losses = []
+    outputs_for_metrics = []
     model.eval()
     orig_output_mode, model.model.output_mode = (
         model.model.output_mode, 'all')
@@ -90,51 +88,15 @@ def eval_by_cla(
                 labels.cpu().numpy().ravel() * derived_weak_labels)
             labels_for_metrics.append(labels)
             preds = model(batch)
-            strong_preds = preds['loc'].cpu().numpy()
             weak_preds = preds['cla'].cpu().numpy()
             scores_for_metrics.append(weak_preds)
-
-            if modulate_by_cla:
-                strong_preds = strong_preds * weak_preds
-
-            binarized_preds = np.where(
-                strong_preds >= kwargs['output_threshold'], 1, 0)
-            inverse_binarized_preds = (1 - binarized_preds)
-            global_preds = np.zeros(labels.shape)
-
-            for i in range(len(strong_preds)):
-                if 'fill_gaps' in kwargs and kwargs['fill_gaps']:
-                    gaps = scipy.ndimage.find_objects(
-                        scipy.ndimage.label(inverse_binarized_preds[i])[0])
-
-                    for gap in gaps:
-                        gap = gap[0]
-                        gap_length = gap.stop - gap.start
-
-                        if gap_length < kwargs['min_roi_length']:
-                            binarized_preds[i][gap.start:gap.stop] = 1
-
-                regions_of_interest = scipy.ndimage.find_objects(
-                    scipy.ndimage.label(binarized_preds[i])[0])
-
-                for roi in regions_of_interest:
-                    roi = roi[0]
-                    roi_length = roi.stop - roi.start
-
-                    if (
-                        kwargs['min_roi_length']
-                        <= roi_length
-                        <= kwargs['max_roi_length']
-                    ):
-                        global_preds[i] = 1
-                        break
-
-            outputs_for_metrics.append(global_preds)
+            outputs_for_metrics.append(
+                np.where(weak_preds >= kwargs['output_threshold'], 1, 0))
 
     model.model.output_mode = orig_output_mode
     labels_for_metrics = np.concatenate(labels_for_metrics, axis=0)
-    outputs_for_metrics = np.concatenate(outputs_for_metrics, axis=0)
     scores_for_metrics = np.concatenate(scores_for_metrics, axis=0)
+    outputs_for_metrics = np.concatenate(outputs_for_metrics, axis=0)
     accuracy = accuracy_score(labels_for_metrics, outputs_for_metrics)
     avg_precision = average_precision_score(
         labels_for_metrics, scores_for_metrics)
@@ -142,10 +104,23 @@ def eval_by_cla(
         labels_for_metrics, outputs_for_metrics)
     precision = precision_score(labels_for_metrics, outputs_for_metrics)
     recall = recall_score(labels_for_metrics, outputs_for_metrics)
-    dice = f1_score(labels_for_metrics, outputs_for_metrics)
-    iou = jaccard_score(labels_for_metrics, outputs_for_metrics)
     tn, fp, fn, tp = confusion_matrix(
         labels_for_metrics, outputs_for_metrics).ravel()
+
+    if kwargs['visualize']:
+        wandb.log(
+            {
+                'Classification Accuracy': accuracy,
+                'Classification Average Precision': avg_precision,
+                'Classification Balanced Accuracy': bacc,
+                'Classification Precision': precision,
+                'Classification Recall': recall,
+                'Classification True Negatives Count': tn,
+                'Classification False Positives Count': fp,
+                'Classification False Negatives Count': fn,
+                'Classification True Positives Count': tp,
+            }
+        )
 
     print(
         'Eval By Cla Performance - '
@@ -154,8 +129,6 @@ def eval_by_cla(
         f'Balanced accuracy: {bacc:.4f} '
         f'Precision: {precision:.4f} '
         f'Recall: {recall:.4f} '
-        f'Dice: {dice:.4f} '
-        f'IoU: {iou:.4f} '
         f'TN/FP/FN/TP: {tn}/{fp}/{fn}/{tp}')
 
 
@@ -169,6 +142,7 @@ def eval_by_loc(
     **kwargs
 ):
     y_true, y_pred, y_score = [], [], []
+    gt, masks = [], []
     model.eval()
     orig_output_mode, model.model.output_mode = (
         model.model.output_mode, 'all')
@@ -180,6 +154,7 @@ def eval_by_loc(
         with torch.no_grad():
             batch = batch.to(device=device)
             strong_labels = labels.to(device=device)
+            gt.append(strong_labels)
             _, weak_labels = next(weak_label_loader)
             derived_weak_labels = torch.max(
                 strong_labels, dim=1)[0].cpu().numpy().ravel()
@@ -198,6 +173,7 @@ def eval_by_loc(
                 strong_preds >= kwargs['output_threshold'], 1, 0).astype(
                     np.int32)
             inverse_binarized_preds = (1 - binarized_preds)
+            mask = np.zeros(binarized_preds.shape)
 
             for i in range(len(strong_preds)):
                 txt_line_num += 1
@@ -248,6 +224,7 @@ def eval_by_loc(
                     best_region_idx = np.argmax(scores)
                     score = scores[best_region_idx]
                     best_region = regions_of_interest[best_region_idx]
+                    mask[i][roi.start:roi.stop] = 1
 
                     if negative[i] or not overlaps(
                         best_region.start,
@@ -270,6 +247,7 @@ def eval_by_loc(
 
                 for roi in regions_of_interest:
                     score = np.max(strong_preds[i][roi.start:roi.stop])
+                    mask[i][roi.start:roi.stop] = 1
 
                     if negative[i] or not overlaps(
                         roi.start,
@@ -299,32 +277,54 @@ def eval_by_loc(
                     y_pred.append(0)
                     y_score.append(label_region_score)
 
+            masks.append(mask)
+
     model.model.output_mode = orig_output_mode
     y_true, y_pred, y_score = (
         np.array(y_true, dtype=np.int32),
         np.array(y_pred, dtype=np.int32),
         np.array(y_score, dtype=np.float32))
+    gt = np.concatenate(gt, axis=0).reshape(-1, 1)
+    masks = np.concatenate(masks, axis=0).reshape(-1, 1)
     accuracy = accuracy_score(y_true, y_pred)
     avg_precision = average_precision_score(y_true, y_score)
     bacc = balanced_accuracy_score(
         y_true, y_pred)
     precision = precision_score(y_true, y_pred)
     recall = recall_score(y_true, y_pred)
-    dice = f1_score(y_true, y_pred)
-    iou = jaccard_score(y_true, y_pred)
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+    dice = f1_score(gt, masks)
+    iou = jaccard_score(gt, masks)
+
+    if kwargs['visualize']:
+        wandb.log(
+            {
+                'Detection Accuracy': accuracy,
+                'Detection Average Precision': avg_precision,
+                'Detection Balanced Accuracy': bacc,
+                'Detection Precision': precision,
+                'Detection Recall': recall,
+                'Detection True Negatives Count': tn,
+                'Detection False Positives Count': fp,
+                'Detection False Negatives Count': fn,
+                'Detection True Positives Count': tp,
+                'Segmentation Dice/F1': dice,
+                'Segmentation IoU/Jaccard': iou
+            }
+        )
 
     if 'calc_only' not in kwargs or not kwargs['calc_only']:
         print(
-            f'Eval By Loc Performance - '
+            'Eval By Loc Performance (Detections) - '
             f'Accuracy: {accuracy:.4f} '
             f'Avg precision: {avg_precision:.4f} '
             f'Balanced accuracy: {bacc:.4f} '
             f'Precision: {precision:.4f} '
             f'Recall: {recall:.4f} '
+            f'TN/FP/FN/TP: {tn}/{fp}/{fn}/{tp} '
+            '(Segmentation Mask) - '
             f'Dice: {dice:.4f} '
-            f'IoU: {iou:.4f} '
-            f'TN/FP/FN/TP: {tn}/{fp}/{fn}/{tp}')
+            f'IoU: {iou:.4f}')
 
     if 'print_failures' in kwargs and kwargs['print_failures']:
         print(set(false_positive_line_nums))
@@ -392,6 +392,25 @@ def evaluate(
     if 'max_roi_length' not in kwargs:
         kwargs['max_roi_length'] = 36
 
+    if 'visualize' in kwargs and kwargs['visualize']:
+        wandb_spec = importlib.util.find_spec('wandb')
+        wandb_available = wandb_spec is not None
+
+        if wandb_available:
+            print('wandb detected!')
+            import wandb
+
+            wandb.init(
+                project='SherlockChromes',
+                group=kwargs['model_savename'],
+                name=wandb.util.generate_id(),
+                job_mode='eval-semisupervised',
+                config=kwargs)
+        else:
+            kwargs['visualize'] = False
+    else:
+        kwargs['visualize'] = False
+
     val_loader_cla, test_loader_cla = get_data_loaders(
         data,
         kwargs['test_batch_proportion'],
@@ -420,8 +439,6 @@ def evaluate(
         kwargs['batch_size'],
         sampling_fn,
         collate_fn)
-    val_loader_cla_sl, test_loader_cla_sl = (
-        iter(cycle(val_loader_cla_sl)), iter(cycle(test_loader_cla_sl)))
     val_loader_loc_wl, test_loader_loc_wl = (
         iter(cycle(val_loader_loc_wl)), iter(cycle(test_loader_loc_wl)))
 
@@ -429,15 +446,15 @@ def evaluate(
 
     if 'calc_only' not in kwargs or not kwargs['calc_only']:
         print('Evaluating Val Data')
-        print('Modulated')
-        modulate_by_cla = True
         eval_by_cla(
             model,
             val_loader_cla,
             val_loader_cla_sl,
             device,
-            modulate_by_cla,
             **kwargs)
+
+        print('Modulated')
+        modulate_by_cla = True
 
         for iou_threshold in kwargs['iou_thresholds']:
             eval_by_loc(
@@ -451,13 +468,6 @@ def evaluate(
 
         print('Unmodulated')
         modulate_by_cla = False
-        eval_by_cla(
-            model,
-            val_loader_cla,
-            val_loader_cla_sl,
-            device,
-            modulate_by_cla,
-            **kwargs)
 
         for iou_threshold in kwargs['iou_thresholds']:
             eval_by_loc(
@@ -470,15 +480,15 @@ def evaluate(
                 **kwargs)
 
         print('Evaluating Test Data')
-        print('Modulated')
-        modulate_by_cla = True
         eval_by_cla(
             model,
             test_loader_cla,
             test_loader_cla_sl,
             device,
-            modulate_by_cla,
             **kwargs)
+
+        print('Modulated')
+        modulate_by_cla = True
 
         for iou_threshold in kwargs['iou_thresholds']:
             eval_by_loc(
@@ -492,14 +502,6 @@ def evaluate(
 
     print('Unmodulated')
     modulate_by_cla = False
-    eval_by_cla(
-        model,
-        test_loader_cla,
-        test_loader_cla_sl,
-        device,
-        modulate_by_cla,
-        **kwargs)
-
     metrics = []
 
     for iou_threshold in kwargs['iou_thresholds']:

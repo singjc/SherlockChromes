@@ -23,6 +23,13 @@ def main(
 
             for model_filename in model_filenames:
                 model = torch.load(model_filename)
+
+                if hasattr(model, 'get_model'):
+                    model = model.get_model()
+
+                if hasattr(model, 'set_output_probs'):
+                    model.set_output_probs(True)
+
                 print(f'Loaded {model_filename}')
 
                 evaluate(
@@ -58,10 +65,4 @@ def main(
 
                         eval_kwargs[key] = val
     else:
-        evaluate(
-            data,
-            model,
-            sampling_fn,
-            collate_fn,
-            device,
-            **eval_kwargs)
+        raise NotImplementedError('Interactive mode only!')

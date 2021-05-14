@@ -425,7 +425,7 @@ class TimeSeriesQueryAttentionPooling(nn.Module):
                 self.c_q * self.heads,
                 self.c_q * self.heads,
                 num_layers=3,
-                activation='selu')
+                activation='relu')
         else:
             self.to_keys = None
 
@@ -583,15 +583,23 @@ class DDSCTransformer(nn.Module):
                 aggregator_channels,
                 1,
                 num_layers=aggregator_num_layers,
-                activation='selu')
+                activation='relu')
 
-        # Maps the final sequence embedding(s) to logits
-        self.to_out_logits = Conv1dFeedForwardNetwork(
+        if 'embed' in self.aggregator_mode:
+            self.to_cla_logits = Conv1dFeedForwardNetwork(
+                t_out_channels,
+                t_out_channels,
+                output_num_classes,
+                num_layers=output_num_layers,
+                activation='relu')
+
+        # Maps the final sequence embeddings to logits
+        self.to_loc_logits = Conv1dFeedForwardNetwork(
             t_out_channels,
             t_out_channels,
             output_num_classes,
             num_layers=output_num_layers,
-            activation='selu')
+            activation='relu')
 
         # Maps the final logits to probabilities
         if output_num_classes > 1 and not multilabel:
@@ -642,20 +650,20 @@ class DDSCTransformer(nn.Module):
         out_dict['attn'] = torch.zeros(b, 1, length)
 
         if self.aggregator_mode == 'instance_max_pool':
-            out_dict['loc'] = self.to_probs(self.to_out_logits(out))
+            out_dict['loc'] = self.to_probs(self.to_loc_logits(out))
             out_dict['cla'] = out_dict['loc'].max(dim=2)[0]
         elif self.aggregator_mode == 'embed_max_pool':
-            out_dict['loc'] = self.to_out_logits(out)
-            out_dict['cla'] = self.to_out_logits(
+            out_dict['loc'] = self.to_loc_logits(out)
+            out_dict['cla'] = self.to_cla_logits(
                 out.max(dim=2, keepdim=True)[0])
         elif self.aggregator_mode == 'instance_avg_pool':
-            out_dict['loc'] = self.to_probs(self.to_out_logits(out))
+            out_dict['loc'] = self.to_probs(self.to_loc_logits(out))
             out_dict['cla'] = out_dict['loc'].mean(dim=2)
         elif self.aggregator_mode == 'embed_avg_pool':
-            out_dict['loc'] = self.to_out_logits(out)
-            out_dict['cla'] = self.to_out_logits(out.mean(dim=2, keepdim=True))
+            out_dict['loc'] = self.to_loc_logits(out)
+            out_dict['cla'] = self.to_cla_logits(out.mean(dim=2, keepdim=True))
         elif self.aggregator_mode == 'instance_linear_softmax':
-            out_dict['loc'] = self.to_out_logits(out)
+            out_dict['loc'] = self.to_loc_logits(out)
             attn = torch.sigmoid(out_dict['loc'])
             out_dict['loc'] = self.to_probs(out_dict['loc'])
             attn = attn / torch.sum(attn, dim=2, keepdim=True)
@@ -663,44 +671,44 @@ class DDSCTransformer(nn.Module):
             out_dict['cla'] = torch.sum(
                 out_dict['loc'] * out_dict['attn'], dim=2)
         elif self.aggregator_mode == 'embed_linear_softmax':
-            out_dict['loc'] = self.to_out_logits(out)
+            out_dict['loc'] = self.to_loc_logits(out)
             attn = torch.sigmoid(out_dict['loc'])
             attn = attn / torch.sum(attn, dim=2, keepdim=True)
             out_dict['attn'] = attn
-            out_dict['cla'] = self.to_out_logits(
+            out_dict['cla'] = self.to_cla_logits(
                 torch.sum(out * out_dict['attn'], dim=2, keepdim=True))
         elif self.aggregator_mode == 'instance_exp_softmax':
-            out_dict['loc'] = self.to_out_logits(out)
+            out_dict['loc'] = self.to_loc_logits(out)
             attn = F.softmax(torch.sigmoid(out_dict['loc']), dim=2)
             out_dict['loc'] = self.to_probs(out_dict['loc'])
             out_dict['attn'] = attn
             out_dict['cla'] = torch.sum(
                 out_dict['loc'] * out_dict['attn'], dim=2)
         elif self.aggregator_mode == 'embed_exp_softmax':
-            out_dict['loc'] = self.to_out_logits(out)
+            out_dict['loc'] = self.to_loc_logits(out)
             attn = F.softmax(torch.sigmoid(out_dict['loc']), dim=2)
             out_dict['attn'] = attn
-            out_dict['cla'] = self.to_out_logits(
+            out_dict['cla'] = self.to_cla_logits(
                 torch.sum(out * out_dict['attn'], dim=2, keepdim=True))
         elif self.aggregator_mode == 'instance_attn_pool':
-            out_dict['loc'] = self.to_probs(self.to_out_logits(out))
+            out_dict['loc'] = self.to_probs(self.to_loc_logits(out))
             attn = torch.sigmoid(self.to_attn_logits(out))
             attn = attn / torch.sum(attn, dim=2, keepdim=True)
             out_dict['attn'] = attn
             out_dict['cla'] = torch.sum(
                 out_dict['loc'] * out_dict['attn'], dim=2, keepdim=True)
         elif self.aggregator_mode == 'embed_attn_pool':
-            out_dict['loc'] = self.to_out_logits(out)
+            out_dict['loc'] = self.to_loc_logits(out)
             attn = torch.sigmoid(self.to_attn_logits(out))
             attn = attn / torch.sum(attn, dim=2, keepdim=True)
             out_dict['attn'] = attn
-            out_dict['cla'] = self.to_out_logits(
+            out_dict['cla'] = self.to_cla_logits(
                 torch.sum(out * out_dict['attn'], dim=2, keepdim=True))
         elif self.aggregator_mode == 'embed_query_attn_pool':
-            out_dict['cla'] = self.to_out_logits(self.output_aggregator(out))
+            out_dict['cla'] = self.to_cla_logits(self.output_aggregator(out))
             out_dict['attn'] = self.output_aggregator.get_trainable_attn(
                 norm=True)
-            out_dict['loc'] = self.to_out_logits(out)
+            out_dict['loc'] = self.to_loc_logits(out)
         elif self.aggregator_mode == 'embed_multibranch':
             pass
         else:
