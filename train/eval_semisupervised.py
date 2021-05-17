@@ -110,15 +110,15 @@ def eval_by_cla(
     if kwargs['visualize']:
         wandb.log(
             {
-                'Classification Accuracy': accuracy,
-                'Classification Average Precision': avg_precision,
-                'Classification Balanced Accuracy': bacc,
-                'Classification Precision': precision,
-                'Classification Recall': recall,
-                'Classification True Negatives Count': tn,
-                'Classification False Positives Count': fp,
-                'Classification False Negatives Count': fn,
-                'Classification True Positives Count': tp,
+                'Chromatogram Accuracy': accuracy,
+                'Chromatogram Avg Precision': avg_precision,
+                'Chromatogram Balanced Accuracy': bacc,
+                'Chromatogram Precision': precision,
+                'Chromatogram Recall': recall,
+                'Chromatogram True Negatives Count': tn,
+                'Chromatogram False Positives Count': fp,
+                'Chromatogram False Negatives Count': fn,
+                'Chromatogram True Positives Count': tp,
             }
         )
 
@@ -299,32 +299,32 @@ def eval_by_loc(
     if kwargs['visualize']:
         wandb.log(
             {
-                'Detection Accuracy': accuracy,
-                'Detection Average Precision': avg_precision,
-                'Detection Balanced Accuracy': bacc,
-                'Detection Precision': precision,
-                'Detection Recall': recall,
-                'Detection True Negatives Count': tn,
-                'Detection False Positives Count': fp,
-                'Detection False Negatives Count': fn,
-                'Detection True Positives Count': tp,
-                'Segmentation Dice/F1': dice,
-                'Segmentation IoU/Jaccard': iou
+                'RoI Accuracy': accuracy,
+                'RoI Avg Precision': avg_precision,
+                'RoI Balanced Accuracy': bacc,
+                'RoI Precision': precision,
+                'RoI Recall': recall,
+                'RoI True Negatives Count': tn,
+                'RoI False Positives Count': fp,
+                'RoI False Negatives Count': fn,
+                'RoI True Positives Count': tp,
+                'Pixel Dice/F1': dice,
+                'Pixel IoU/Jaccard': iou
             }
         )
 
     if 'calc_only' not in kwargs or not kwargs['calc_only']:
         print(
-            'Eval By Loc Performance (Detections) - '
+            'Eval By Loc Performance (RoIs) - '
             f'Accuracy: {accuracy:.4f} '
             f'Avg precision: {avg_precision:.4f} '
             f'Balanced accuracy: {bacc:.4f} '
             f'Precision: {precision:.4f} '
             f'Recall: {recall:.4f} '
             f'TN/FP/FN/TP: {tn}/{fp}/{fn}/{tp} '
-            '(Segmentation Mask) - '
-            f'Dice: {dice:.4f} '
-            f'IoU: {iou:.4f}')
+            '(Pixels) - '
+            f'Dice/F1: {dice:.4f} '
+            f'IoU/Jaccard: {iou:.4f}')
 
     if 'print_failures' in kwargs and kwargs['print_failures']:
         print(set(false_positive_line_nums))

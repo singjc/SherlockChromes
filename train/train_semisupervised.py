@@ -193,21 +193,22 @@ def train(
             iter_loss = loss_out.item()
             avg_loss += iter_loss
 
-            print(f'Training - Iter: {iters} Iter loss: {iter_loss:.8f}')
+            print(f'Training - Iter: {iters} Iter Loss: {iter_loss:.8f}')
 
         if not ('scheduler_step_on_iter' in kwargs and
                 kwargs['scheduler_step_on_iter']):
             scheduler.step()
 
-        loss_train = avg_loss / iters
-        print(f'Training - Epoch: {epoch} Avg loss: {loss_train:.8f}')
+        avg_loss = avg_loss / iters
+        print(f'Training - Epoch: {epoch} Avg Loss: {avg_loss:.8f}')
 
         if wandb_available:
-            wandb.log({'Training Loss': loss_train})
+            wandb.log({'Training Loss': avg_loss})
 
         labels_for_metrics = []
         outputs_for_metrics = []
         losses = []
+        num_pos, num_neg = 0, 0
         model.eval()
         orig_output_mode, model.model.output_mode = (
             model.model.output_mode, 'all')
@@ -218,65 +219,26 @@ def train(
                 labels = labels.to(device=device)
                 labels_for_metrics.append(labels.cpu())
                 preds = model(batch)
-                strong_preds = preds['loc']
-                weak_preds = preds['cla']
+                strong_preds = preds['loc'].cpu().detach().numpy()
+                num_pos += np.sum(strong_preds >= 0.5)
+                num_neg += strong_preds.size - num_pos
+                weak_preds = preds['cla'].cpu().detach().numpy()
 
-                if (
-                    kwargs['use_weak_labels']
-                    or kwargs['enforce_weak_consistency']
-                ):
-                    strong_preds = strong_preds * weak_preds
-
-                if 'postprocess' in kwargs and kwargs['postprocess']:
-                    binarized_preds = np.where(strong_preds.cpu() >= 0.5, 1, 0)
-                    inverse_binarized_preds = (1 - binarized_preds)
-                    global_preds = np.zeros(labels.shape)
-
-                    for i in range(len(strong_preds)):
-                        if 'fill_gaps' in kwargs and kwargs['fill_gaps']:
-                            gaps = scipy.ndimage.find_objects(
-                                scipy.ndimage.label(inverse_binarized_preds[i])[0])
-
-                            for gap in gaps:
-                                gap = gap[0]
-                                gap_length = gap.stop - gap.start
-
-                                if gap_length < 3:
-                                    binarized_preds[i][gap.start:gap.stop] = 1
-
-                        regions_of_interest = scipy.ndimage.find_objects(
-                            scipy.ndimage.label(binarized_preds[i])[0])
-
-                        for roi in regions_of_interest:
-                            roi = roi[0]
-                            roi_length = roi.stop - roi.start
-
-                            if 3 <= roi_length <= 36:
-                                global_preds[i] = 1
-                                break
-
-                    outputs_for_metrics.append(global_preds)
-                    loss_out = loss(
-                        torch.from_numpy(global_preds).to(device=device).float(),
-                        labels)
-                    losses.append(loss_out.item())
-                    labels_for_metrics = np.concatenate(labels_for_metrics, axis=0)
-                    outputs_for_metrics = np.concatenate(outputs_for_metrics, axis=0)
+                if labels_for_metrics[-1].size == strong_preds.size:
+                    outputs_for_metrics.append(strong_preds)
                 else:
-                    outputs_for_metrics.append(
-                        strong_preds.cpu().detach().numpy())
-                    loss_out = loss(strong_preds, labels)
-                    losses.append(loss_out.cpu().detach().numpy())
-                    labels_for_metrics = np.concatenate(
-                        labels_for_metrics, axis=0).reshape(-1, 1)
-                    outputs_for_metrics = (
-                        np.concatenate(
-                            outputs_for_metrics, axis=0) >= 0.5).reshape(-1, 1)
+                    outputs_for_metrics.append(weak_preds)
 
+                loss_out = loss(strong_preds, labels).cpu().detach().numpy()
+                losses.append(loss_out)
+        
+        labels_for_metrics = np.concatenate(
+            labels_for_metrics, axis=0).reshape(-1, 1)
+        outputs_for_metrics = (
+            np.concatenate(outputs_for_metrics, axis=0) >= 0.5).reshape(-1, 1)
         model.model.output_mode = orig_output_mode
         accuracy = accuracy_score(labels_for_metrics, outputs_for_metrics)
-        bacc = balanced_accuracy_score(
-            labels_for_metrics, outputs_for_metrics)
+        bacc = balanced_accuracy_score(labels_for_metrics, outputs_for_metrics)
         precision = precision_score(labels_for_metrics, outputs_for_metrics)
         recall = recall_score(labels_for_metrics, outputs_for_metrics)
         dice = f1_score(labels_for_metrics, outputs_for_metrics)
@@ -286,22 +248,24 @@ def train(
         print(
             f'Validation - Epoch: {epoch} '
             f'Accuracy: {accuracy:.8f} '
-            f'Balanced accuracy: {bacc:.8f} '
+            f'Balanced Accuracy: {bacc:.8f} '
             f'Precision: {precision:.8f} '
             f'Recall: {recall:.8f} '
-            f'Dice: {dice:.8f} '
-            f'IoU: {iou:.8f} '
-            f'Avg loss: {avg_loss:.8f} ')
+            f'Dice/F1: {dice:.8f} '
+            f'IoU/Jaccard: {iou:.8f} '
+            f'Avg Loss: {avg_loss:.8f} '
+            f'Positive Pixel Count: {num_pos} '
+            f'Negative Pixel Count: {num_neg}')
 
         if wandb_available:
             wandb.log(
                 {
                     'Accuracy': accuracy,
-                    'Balanced accuracy': bacc,
+                    'Balanced Accuracy': bacc,
                     'Precision': precision,
                     'Recall': recall,
-                    'Dice': dice,
-                    'IoU': iou,
+                    'Dice/F1': dice,
+                    'IoU/Jaccard': iou,
                     'Validation Loss': avg_loss
                 }
             )
@@ -357,6 +321,7 @@ def train(
                 torch.save(model.state_dict(), save_path)
 
         y_true, y_pred, y_score = [], [], []
+        gt, masks = [], []
         model.eval()
         orig_output_mode, model.model.output_mode = (
             model.model.output_mode, 'all')
@@ -365,6 +330,7 @@ def train(
             with torch.no_grad():
                 batch = batch.to(device=device)
                 strong_labels = labels.to(device=device)
+                gt.append(strong_labels)
                 weak_labels = torch.max(strong_labels, dim=1)[0].cpu().numpy()
                 strong_labels = strong_labels.cpu().numpy()
                 negative = 1 - weak_labels
@@ -383,6 +349,7 @@ def train(
                 binarized_preds = np.where(
                     strong_preds >= 0.5, 1, 0).astype(np.int32)
                 inverse_binarized_preds = (1 - binarized_preds)
+                mask = np.zeros(binarized_preds.shape)
 
                 for i in range(len(strong_preds)):
                     if 'fill_gaps' in kwargs and kwargs['fill_gaps']:
@@ -420,6 +387,7 @@ def train(
                     for roi in regions_of_interest:
                         mod_left_width, mod_right_width = None, None
                         score = np.max(strong_preds[i][roi.start:roi.stop])
+                        mask[i][roi.start:roi.stop] = 1
                         mod_left_width, mod_right_width = (
                             roi.start, roi.stop - 1)
 
@@ -449,29 +417,33 @@ def train(
                         y_pred.append(0)
                         y_score.append(label_region_score)
 
+                masks.append(mask)
+
         model.model.output_mode = orig_output_mode
         y_true, y_pred, y_score = (
             np.array(y_true, dtype=np.int32),
             np.array(y_pred, dtype=np.int32),
             np.array(y_score, dtype=np.float32))
+        gt = np.concatenate(gt, axis=0).reshape(-1, 1)
+        masks = np.concatenate(masks, axis=0).reshape(-1, 1)
         accuracy = accuracy_score(y_true, y_pred)
         avg_precision = average_precision_score(y_true, y_score)
         bacc = balanced_accuracy_score(
             y_true, y_pred)
         precision = precision_score(y_true, y_pred)
         recall = recall_score(y_true, y_pred)
-        dice = f1_score(y_true, y_pred)
-        iou = jaccard_score(y_true, y_pred)
+        dice = f1_score(gt, masks)
+        iou = jaccard_score(gt, masks)
 
         print(
             f'Test - Epoch: {epoch} '
-            f'Accuracy: {accuracy:.4f} '
-            f'Avg precision: {avg_precision:.4f} '
-            f'Balanced accuracy: {bacc:.4f} '
-            f'Precision: {precision:.4f} '
-            f'Recall: {recall:.4f} '
-            f'Dice: {dice:.4f} '
-            f'IoU: {iou:.4f}')
+            f'RoI Accuracy: {accuracy:.4f} '
+            f'RoI Avg Precision: {avg_precision:.4f} '
+            f'RoI Balanced Accuracy: {bacc:.4f} '
+            f'RoI Precision: {precision:.4f} '
+            f'RoI Recall: {recall:.4f} '
+            f'Pixel Dice/F1: {dice:.4f} '
+            f'Pixel IoU/Jaccard: {iou:.4f}')
 
     save_path = save_path = os.path.join(
                 kwargs['outdir_path'],
