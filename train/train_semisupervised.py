@@ -217,7 +217,7 @@ def train(
             with torch.no_grad():
                 batch = batch.to(device=device)
                 labels = labels.to(device=device)
-                labels_for_metrics.append(labels.cpu())
+                labels_for_metrics.append(labels.cpu().numpy())
                 preds = model(batch)
                 strong_preds = preds['loc']
                 num_pos += np.sum(strong_preds.cpu().detach().numpy() >= 0.5)
