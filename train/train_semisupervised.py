@@ -221,7 +221,7 @@ def train(
                 preds = model(batch)
                 strong_preds = preds['loc']
                 num_pos += np.sum(strong_preds.cpu().detach().numpy() >= 0.5)
-                num_neg += strong_preds.size()[0] - num_pos
+                num_neg += strong_preds.numel() - num_pos
                 weak_preds = preds['cla']
                 loss_preds = None
 
@@ -331,99 +331,99 @@ def train(
         orig_output_mode, model.model.output_mode = (
             model.model.output_mode, 'all')
 
-        for batch, labels in test_loader:
-            with torch.no_grad():
-                batch = batch.to(device=device)
-                strong_labels = labels.to(device=device)
-                strong_labels = strong_labels.cpu().detach().numpy()
-                gt.append(strong_labels)
-                weak_labels = torch.max(
-                    strong_labels, dim=1)[0].cpu().detach().numpy()
-                negative = 1 - weak_labels
-                preds = model(batch)
-                strong_preds = preds['loc']
-                weak_preds = preds['cla']
+    for batch, labels in test_loader:
+        with torch.no_grad():
+            batch = batch.to(device=device)
+            strong_labels = labels.to(device=device)
+            weak_labels = torch.max(
+                strong_labels, dim=1)[0].cpu().detach().numpy()
+            strong_labels = strong_labels.cpu().detach().numpy()
+            gt.append(strong_labels)
+            negative = 1 - weak_labels
+            preds = model(batch)
+            strong_preds = preds['loc']
+            weak_preds = preds['cla']
 
-                if (
-                    kwargs['use_weak_labels']
-                    or kwargs['enforce_weak_consistency']
-                ):
-                    strong_preds = strong_preds * weak_preds
+            if (
+                kwargs['use_weak_labels']
+                or kwargs['enforce_weak_consistency']
+            ):
+                strong_preds = strong_preds * weak_preds
 
-                strong_preds = strong_preds.cpu().numpy()
-                weak_preds = weak_preds.cpu().numpy()
-                binarized_preds = np.where(
-                    strong_preds >= 0.5, 1, 0).astype(np.int32)
-                inverse_binarized_preds = (1 - binarized_preds)
-                mask = np.zeros(binarized_preds.shape)
+            strong_preds = strong_preds.cpu().numpy()
+            weak_preds = weak_preds.cpu().numpy()
+            binarized_preds = np.where(
+                strong_preds >= 0.5, 1, 0).astype(np.int32)
+            inverse_binarized_preds = (1 - binarized_preds)
+            mask = np.zeros(binarized_preds.shape)
 
-                for i in range(len(strong_preds)):
-                    if 'fill_gaps' in kwargs and kwargs['fill_gaps']:
-                        gaps = scipy.ndimage.find_objects(
-                            scipy.ndimage.label(inverse_binarized_preds[i])[0])
+            for i in range(len(strong_preds)):
+                if 'fill_gaps' in kwargs and kwargs['fill_gaps']:
+                    gaps = scipy.ndimage.find_objects(
+                        scipy.ndimage.label(inverse_binarized_preds[i])[0])
 
-                        for gap in gaps:
-                            gap = gap[0]
-                            gap_length = gap.stop - gap.start
+                    for gap in gaps:
+                        gap = gap[0]
+                        gap_length = gap.stop - gap.start
 
-                            if gap_length < 3:
-                                binarized_preds[i][gap.start:gap.stop] = 1
+                        if gap_length < 3:
+                            binarized_preds[i][gap.start:gap.stop] = 1
 
-                    label_left_width, label_right_width = None, None
+                label_left_width, label_right_width = None, None
 
-                    if not negative[i]:
-                        label_idx = np.argwhere(
-                            strong_labels[i] == 1).astype(np.int32).ravel()
-                        label_left_width, label_right_width = (
-                            label_idx[0], label_idx[-1])
+                if not negative[i]:
+                    label_idx = np.argwhere(
+                        strong_labels[i] == 1).astype(np.int32).ravel()
+                    label_left_width, label_right_width = (
+                        label_idx[0], label_idx[-1])
 
-                    regions_of_interest = scipy.ndimage.find_objects(
-                        scipy.ndimage.label(binarized_preds[i])[0])
-                    regions_of_interest = [
-                        roi[0] for roi in regions_of_interest
-                        if 3 <= roi[0].stop - roi[0].start <= 36]
-                    overlap_found = False
+                regions_of_interest = scipy.ndimage.find_objects(
+                    scipy.ndimage.label(binarized_preds[i])[0])
+                regions_of_interest = [
+                    roi[0] for roi in regions_of_interest
+                    if 3 <= roi[0].stop - roi[0].start <= 36]
+                overlap_found = False
 
-                    if negative[i] and not regions_of_interest:
-                        # True Negative
+                if negative[i] and not regions_of_interest:
+                    # True Negative
+                    y_true.append(0)
+                    y_pred.append(0)
+                    y_score.append(0)
+
+                for roi in regions_of_interest:
+                    mod_left_width, mod_right_width = None, None
+                    score = np.max(strong_preds[i][roi.start:roi.stop])
+                    mask[i][roi.start:roi.stop] = 1
+                    mod_left_width, mod_right_width = (
+                        roi.start, roi.stop - 1)
+
+                    if negative[i] or not overlaps(
+                        mod_left_width,
+                        mod_right_width + 1,
+                        label_left_width,
+                        label_right_width + 1,
+                        iou_threshold=kwargs['iou_threshold']
+                    ):
+                        # False Positive
                         y_true.append(0)
-                        y_pred.append(0)
-                        y_score.append(0)
-
-                    for roi in regions_of_interest:
-                        mod_left_width, mod_right_width = None, None
-                        score = np.max(strong_preds[i][roi.start:roi.stop])
-                        mask[i][roi.start:roi.stop] = 1
-                        mod_left_width, mod_right_width = (
-                            roi.start, roi.stop - 1)
-
-                        if negative[i] or not overlaps(
-                            mod_left_width,
-                            mod_right_width + 1,
-                            label_left_width,
-                            label_right_width + 1,
-                            iou_threshold=kwargs['iou_threshold']
-                        ):
-                            # False Positive
-                            y_true.append(0)
-                        else:
-                            # True Positive
-                            y_true.append(1)
-                            overlap_found = True
-
-                        y_pred.append(1)
-                        y_score.append(score)
-
-                    if not negative[i] and not overlap_found:
-                        # False Negative
-                        label_region_score = np.max(
-                            strong_preds[i][
-                                label_left_width:label_right_width + 1])
+                    else:
+                        # True Positive
                         y_true.append(1)
-                        y_pred.append(0)
-                        y_score.append(label_region_score)
+                        overlap_found = True
 
-                masks.append(mask)
+                    y_pred.append(1)
+                    y_score.append(score)
+
+                if not negative[i] and not overlap_found:
+                    # False Negative
+                    label_region_score = np.max(
+                        strong_preds[i][
+                            label_left_width:label_right_width + 1])
+                    y_true.append(1)
+                    y_pred.append(0)
+                    y_score.append(label_region_score)
+
+            masks.append(mask)
 
         model.model.output_mode = orig_output_mode
         y_true, y_pred, y_score = (
