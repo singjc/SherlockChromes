@@ -83,9 +83,8 @@ def eval_by_cla(
             labels = labels.to(device=device)
             _, strong_labels = next(strong_label_loader)
             derived_weak_labels = torch.max(
-                strong_labels, dim=1)[0].cpu().detach().numpy().ravel()
-            labels = (
-                labels.cpu().detach().numpy().ravel() * derived_weak_labels)
+                strong_labels, dim=1)[0].cpu().numpy().ravel()
+            labels = (labels.cpu().numpy().ravel() * derived_weak_labels)
             labels_for_metrics.append(labels)
             preds = model(batch)
             weak_preds = preds['cla'].cpu().detach().numpy()
@@ -156,12 +155,10 @@ def eval_by_loc(
             strong_labels = labels.to(device=device)
             _, weak_labels = next(weak_label_loader)
             derived_weak_labels = torch.max(
-                strong_labels, dim=1)[0].cpu().detach().numpy().ravel()
+                strong_labels, dim=1)[0].cpu().numpy().ravel()
             weak_labels = (
-                weak_labels.cpu().detach().numpy().ravel() *
-                derived_weak_labels
-            )
-            strong_labels = strong_labels.cpu().detach().numpy()
+                weak_labels.cpu().numpy().ravel() * derived_weak_labels)
+            strong_labels = strong_labels.cpu().numpy()
             gt.append(strong_labels)
             negative = 1 - weak_labels
             preds = model(batch)

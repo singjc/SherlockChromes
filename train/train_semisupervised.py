@@ -234,7 +234,7 @@ def train(
                     outputs_for_metrics.append(
                         loss_preds.cpu().detach().numpy())
 
-                loss_out = loss(loss_preds, labels).cpu().detach().numpy()
+                loss_out = loss(loss_preds, labels).cpu().numpy()
                 losses.append(loss_out)
         
         labels_for_metrics = np.concatenate(
@@ -335,9 +335,8 @@ def train(
         with torch.no_grad():
             batch = batch.to(device=device)
             strong_labels = labels.to(device=device)
-            weak_labels = torch.max(
-                strong_labels, dim=1)[0].cpu().detach().numpy()
-            strong_labels = strong_labels.cpu().detach().numpy()
+            weak_labels = torch.max(strong_labels, dim=1)[0].cpu().numpy()
+            strong_labels = strong_labels.cpu().numpy()
             gt.append(strong_labels)
             negative = 1 - weak_labels
             preds = model(batch)
