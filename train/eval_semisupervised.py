@@ -83,12 +83,12 @@ def eval_by_cla(
             labels = labels.to(device=device)
             _, strong_labels = next(strong_label_loader)
             derived_weak_labels = torch.max(
-                strong_labels, dim=1)[0].cpu().numpy().ravel()
+                strong_labels, dim=1)[0].cpu().detach().numpy().ravel()
             labels = (
-                labels.cpu().numpy().ravel() * derived_weak_labels)
+                labels.cpu().detach().numpy().ravel() * derived_weak_labels)
             labels_for_metrics.append(labels)
             preds = model(batch)
-            weak_preds = preds['cla'].cpu().numpy()
+            weak_preds = preds['cla'].cpu().detach().numpy()
             scores_for_metrics.append(weak_preds)
             outputs_for_metrics.append(
                 np.where(weak_preds >= kwargs['output_threshold'], 1, 0))
@@ -154,17 +154,19 @@ def eval_by_loc(
         with torch.no_grad():
             batch = batch.to(device=device)
             strong_labels = labels.to(device=device)
-            gt.append(strong_labels)
             _, weak_labels = next(weak_label_loader)
             derived_weak_labels = torch.max(
-                strong_labels, dim=1)[0].cpu().numpy().ravel()
+                strong_labels, dim=1)[0].cpu().detach().numpy().ravel()
             weak_labels = (
-                weak_labels.cpu().numpy().ravel() * derived_weak_labels)
-            strong_labels = strong_labels.cpu().numpy()
+                weak_labels.cpu().detach().numpy().ravel() *
+                derived_weak_labels
+            )
+            strong_labels = strong_labels.cpu().detach().numpy()
+            gt.append(strong_labels)
             negative = 1 - weak_labels
             preds = model(batch)
-            strong_preds = preds['loc'].cpu().numpy()
-            weak_preds = preds['cla'].cpu().numpy()
+            strong_preds = preds['loc'].cpu().detach().numpy()
+            weak_preds = preds['cla'].cpu().detach().numpy()
 
             if modulate_by_cla:
                 strong_preds = strong_preds * weak_preds

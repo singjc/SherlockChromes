@@ -335,9 +335,10 @@ def train(
             with torch.no_grad():
                 batch = batch.to(device=device)
                 strong_labels = labels.to(device=device)
+                strong_labels = strong_labels.cpu().detach().numpy()
                 gt.append(strong_labels)
-                weak_labels = torch.max(strong_labels, dim=1)[0].cpu().numpy()
-                strong_labels = strong_labels.cpu().numpy()
+                weak_labels = torch.max(
+                    strong_labels, dim=1)[0].cpu().detach().numpy()
                 negative = 1 - weak_labels
                 preds = model(batch)
                 strong_preds = preds['loc']
