@@ -225,7 +225,7 @@ def train(
                 weak_preds = preds['cla']
                 loss_preds = None
 
-                if labels_for_metrics[-1].size == strong_preds.size:
+                if labels_for_metrics[-1].size == strong_preds.numel():
                     loss_preds = strong_preds
                     outputs_for_metrics.append(
                         loss_preds.cpu().detach().numpy())
