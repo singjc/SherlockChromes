@@ -223,15 +223,18 @@ def train(
                 num_pos += np.sum(strong_preds.cpu().detach().numpy() >= 0.5)
                 num_neg += strong_preds.size()[0] - num_pos
                 weak_preds = preds['cla']
+                loss_preds = None
 
                 if labels_for_metrics[-1].size == strong_preds.size:
+                    loss_preds = strong_preds
                     outputs_for_metrics.append(
-                        strong_preds.cpu().detach().numpy())
+                        loss_preds.cpu().detach().numpy())
                 else:
+                    loss_preds = weak_preds
                     outputs_for_metrics.append(
-                        weak_preds.cpu().detach().numpy())
+                        loss_preds.cpu().detach().numpy())
 
-                loss_out = loss(strong_preds, labels).cpu().detach().numpy()
+                loss_out = loss(loss_preds, labels).cpu().detach().numpy()
                 losses.append(loss_out)
         
         labels_for_metrics = np.concatenate(
