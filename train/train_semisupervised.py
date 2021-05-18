@@ -220,8 +220,8 @@ def train(
                 labels_for_metrics.append(labels.cpu())
                 preds = model(batch)
                 strong_preds = preds['loc']
-                num_pos += np.sum(strong_preds >= 0.5)
-                num_neg += strong_preds.size - num_pos
+                num_pos += np.sum(strong_preds.cpu().detach().numpy() >= 0.5)
+                num_neg += strong_preds.size()[0] - num_pos
                 weak_preds = preds['cla']
 
                 if labels_for_metrics[-1].size == strong_preds.size:
