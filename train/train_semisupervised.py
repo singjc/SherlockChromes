@@ -219,15 +219,17 @@ def train(
                 labels = labels.to(device=device)
                 labels_for_metrics.append(labels.cpu())
                 preds = model(batch)
-                strong_preds = preds['loc'].cpu().detach().numpy()
+                strong_preds = preds['loc']
                 num_pos += np.sum(strong_preds >= 0.5)
                 num_neg += strong_preds.size - num_pos
-                weak_preds = preds['cla'].cpu().detach().numpy()
+                weak_preds = preds['cla']
 
                 if labels_for_metrics[-1].size == strong_preds.size:
-                    outputs_for_metrics.append(strong_preds)
+                    outputs_for_metrics.append(
+                        strong_preds.cpu().detach().numpy())
                 else:
-                    outputs_for_metrics.append(weak_preds)
+                    outputs_for_metrics.append(
+                        weak_preds.cpu().detach().numpy())
 
                 loss_out = loss(strong_preds, labels).cpu().detach().numpy()
                 losses.append(loss_out)
