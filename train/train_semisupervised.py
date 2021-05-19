@@ -424,31 +424,31 @@ def train(
 
             masks.append(mask)
 
-        model.model.output_mode = orig_output_mode
-        y_true, y_pred, y_score = (
-            np.array(y_true, dtype=np.int32),
-            np.array(y_pred, dtype=np.int32),
-            np.array(y_score, dtype=np.float32))
-        gt = np.concatenate(gt, axis=0).reshape(-1, 1)
-        masks = np.concatenate(masks, axis=0).reshape(-1, 1)
-        accuracy = accuracy_score(y_true, y_pred)
-        avg_precision = average_precision_score(y_true, y_score)
-        bacc = balanced_accuracy_score(
-            y_true, y_pred)
-        precision = precision_score(y_true, y_pred)
-        recall = recall_score(y_true, y_pred)
-        dice = f1_score(gt, masks)
-        iou = jaccard_score(gt, masks)
+    model.model.output_mode = orig_output_mode
+    y_true, y_pred, y_score = (
+        np.array(y_true, dtype=np.int32),
+        np.array(y_pred, dtype=np.int32),
+        np.array(y_score, dtype=np.float32))
+    gt = np.concatenate(gt, axis=0).reshape(-1, 1)
+    masks = np.concatenate(masks, axis=0).reshape(-1, 1)
+    accuracy = accuracy_score(y_true, y_pred)
+    avg_precision = average_precision_score(y_true, y_score)
+    bacc = balanced_accuracy_score(
+        y_true, y_pred)
+    precision = precision_score(y_true, y_pred)
+    recall = recall_score(y_true, y_pred)
+    dice = f1_score(gt, masks)
+    iou = jaccard_score(gt, masks)
 
-        print(
-            f'Test - Epoch: {epoch} '
-            f'RoI Accuracy: {accuracy:.4f} '
-            f'RoI Avg Precision: {avg_precision:.4f} '
-            f'RoI Balanced Accuracy: {bacc:.4f} '
-            f'RoI Precision: {precision:.4f} '
-            f'RoI Recall: {recall:.4f} '
-            f'Pixel Dice/F1: {dice:.4f} '
-            f'Pixel IoU/Jaccard: {iou:.4f}')
+    print(
+        f'Test - Epoch: {epoch} '
+        f'RoI Accuracy: {accuracy:.4f} '
+        f'RoI Avg Precision: {avg_precision:.4f} '
+        f'RoI Balanced Accuracy: {bacc:.4f} '
+        f'RoI Precision: {precision:.4f} '
+        f'RoI Recall: {recall:.4f} '
+        f'Pixel Dice/F1: {dice:.4f} '
+        f'Pixel IoU/Jaccard: {iou:.4f}')
 
     save_path = save_path = os.path.join(
                 kwargs['outdir_path'],
