@@ -74,8 +74,8 @@ def eval_by_cla(
     scores_for_metrics = []
     outputs_for_metrics = []
     model.eval()
-    orig_output_mode, model.model.output_mode = (
-        model.model.output_mode, 'all')
+    orig_output_mode, model.output_mode = (
+        model.output_mode, 'all')
 
     for batch, labels in loader:
         with torch.no_grad():
@@ -92,7 +92,7 @@ def eval_by_cla(
             outputs_for_metrics.append(
                 np.where(weak_preds >= kwargs['output_threshold'], 1, 0))
 
-    model.model.output_mode = orig_output_mode
+    model.output_mode = orig_output_mode
     labels_for_metrics = np.concatenate(labels_for_metrics, axis=0)
     scores_for_metrics = np.concatenate(scores_for_metrics, axis=0)
     outputs_for_metrics = np.concatenate(outputs_for_metrics, axis=0)
@@ -143,8 +143,8 @@ def eval_by_loc(
     y_true, y_pred, y_score = [], [], []
     gt, masks = [], []
     model.eval()
-    orig_output_mode, model.model.output_mode = (
-        model.model.output_mode, 'all')
+    orig_output_mode, model.output_mode = (
+        model.output_mode, 'all')
     txt_line_num = 0
     false_positive_line_nums = []
     false_negative_line_nums = []
@@ -278,7 +278,7 @@ def eval_by_loc(
 
             masks.append(mask)
 
-    model.model.output_mode = orig_output_mode
+    model.output_mode = orig_output_mode
     y_true, y_pred, y_score = (
         np.array(y_true, dtype=np.int32),
         np.array(y_pred, dtype=np.int32),
