@@ -438,6 +438,8 @@ def evaluate(
         kwargs['batch_size'],
         sampling_fn,
         collate_fn)
+    val_loader_cla_sl, test_loader_cla_sl = (
+        iter(val_loader_cla_sl), iter(test_loader_cla_sl))
     val_loader_loc_wl, test_loader_loc_wl = (
         iter(cycle(val_loader_loc_wl)), iter(cycle(test_loader_loc_wl)))
 
