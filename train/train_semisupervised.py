@@ -325,11 +325,11 @@ def train(
             else:
                 torch.save(model.state_dict(), save_path)
 
-        y_true, y_pred, y_score = [], [], []
-        gt, masks = [], []
-        model.eval()
-        orig_output_mode, model.model.output_mode = (
-            model.model.output_mode, 'all')
+    y_true, y_pred, y_score = [], [], []
+    gt, masks = [], []
+    model.eval()
+    orig_output_mode, model.model.output_mode = (
+        model.model.output_mode, 'all')
 
     for batch, labels in test_loader:
         with torch.no_grad():
