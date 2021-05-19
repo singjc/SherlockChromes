@@ -223,7 +223,7 @@ def eval_by_loc(
                     best_region_idx = np.argmax(scores)
                     score = scores[best_region_idx]
                     best_region = regions_of_interest[best_region_idx]
-                    mask[i][roi.start:roi.stop] = 1
+                    mask[i][best_region.start:best_region.stop] = 1
 
                     if negative[i] or not overlaps(
                         best_region.start,
