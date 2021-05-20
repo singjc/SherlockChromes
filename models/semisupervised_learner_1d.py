@@ -123,7 +123,8 @@ class ChromatogramShuffler(nn.Module):
             b, _, n = chromatogram_batch.size()
             chromatogram_batch[:, 0:self.mz_bins] = (
                 chromatogram_batch[:, 0:self.mz_bins].reshape(
-                    b, 6, M, n)[:, shuffled_indices].reshape(b, -1, n))
+                    b, 6, M, n)[:, shuffled_indices].reshape(b, -1, n)
+            )
 
         chromatogram_batch[:, start:end] = (
             chromatogram_batch[:, start:end][:, shuffled_indices])
@@ -208,22 +209,28 @@ class ChromatogramNormalizer(nn.Module):
             sigma, mu = torch.std_mean(
                 torch.cat(
                     [chromatogram_batch[:, 0:self.mz_bins],
-                    chromatogram_batch[:, start:end]], dim=1))
+                    chromatogram_batch[:, start:end]], dim=1
+                ),
+                dim=1,
+                keepdim=True
+            )
             chromatogram_batch[:, 0:self.mz_bins] = (
                 (chromatogram_batch[:, 0:self.mz_bins] - mu) / sigma)
             chromatogram_batch[:, start:end] = (
                 (chromatogram_batch[:, start:end] - mu) / sigma)
 
             sigma, mu = torch.std_mean(
-                chromatogram_batch[:, self.mz_bins:start])
+                chromatogram_batch[:, self.mz_bins:start], dim=1, keepdim=True)
             chromatogram_batch[:, self.mz_bins:start] = (
                 (chromatogram_batch[:, self.mz_bins:start] - mu) / sigma)
         else:
             x = torch.cat(
-                    [chromatogram_batch[:, 0:self.mz_bins],
-                    chromatogram_batch[:, start:end]], dim=1)
-            x_min = torch.min(x)
-            x_max = torch.max(x)
+                [chromatogram_batch[:, 0:self.mz_bins],
+                chromatogram_batch[:, start:end]],
+                dim=1
+            )
+            x_min, _ = torch.min(x, dim=1, keepdim=True)
+            x_max, _ = torch.max(x, dim=1, keepdim=True)
             chromatogram_batch[:, 0:self.mz_bins] = (
                 (chromatogram_batch[:, 0:self.mz_bins] - x_min) /
                 (x_max - x_min))
@@ -231,18 +238,20 @@ class ChromatogramNormalizer(nn.Module):
                 (chromatogram_batch[:, start:end] - x_min) /
                 (x_max - x_min))
 
-            x_min = torch.min(chromatogram_batch[:, self.mz_bins:start])
-            x_max = torch.max(chromatogram_batch[:, self.mz_bins:start])
+            x_min, _ = torch.min(
+                chromatogram_batch[:, self.mz_bins:start],dim=1, keepdim=True)
+            x_max, _ = torch.max(
+                chromatogram_batch[:, self.mz_bins:start], dim=1, keepdim=True)
             chromatogram_batch[:, self.mz_bins:start] = (
                 (chromatogram_batch[:, self.mz_bins:start] - x_min) / 
                 (x_max - x_min))
 
-        x_min = torch.min(chromatogram_batch[:, -2:-1])
-        x_max = torch.max(chromatogram_batch[:, -2:-1])
+        x_min, _ = torch.min(chromatogram_batch[:, -2:-1], dim=1, keepdim=True)
+        x_max, _ = torch.max(chromatogram_batch[:, -2:-1], dim=1, keepdim=True)
         chromatogram_batch[:, -2:-1] = (
                 (chromatogram_batch[:, -2:-1] - x_min) / 
                 (x_max - x_min))
-        
+
         x_min, x_max = 1, 3
         chromatogram_batch[:, -1:] = (
                 (chromatogram_batch[:, -1:] - x_min) / 
