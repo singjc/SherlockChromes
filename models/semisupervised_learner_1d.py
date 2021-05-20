@@ -37,7 +37,7 @@ class ChromatogramScaler(nn.Module):
             self.num_factors += 1
 
     def forward(self, chromatogram_batch):
-        if torch.rand(1).item() < self.p:
+        if torch.rand(1).item() > self.p:
             return chromatogram_batch
 
         if self.scale_independently:
@@ -85,7 +85,7 @@ class ChromatogramJitterer(nn.Module):
             self.mz_bins += self.mz_bins // 6
 
     def forward(self, chromatogram_batch):
-        if torch.rand(1).item() < self.p:
+        if torch.rand(1).item() > self.p:
             return chromatogram_batch
 
         noise = (
@@ -107,26 +107,23 @@ class ChromatogramShuffler(nn.Module):
         self.p = p
 
     def forward(self, chromatogram_batch):
-        if torch.rand(1).item() < self.p:
+        if torch.rand(1).item() > self.p:
             return chromatogram_batch
 
         shuffled_indices = torch.randperm(6)
 
-        N = self.mz_bins // 6
-        start = self.mz_bins
-
-        if chromatogram_batch.size()[1] - start != 7:
-            start += N
-
+        M = self.mz_bins // 6
+        start = self.mz_bins + M
         end = start + 6
 
-        if N == 1:
+        if M == 1:
             chromatogram_batch[:, 0:self.mz_bins] = (
                 chromatogram_batch[:, 0:self.mz_bins][:, shuffled_indices])
         else:
-            b, M, n = chromatogram_batch.size()
-            chromatogram_batch.reshape(
-                b, M, -1, n)[:, shuffled_indices].reshape(b, -1, n)
+            b, _, n = chromatogram_batch.size()
+            chromatogram_batch[:, 0:self.mz_bins] = (
+                chromatogram_batch[:, 0:self.mz_bins].reshape(
+                    b, 6, M, n)[:, shuffled_indices].reshape(b, -1, n))
 
         chromatogram_batch[:, start:end] = (
             chromatogram_batch[:, start:end][:, shuffled_indices])
@@ -153,7 +150,7 @@ class ChromatogramSpectraMasker(nn.Module):
             self.v += self.v // 6
 
     def forward(self, chromatogram_batch):
-        if torch.rand(1).item() < self.p:
+        if torch.rand(1).item() > self.p:
             return chromatogram_batch
 
         for i in range(self.m_F):
@@ -185,13 +182,71 @@ class ChromatogramTimeMasker(nn.Module):
             self.mz_bins += self.mz_bins // 6
 
     def forward(self, chromatogram_batch):
-        if torch.rand(1).item() < self.p:
+        if torch.rand(1).item() > self.p:
             return chromatogram_batch
 
         for i in range(self.m_T):
             t = torch.randint(0, self.T + 1, (1,)).item()
             t_0 = torch.randint(0, self.tau - t, (1,)).item()
             chromatogram_batch[:, 0:self.mz_bins, t_0:t] = 0
+
+        return chromatogram_batch
+
+
+class ChromatogramNormalizer(nn.Module):
+    def __init__(self, mz_bins=6, standardize=False):
+        super(ChromatogramNormalizer, self).__init__()
+        self.mz_bins = mz_bins
+        self.standardize = standardize
+
+    def forward(self, chromatogram_batch):
+        M = self.mz_bins // 6
+        start = self.mz_bins + M
+        end = start + 6
+
+        if self.standardize:
+            sigma, mu = torch.std_mean(
+                torch.cat(
+                    [chromatogram_batch[:, 0:self.mz_bins],
+                    chromatogram_batch[:, start:end]], dim=1))
+            chromatogram_batch[:, 0:self.mz_bins] = (
+                (chromatogram_batch[:, 0:self.mz_bins] - mu) / sigma)
+            chromatogram_batch[:, start:end] = (
+                (chromatogram_batch[:, start:end] - mu) / sigma)
+
+            sigma, mu = torch.std_mean(
+                chromatogram_batch[:, self.mz_bins:start])
+            chromatogram_batch[:, self.mz_bins:start] = (
+                (chromatogram_batch[:, self.mz_bins:start] - mu) / sigma)
+        else:
+            x = torch.cat(
+                    [chromatogram_batch[:, 0:self.mz_bins],
+                    chromatogram_batch[:, start:end]], dim=1)
+            x_min = torch.min(x)
+            x_max = torch.max(x)
+            chromatogram_batch[:, 0:self.mz_bins] = (
+                (chromatogram_batch[:, 0:self.mz_bins] - x_min) /
+                (x_max - x_min))
+            chromatogram_batch[:, start:end] = (
+                (chromatogram_batch[:, start:end] - x_min) /
+                (x_max - x_min))
+
+            x_min = torch.min(chromatogram_batch[:, self.mz_bins:start])
+            x_max = torch.max(chromatogram_batch[:, self.mz_bins:start])
+            chromatogram_batch[:, self.mz_bins:start] = (
+                (chromatogram_batch[:, self.mz_bins:start] - x_min) / 
+                (x_max - x_min))
+
+        x_min = torch.min(chromatogram_batch[:, -2:-1])
+        x_max = torch.max(chromatogram_batch[:, -2:-1])
+        chromatogram_batch[:, -2:-1] = (
+                (chromatogram_batch[:, -2:-1] - x_min) / 
+                (x_max - x_min))
+        
+        x_min, x_max = 1, 3
+        chromatogram_batch[:, -1:] = (
+                (chromatogram_batch[:, -1:] - x_min) / 
+                (x_max - x_min))
 
         return chromatogram_batch
 

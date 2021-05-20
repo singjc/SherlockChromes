@@ -188,6 +188,16 @@ def create_chromatogram(
     chromatogram.append(
         np.expand_dims(np.repeat(prec_charge, ms1_rt_array.shape[-1]), axis=0))
     chromatogram = np.concatenate(chromatogram, axis=0)
+
+    # M = number of MZ buckets per strip
+    # T = number of retention time steps
+    # final shape = (7 * M + 8, T)
+    # first 6 * M are the MS2 strips
+    # following M are the MS1 strips
+    # followed by the 6 MS2 library intensities
+    # followed by the retention time diff
+    # followed by the precursor charge
+
     osw_label_left_idx, osw_label_right_idx = None, None
     ss_left_idx, ss_right_idx = None, None
     ss_left_idx, ss_right_idx = get_subsequence_idxs(
