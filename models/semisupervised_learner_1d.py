@@ -214,6 +214,7 @@ class ChromatogramNormalizer(nn.Module):
                 dim=1,
                 keepdim=True
             )
+            sigma += 1e-7
             chromatogram_batch[:, 0:self.mz_bins] = (
                 (chromatogram_batch[:, 0:self.mz_bins] - mu) / sigma)
             chromatogram_batch[:, start:end] = (
@@ -221,6 +222,7 @@ class ChromatogramNormalizer(nn.Module):
 
             sigma, mu = torch.std_mean(
                 chromatogram_batch[:, self.mz_bins:start], dim=1, keepdim=True)
+            sigma += 1e-7
             chromatogram_batch[:, self.mz_bins:start] = (
                 (chromatogram_batch[:, self.mz_bins:start] - mu) / sigma)
         else:
@@ -231,6 +233,7 @@ class ChromatogramNormalizer(nn.Module):
             )
             x_min, _ = torch.min(x, dim=1, keepdim=True)
             x_max, _ = torch.max(x, dim=1, keepdim=True)
+            x_max += 1e-7
             chromatogram_batch[:, 0:self.mz_bins] = (
                 (chromatogram_batch[:, 0:self.mz_bins] - x_min) /
                 (x_max - x_min))
@@ -239,18 +242,18 @@ class ChromatogramNormalizer(nn.Module):
                 (x_max - x_min))
 
             x_min, _ = torch.min(
-                chromatogram_batch[:, self.mz_bins:start],dim=1, keepdim=True)
+                chromatogram_batch[:, self.mz_bins:start], dim=1, keepdim=True)
             x_max, _ = torch.max(
                 chromatogram_batch[:, self.mz_bins:start], dim=1, keepdim=True)
+            x_max += 1e-7
             chromatogram_batch[:, self.mz_bins:start] = (
                 (chromatogram_batch[:, self.mz_bins:start] - x_min) / 
                 (x_max - x_min))
 
-        x_min, _ = torch.min(chromatogram_batch[:, -2:-1], dim=1, keepdim=True)
-        x_max, _ = torch.max(chromatogram_batch[:, -2:-1], dim=1, keepdim=True)
+        x_min = torch.min(chromatogram_batch[:, -2:-1])
+        x_max = torch.max(chromatogram_batch[:, -2:-1]) + 1e-7
         chromatogram_batch[:, -2:-1] = (
-                (chromatogram_batch[:, -2:-1] - x_min) / 
-                (x_max - x_min))
+                (chromatogram_batch[:, -2:-1] - x_min) / (x_max - x_min))
 
         x_min, x_max = 1, 3
         chromatogram_batch[:, -1:] = (
