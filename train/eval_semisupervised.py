@@ -107,6 +107,16 @@ def eval_by_cla(
         labels_for_metrics, outputs_for_metrics).ravel()
 
     if kwargs['visualize']:
+        data = []
+        for i in range(len(labels_for_metrics)):
+            data.append([labels_for_metrics[i], scores_for_metrics[i]])
+
+        table = wandb.Table(data=data, columns=['Label', 'Score'])
+        histogram = wandb.plot.histogram(
+            table, value='Score', title='Chromatogram Classification Scores')
+        pr_curve = wandb.plot.pr_curve(labels_for_metrics, scores_for_metrics)
+        roc_curve = wandb.plot.roc_curve(labels_for_metrics, scores_for_metrics)
+
         wandb.log(
             {
                 'Chromatogram Accuracy': accuracy,
@@ -118,6 +128,9 @@ def eval_by_cla(
                 'Chromatogram False Positives Count': fp,
                 'Chromatogram False Negatives Count': fn,
                 'Chromatogram True Positives Count': tp,
+                'Chromatogram Classification Scores Histogram': histogram,
+                'Chromatogram Precision-Recall Curve': pr_curve,
+                'Chromatogram ROC Curve': roc_curve
             }
         )
 
@@ -296,6 +309,16 @@ def eval_by_loc(
     iou = jaccard_score(gt, masks)
 
     if kwargs['visualize']:
+        data = []
+        for i in range(len(y_true)):
+            data.append([y_true[i], y_score[i]])
+
+        table = wandb.Table(data=data, columns=['Label', 'Score'])
+        histogram = wandb.plot.histogram(
+            table, value='Score', title='RoI Classification Scores')
+        pr_curve = wandb.plot.pr_curve(y_true, y_score)
+        roc_curve = wandb.plot.roc_curve(y_true, y_score)
+
         wandb.log(
             {
                 'RoI Accuracy': accuracy,
@@ -307,6 +330,9 @@ def eval_by_loc(
                 'RoI False Positives Count': fp,
                 'RoI False Negatives Count': fn,
                 'RoI True Positives Count': tp,
+                'RoI Classification Scores Histogram': histogram,
+                'RoI Precision-Recall Curve': pr_curve,
+                'RoI ROC Curve': roc_curve,
                 'Pixel Dice/F1': dice,
                 'Pixel IoU/Jaccard': iou
             }
