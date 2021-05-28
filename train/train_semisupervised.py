@@ -149,7 +149,7 @@ def train(
                 project='SherlockChromes',
                 group=kwargs['model_savename'],
                 name=wandb.util.generate_id(),
-                job_mode='train-semisupervised',
+                job_type='train-semisupervised',
                 config=kwargs)
 
     if not optimizer:
