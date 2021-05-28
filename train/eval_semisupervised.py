@@ -68,6 +68,7 @@ def eval_by_cla(
     loader,
     strong_label_loader,
     device='cpu',
+    tag='Validation',
     **kwargs
 ):
     labels_for_metrics = []
@@ -107,30 +108,37 @@ def eval_by_cla(
         labels_for_metrics, outputs_for_metrics).ravel()
 
     if kwargs['visualize']:
+        import wandb
         data = []
+        y_probas = []
         for i in range(len(labels_for_metrics)):
             data.append([labels_for_metrics[i], scores_for_metrics[i]])
+            y_probas.append([1 - scores_for_metrics[i], scores_for_metrics[i]])
 
         table = wandb.Table(data=data, columns=['Label', 'Score'])
         histogram = wandb.plot.histogram(
-            table, value='Score', title='Chromatogram Classification Scores')
-        pr_curve = wandb.plot.pr_curve(labels_for_metrics, scores_for_metrics)
-        roc_curve = wandb.plot.roc_curve(labels_for_metrics, scores_for_metrics)
+            table, value='Score',
+            title=f'{tag} Chromatogram Classification Scores'
+        )
+        pr_curve = wandb.plot.pr_curve(
+            labels_for_metrics, y_probas, classes_to_plot=1)
+        roc_curve = wandb.plot.roc_curve(
+            labels_for_metrics, y_probas, classes_to_plot=1)
 
         wandb.log(
             {
-                'Chromatogram Accuracy': accuracy,
-                'Chromatogram Avg Precision': avg_precision,
-                'Chromatogram Balanced Accuracy': bacc,
-                'Chromatogram Precision': precision,
-                'Chromatogram Recall': recall,
-                'Chromatogram True Negatives Count': tn,
-                'Chromatogram False Positives Count': fp,
-                'Chromatogram False Negatives Count': fn,
-                'Chromatogram True Positives Count': tp,
-                'Chromatogram Classification Scores Histogram': histogram,
-                'Chromatogram Precision-Recall Curve': pr_curve,
-                'Chromatogram ROC Curve': roc_curve
+                f'{tag} Chromatogram Accuracy': accuracy,
+                f'{tag} Chromatogram Avg Precision': avg_precision,
+                f'{tag} Chromatogram Balanced Accuracy': bacc,
+                f'{tag} Chromatogram Precision': precision,
+                f'{tag} Chromatogram Recall': recall,
+                f'{tag} Chromatogram True Negatives Count': tn,
+                f'{tag} Chromatogram False Positives Count': fp,
+                f'{tag} Chromatogram False Negatives Count': fn,
+                f'{tag} Chromatogram True Positives Count': tp,
+                f'{tag} Chromatogram Classification Scores Histogram': histogram,
+                f'{tag} Chromatogram Precision-Recall Curve': pr_curve,
+                f'{tag} Chromatogram ROC Curve': roc_curve
             }
         )
 
@@ -150,6 +158,7 @@ def eval_by_loc(
     weak_label_loader,
     device='cpu',
     modulate_by_cla=True,
+    tag='Validation',
     iou_threshold=0.5,
     **kwargs
 ):
@@ -309,32 +318,41 @@ def eval_by_loc(
     iou = jaccard_score(gt, masks)
 
     if kwargs['visualize']:
+        import wandb
         data = []
+        y_probas = []
         for i in range(len(y_true)):
             data.append([y_true[i], y_score[i]])
+            y_probas.append([1 - y_score[i], y_score[i]])
+
+        if modulate_by_cla:
+            tag += ' Modulated'
+        else:
+            tag += ' Unmodulated'
 
         table = wandb.Table(data=data, columns=['Label', 'Score'])
         histogram = wandb.plot.histogram(
-            table, value='Score', title='RoI Classification Scores')
-        pr_curve = wandb.plot.pr_curve(y_true, y_score)
-        roc_curve = wandb.plot.roc_curve(y_true, y_score)
+            table, value='Score', title=f'{tag} RoI Classification Scores')
+        pr_curve = wandb.plot.pr_curve(y_true, y_probas, classes_to_plot=1)
+        roc_curve = wandb.plot.roc_curve(y_true, y_probas, classes_to_plot=1)
 
         wandb.log(
             {
-                'RoI Accuracy': accuracy,
-                'RoI Avg Precision': avg_precision,
-                'RoI Balanced Accuracy': bacc,
-                'RoI Precision': precision,
-                'RoI Recall': recall,
-                'RoI True Negatives Count': tn,
-                'RoI False Positives Count': fp,
-                'RoI False Negatives Count': fn,
-                'RoI True Positives Count': tp,
-                'RoI Classification Scores Histogram': histogram,
-                'RoI Precision-Recall Curve': pr_curve,
-                'RoI ROC Curve': roc_curve,
+                f'{tag} RoI Accuracy': accuracy,
+                f'{tag} RoI Avg Precision': avg_precision,
+                f'{tag} RoI Balanced Accuracy': bacc,
+                f'{tag} RoI Precision': precision,
+                f'{tag} RoI Recall': recall,
+                f'{tag} RoI True Negatives Count': tn,
+                f'{tag} RoI False Positives Count': fp,
+                f'{tag} RoI False Negatives Count': fn,
+                f'{tag} RoI True Positives Count': tp,
+                f'{tag} RoI Classification Scores Histogram': histogram,
+                f'{tag} RoI Precision-Recall Curve': pr_curve,
+                f'{tag} RoI ROC Curve': roc_curve,
                 'Pixel Dice/F1': dice,
-                'Pixel IoU/Jaccard': iou
+                'Pixel IoU/Jaccard': iou,
+                'iou_threshold': iou_threshold
             }
         )
 
