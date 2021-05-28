@@ -497,6 +497,7 @@ def evaluate(
             val_loader_cla,
             val_loader_cla_sl,
             device,
+            tag='Validation'
             **kwargs)
 
         print('Modulated')
@@ -509,6 +510,7 @@ def evaluate(
                 val_loader_loc_wl,
                 device,
                 modulate_by_cla,
+                tag='Validation',
                 iou_threshold=iou_threshold,
                 **kwargs)
 
@@ -522,6 +524,7 @@ def evaluate(
                 val_loader_loc_wl,
                 device,
                 modulate_by_cla,
+                tag='Validation',
                 iou_threshold=iou_threshold,
                 **kwargs)
 
@@ -531,6 +534,7 @@ def evaluate(
             test_loader_cla,
             test_loader_cla_sl,
             device,
+            tag='Test',
             **kwargs)
 
         print('Modulated')
@@ -543,6 +547,7 @@ def evaluate(
                 test_loader_loc_wl,
                 device,
                 modulate_by_cla,
+                tag='Test',
                 iou_threshold=iou_threshold,
                 **kwargs)
 
@@ -557,6 +562,7 @@ def evaluate(
             test_loader_loc_wl,
             device,
             modulate_by_cla,
+            tag='Test',
             iou_threshold=iou_threshold,
             **kwargs)
         metrics.append(metric_at_iou_threshold)
