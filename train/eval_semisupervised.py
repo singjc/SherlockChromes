@@ -426,6 +426,7 @@ def evaluate(
             import wandb
 
             wandb.init(
+                settings=wandb.Settings(start_method='thread'),
                 project='SherlockChromes',
                 group=kwargs['model_savename'],
                 name=wandb.util.generate_id(),
