@@ -140,6 +140,18 @@ def train(
         wandb_spec = importlib.util.find_spec('wandb')
         wandb_available = wandb_spec is not None
 
+        if wandb_available:
+            print('wandb detected!')
+            import wandb
+
+            wandb.init(
+                settings=wandb.Settings(start_method='thread'),
+                project='SherlockChromes',
+                group=kwargs['model_savename'],
+                name=wandb.util.generate_id(),
+                job_type='train-semisupervised',
+                config=kwargs)
+
     if not optimizer:
         optimizer = torch.optim.AdamW(model.parameters())
 
