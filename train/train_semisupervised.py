@@ -140,18 +140,6 @@ def train(
         wandb_spec = importlib.util.find_spec('wandb')
         wandb_available = wandb_spec is not None
 
-        if wandb_available:
-            kwargs
-            print('wandb detected!')
-            import wandb
-
-            wandb.init(
-                project='SherlockChromes',
-                group=kwargs['model_savename'],
-                name=wandb.util.generate_id(),
-                job_type='train-semisupervised',
-                config=kwargs)
-
     if not optimizer:
         optimizer = torch.optim.AdamW(model.parameters())
 
@@ -172,8 +160,6 @@ def train(
 
     model.to(device)
 
-    num_batches = len(labeled_loader)
-
     for epoch in range(kwargs['max_epochs']):
         iters, avg_loss = 0, 0
         model.train()
@@ -188,7 +174,11 @@ def train(
             loss_out = model(unlabeled_batch, labeled_batch, labels)
             loss_out.backward()
             optimizer.step()
-            scheduler.step(epoch + i / num_batches)
+
+            if ('scheduler_step_on_iter' in kwargs and
+                kwargs['scheduler_step_on_iter']):
+                scheduler.step()
+
             iters += 1
             iter_loss = loss_out.item()
             avg_loss += iter_loss

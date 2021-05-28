@@ -5,7 +5,7 @@ import sys
 import yaml
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from importlib.util import spec_from_file_location, module_from_spec
+from importlib.util import find_spec, spec_from_file_location, module_from_spec
 
 # logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
 #                     level=logging.DEBUG,
@@ -47,6 +47,23 @@ def run_experiment(yaml_filepath):
         device = cfg['general']['device']
     else:
         device = 'cpu'
+    
+    if (
+        'visualize' in cfg['train']['kwargs'] and
+        cfg['train']['kwargs']['visualize']):
+        wandb_spec = find_spec('wandb')
+        wandb_available = wandb_spec is not None
+
+        if wandb_available:
+            print('wandb detected!')
+            import wandb
+
+            wandb.init(
+                project='SherlockChromes',
+                group=cfg['train']['kwargs']['model_savename'],
+                name=wandb.util.generate_id(),
+                job_type='train-semisupervised',
+                config=cfg)
 
     transform = create_obj_from_cfg_section(cfg, 'transform')
 
