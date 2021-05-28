@@ -173,7 +173,7 @@ def train(
     model.to(device)
 
     for epoch in range(kwargs['max_epochs']):
-        iters, avg_loss = 0, 0
+        iters, train_loss = 0, 0
         model.train()
 
         for i, sample in enumerate(labeled_loader):
@@ -193,7 +193,7 @@ def train(
 
             iters += 1
             iter_loss = loss_out.item()
-            avg_loss += iter_loss
+            train_loss += iter_loss
 
             print(f'Training - Iter: {iters} Iter Loss: {iter_loss:.8f}')
 
@@ -201,11 +201,8 @@ def train(
                 kwargs['scheduler_step_on_iter']):
             scheduler.step()
 
-        avg_loss = avg_loss / iters
-        print(f'Training - Epoch: {epoch} Avg Loss: {avg_loss:.8f}')
-
-        if wandb_available:
-            wandb.log({'Training Loss': avg_loss})
+        train_loss = train_loss / iters
+        print(f'Training - Epoch: {epoch} Avg Loss: {train_loss:.8f}')
 
         labels_for_metrics = []
         outputs_for_metrics = []
@@ -250,7 +247,7 @@ def train(
         recall = recall_score(labels_for_metrics, outputs_for_metrics)
         dice = f1_score(labels_for_metrics, outputs_for_metrics)
         iou = jaccard_score(labels_for_metrics, outputs_for_metrics)
-        avg_loss = np.mean(losses)
+        val_loss = np.mean(losses)
 
         print(
             f'Validation - Epoch: {epoch} '
@@ -260,20 +257,21 @@ def train(
             f'Recall: {recall:.8f} '
             f'Dice/F1: {dice:.8f} '
             f'IoU/Jaccard: {iou:.8f} '
-            f'Avg Loss: {avg_loss:.8f} '
+            f'Avg Loss: {val_loss:.8f} '
             f'Positive Pixel Count: {num_pos} '
             f'Negative Pixel Count: {num_neg}')
 
         if wandb_available:
             wandb.log(
                 {
+                    'Train Loss': train_loss,
                     'Accuracy': accuracy,
                     'Balanced Accuracy': bacc,
                     'Precision': precision,
                     'Recall': recall,
                     'Dice/F1': dice,
                     'IoU/Jaccard': iou,
-                    'Validation Loss': avg_loss
+                    'Validation Loss': val_loss
                 }
             )
 
@@ -292,8 +290,8 @@ def train(
             if iou > highest_iou:
                 highest_iou = iou
 
-            if avg_loss < lowest_loss:
-                lowest_loss = avg_loss
+            if val_loss < lowest_loss:
+                lowest_loss = val_loss
         elif dice > highest_dice:
             save_path = os.path.join(
                 kwargs['outdir_path'],
@@ -304,22 +302,22 @@ def train(
             if iou > highest_iou:
                 highest_iou = iou
 
-            if avg_loss < lowest_loss:
-                lowest_loss = avg_loss
+            if val_loss < lowest_loss:
+                lowest_loss = val_loss
         elif iou > highest_iou:
             save_path = os.path.join(
                 kwargs['outdir_path'],
                 f"{kwargs['model_savename']}_model_{epoch}_iou={iou}.pth")
             highest_iou = iou
 
-            if avg_loss < lowest_loss:
-                lowest_loss = avg_loss
-        elif avg_loss < lowest_loss:
+            if val_loss < lowest_loss:
+                lowest_loss = val_loss
+        elif val_loss < lowest_loss:
             save_path = os.path.join(
                 kwargs['outdir_path'],
-                f"{kwargs['model_savename']}_model_{epoch}_loss={avg_loss}"
+                f"{kwargs['model_savename']}_model_{epoch}_loss={val_loss}"
                 '.pth')
-            lowest_loss = avg_loss
+            lowest_loss = val_loss
 
         if save_path:
             if 'save_whole' in kwargs and kwargs['save_whole']:

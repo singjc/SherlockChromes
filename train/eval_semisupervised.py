@@ -409,7 +409,7 @@ def evaluate(
         kwargs['output_threshold'] = 0.5
 
     if 'iou_thresholds' not in kwargs:
-        iou_thresholds = [0.5]
+        kwargs['iou_thresholds'] = [0.5]
 
     if 'min_roi_length' not in kwargs:
         kwargs['min_roi_length'] = 3
@@ -430,7 +430,7 @@ def evaluate(
                 project='SherlockChromes',
                 group=kwargs['model_savename'],
                 name=wandb.util.generate_id(),
-                job_mode='eval-semisupervised',
+                job_type='eval-semisupervised',
                 config=kwargs)
         else:
             kwargs['visualize'] = False
