@@ -8,6 +8,13 @@ import pandas as pd
 import random
 import sqlite3
 
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    jaccard_score)
 from sklearn.model_selection import KFold
 
 
@@ -783,3 +790,36 @@ def create_kfold_train_and_validation_and_holdout_test_by_sequence(
                 for seq in seq_splits[split][split_part]:
                     for idx in seq_to_idx[seq]:
                         f.write(idx + '\n')
+
+
+def compare_label_npys_pointwise(
+    file_dir,
+    idx_filename,
+    target_labels_npy,
+    source_labels_npy
+):
+    target_labels = np.load(os.path.join(file_dir, target_labels_npy))
+    source_labels = np.load(os.path.join(file_dir, source_labels_npy))
+    target, source = [], []
+
+    idxs = np.loadtxt(os.path.join(file_dir, idx_filename), dtype='int')
+    for idx in idxs:
+        target.append(target_labels[idx])
+        source.append(source_labels[idx])
+
+    target = np.concatenate(target, axis=0).reshape(-1, 1)
+    source = np.concatenate(source, axis=0).reshape(-1, 1)
+    acc = accuracy_score(target, source)
+    bacc = balanced_accuracy_score(target, source)
+    prec = precision_score(target, source)
+    recall = recall_score(target, source)
+    dice = f1_score(target, source)
+    iou = jaccard_score(target, source)
+
+    print(
+        f'Pixel Accuracy: {acc:.4f} '
+        f'Pixel Balanced accuracy: {bacc:.4f} '
+        f'Pixel Precision: {prec:.4f} '
+        f'Pixel Recall: {recall:.4f} '
+        f'Pixel Dice/F1: {dice:.4f} '
+        f'Pixel IoU/Jaccard: {iou:.4f}')
