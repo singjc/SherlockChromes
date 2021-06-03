@@ -319,8 +319,8 @@ class Conv1dFeedForwardNetwork(nn.Module):
 
         if activation == 'relu':
             self.activation = nn.ReLU()
-        elif activation == 'selu':
-            self.activation = nn.SELU()
+        elif activation == 'gelu':
+            self.activation = nn.GELU()
         else:
             raise NotImplementedError('invalid activation')
 
@@ -393,7 +393,7 @@ class DynamicDepthSeparableConv1dTransformerBlock(nn.Module):
 
         if self.norm_type == 'layer':
             out = self.norm2(out.transpose(1, 2)).transpose(1, 2)
-        elif self.norm_type == 'instance':
+        elif 'instance' in self.norm_type:
             out = self.norm2(out)
 
         return out
