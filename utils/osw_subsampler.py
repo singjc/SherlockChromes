@@ -1,13 +1,15 @@
 import argparse
 import sqlite3
 
+
 def get_precursor_id_from_mod_seq_and_charge(
     con,
     cursor,
     mod_seq,
-    charge):
+    charge
+):
     query = \
-        """SELECT precursor.ID 
+        """SELECT precursor.ID
         FROM PRECURSOR precursor LEFT JOIN PRECURSOR_PEPTIDE_MAPPING mapping
         ON precursor.ID = mapping.PRECURSOR_ID LEFT JOIN PEPTIDE peptide
         ON mapping.PEPTIDE_ID = peptide.ID
@@ -20,6 +22,19 @@ def get_precursor_id_from_mod_seq_and_charge(
 
     return tmp
 
+
+def get_mod_seq_and_charge_to_precursor_ids(con, cursor):
+    query = \
+        """SELECT peptide.MODIFIED_SEQUENCE, precursor.CHARGE, precursor.ID
+        FROM PRECURSOR precursor LEFT JOIN PRECURSOR_PEPTIDE_MAPPING mapping
+        ON precursor.ID = mapping.PRECURSOR_ID LEFT JOIN PEPTIDE peptide
+        ON mapping.PEPTIDE_ID = peptide.ID"""
+    res = cursor.execute(query)
+    tmp = res.fetchall()
+
+    return tmp
+
+
 def get_precursor_ids(infile, target_file, idx_file=None):
     if idx_file:
         target_idxs = {}
@@ -29,8 +44,12 @@ def get_precursor_ids(infile, target_file, idx_file=None):
 
     con = sqlite3.connect(infile)
     cursor = con.cursor()
-
-    processed = {}
+    mod_seq_and_charge_to_precursor_ids = (
+        get_mod_seq_and_charge_to_precursor_ids(con, cursor))
+    mod_seq_and_charge_to_precursor_ids = {
+        f'{row[0]}_{row[1]}': row[2]
+        for row in mod_seq_and_charge_to_precursor_ids}
+    con.close()
     prec_ids = []
 
     with open(target_file, 'r') as targets:
@@ -42,29 +61,23 @@ def get_precursor_ids(infile, target_file, idx_file=None):
             if idx_file:
                 if idx not in target_idxs:
                     continue
-            
-            if target_filename in processed:
-                continue
 
-            mod_seq, charge = target_filename.split('_')[-2:]
+            mod_seq_and_charge = '_'.join(target_filename.split('_')[-2:])
 
-            target_prec_id = get_precursor_id_from_mod_seq_and_charge(
-                con, cursor, mod_seq, charge)
-
-            if target_prec_id:
-                prec_id = target_prec_id[0][0]
-                prec_ids.append(prec_id)
-
-            processed[target_filename] = True
-
-    con.close()
+            if mod_seq_and_charge in mod_seq_and_charge_to_precursor_ids:
+                target_prec_id = (
+                    mod_seq_and_charge_to_precursor_ids[mod_seq_and_charge])
+                prec_ids.append(target_prec_id)
 
     return prec_ids
+
 
 def check_sqlite_table(con, table):
     table_present = False
     c = con.cursor()
-    c.execute('SELECT count(name) FROM sqlite_master WHERE type="table" AND name="{}"'.format(table))
+    c.execute(
+        'SELECT count(name) FROM sqlite_master '
+        'WHERE type="table" AND name="{}"'.format(table))
     if c.fetchone()[0] == 1:
         table_present = True
     else:
@@ -72,6 +85,7 @@ def check_sqlite_table(con, table):
     c.fetchall()
 
     return(table_present)
+
 
 def subsample_osw(infile, outfile, target_file, idx_file=None):
     conn = sqlite3.connect(infile)
@@ -89,24 +103,24 @@ def subsample_osw(infile, outfile, target_file, idx_file=None):
         CREATE TABLE RUN AS SELECT * FROM sdb.RUN;
         DETACH DATABASE sdb;
         """.format(infile))
-        
+
     print("Info: Propagated runs of file {} to {}.".format(infile, outfile))
 
     prec_ids = get_precursor_ids(infile, target_file, idx_file=idx_file)
 
     script = \
         """ATTACH DATABASE "{}" AS sdb;
-        CREATE TABLE PRECURSOR AS 
-            SELECT * 
-            FROM sdb.PRECURSOR 
+        CREATE TABLE PRECURSOR AS
+            SELECT *
+            FROM sdb.PRECURSOR
             WHERE ID IN
                 (""".format(infile)
 
     for prec_id in prec_ids:
-        script+= str(prec_id) + ", "
+        script += str(prec_id) + ", "
 
     script = script[:-2]
-    script+= \
+    script += \
         """);
         DETACH DATABASE sdb;"""
 
@@ -117,17 +131,17 @@ def subsample_osw(infile, outfile, target_file, idx_file=None):
 
     script = \
         """ATTACH DATABASE "{}" AS sdb;
-        CREATE TABLE TRANSITION_PRECURSOR_MAPPING AS 
-            SELECT * 
-            FROM sdb.TRANSITION_PRECURSOR_MAPPING 
+        CREATE TABLE TRANSITION_PRECURSOR_MAPPING AS
+            SELECT *
+            FROM sdb.TRANSITION_PRECURSOR_MAPPING
             WHERE PRECURSOR_ID IN
                 (""".format(infile)
 
     for prec_id in prec_ids:
-        script+= str(prec_id) + ", "
+        script += str(prec_id) + ", "
 
     script = script[:-2]
-    script+= \
+    script += \
         """);
         DETACH DATABASE sdb;"""
 
@@ -138,7 +152,7 @@ def subsample_osw(infile, outfile, target_file, idx_file=None):
 
     c.executescript(
         """ATTACH DATABASE "{}" AS sdb;
-        CREATE TABLE TRANSITION AS 
+        CREATE TABLE TRANSITION AS
             SELECT *
             FROM sdb.TRANSITION
             WHERE sdb.TRANSITION.ID IN
@@ -151,29 +165,29 @@ def subsample_osw(infile, outfile, target_file, idx_file=None):
 
     script = \
         """ATTACH DATABASE "{}" AS sdb;
-        CREATE TABLE FEATURE AS 
+        CREATE TABLE FEATURE AS
             SELECT *
             FROM sdb.FEATURE
             WHERE PRECURSOR_ID IN
                 (""".format(infile)
 
     for prec_id in prec_ids:
-        script+= str(prec_id) + ", "
+        script += str(prec_id) + ", "
 
     script = script[:-2]
-    script+= \
+    script += \
         """);
         DETACH DATABASE sdb;"""
 
     c.executescript(script)
-    
+
     print("Info: Subsampled generic features of file {} to {}.".format(
         infile, outfile))
 
     if ms1_present:
         c.executescript(
             """ATTACH DATABASE "{}" AS sdb;
-            CREATE TABLE FEATURE_MS1 AS 
+            CREATE TABLE FEATURE_MS1 AS
                 SELECT *
                 FROM sdb.FEATURE_MS1
                 WHERE sdb.FEATURE_MS1.FEATURE_ID IN
@@ -187,7 +201,7 @@ def subsample_osw(infile, outfile, target_file, idx_file=None):
     if ms2_present:
         c.executescript(
             """ATTACH DATABASE "{}" AS sdb;
-            CREATE TABLE FEATURE_MS2 AS 
+            CREATE TABLE FEATURE_MS2 AS
                 SELECT *
                 FROM sdb.FEATURE_MS2
                 WHERE sdb.FEATURE_MS2.FEATURE_ID IN
@@ -201,14 +215,14 @@ def subsample_osw(infile, outfile, target_file, idx_file=None):
     if transition_present:
         c.executescript(
             """ATTACH DATABASE "{}" AS sdb;
-            CREATE TABLE FEATURE_TRANSITION AS 
+            CREATE TABLE FEATURE_TRANSITION AS
                 SELECT *
                 FROM sdb.FEATURE_TRANSITION
                 WHERE sdb.FEATURE_TRANSITION.FEATURE_ID IN
                     (SELECT ID
                     FROM FEATURE);
             DETACH DATABASE sdb;""".format(infile))
-        
+
         print("Info: Subsampled transition features of file {} to {}.".format(
             infile, outfile))
 
@@ -216,6 +230,7 @@ def subsample_osw(infile, outfile, target_file, idx_file=None):
     conn.close()
 
     print("Info: OSW file was subsampled.")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

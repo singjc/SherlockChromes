@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader, Subset
 
 from optimizers.focal_loss import FocalLossBinary
 
+
 def get_data_loaders(
     data,
     template_data,
@@ -26,7 +27,8 @@ def get_data_loaders(
     template_batch_size=4,
     sampling_fn=None,
     collate_fn=None,
-    outdir_path=None):
+    outdir_path=None
+):
 
     # LoadingSampler supported only
     if sampling_fn:
@@ -47,28 +49,23 @@ def get_data_loaders(
         np.savetxt(
             os.path.join(outdir_path, 'labeled_idx.txt'),
             np.array(labeled_idx),
-            fmt='%i'
-        )
+            fmt='%i')
         np.savetxt(
             os.path.join(outdir_path, 'unlabeled_idx.txt'),
             np.array(unlabeled_idx),
-            fmt='%i'
-        )
+            fmt='%i')
         np.savetxt(
             os.path.join(outdir_path, 'val_idx.txt'),
             np.array(val_idx),
-            fmt='%i'
-        )
+            fmt='%i')
         np.savetxt(
             os.path.join(outdir_path, 'train_template_idx.txt'),
             np.array(train_template_idx),
-            fmt='%i'
-        )
+            fmt='%i')
         np.savetxt(
             os.path.join(outdir_path, 'val_template_idx.txt'),
             np.array(val_template_idx),
-            fmt='%i'
-        )
+            fmt='%i')
 
     labeled_set = Subset(data, labeled_idx)
     unlabeled_set = Subset(data, unlabeled_idx)
@@ -119,13 +116,14 @@ def get_data_loaders(
         unlabeled_loader,
         val_loader,
         train_template_loader,
-        val_template_loader
-    )
+        val_template_loader)
+
 
 def cycle(iterable):
     while True:
         for x in iterable:
             yield x
+
 
 def train(
     data,
@@ -136,7 +134,8 @@ def train(
     sampling_fn=None,
     collate_fn=None,
     device='cpu',
-    **kwargs):
+    **kwargs
+):
     (
         labeled_loader,
         unlabeled_loader,
@@ -162,8 +161,7 @@ def train(
     if 'transfer_model_path' in kwargs:
         model.load_state_dict(
             torch.load(kwargs['transfer_model_path']).state_dict(),
-            strict=False
-        )
+            strict=False)
 
     scheduler = CosineAnnealingWarmRestarts(
         optimizer, kwargs['T_0'], T_mult=kwargs['T_mult'])
@@ -201,13 +199,12 @@ def train(
                 template_batch,
                 template_labels,
                 labeled_batch,
-                labels
-            )
+                labels)
             loss_out.backward()
             optimizer.step()
-            iters+= 1
+            iters += 1
             iter_loss = loss_out.item()
-            avg_loss+= iter_loss
+            avg_loss += iter_loss
             print(f'Training - Iter: {iters} Iter loss: {iter_loss:.8f}')
 
         if not ('scheduler_step_on_iter' in kwargs and
@@ -238,11 +235,9 @@ def train(
             np.concatenate(outputs_for_metrics) >= 0.5
         ).reshape(-1, 1)
         accuracy = accuracy_score(
-            labels_for_metrics, outputs_for_metrics
-        )
+            labels_for_metrics, outputs_for_metrics)
         balanced_accuracy = balanced_accuracy_score(
-            labels_for_metrics, outputs_for_metrics
-        )
+            labels_for_metrics, outputs_for_metrics)
         precision = precision_score(labels_for_metrics, outputs_for_metrics)
         recall = recall_score(labels_for_metrics, outputs_for_metrics)
         dice = f1_score(labels_for_metrics, outputs_for_metrics)
@@ -257,29 +252,26 @@ def train(
             f'Recall: {recall:.8f} '
             f'Dice: {dice:.8f} '
             f'IoU: {iou:.8f} '
-            f'Avg loss: {avg_loss:.8f} '
-        )
+            f'Avg loss: {avg_loss:.8f} ')
 
         save_path = ''
 
         if dice > highest_dice:
             save_path = os.path.join(
                 kwargs['outdir_path'],
-                f"{kwargs['model_savename']}_model_{epoch}_dice={dice}.pth"
-            )
+                f"{kwargs['model_savename']}_model_{epoch}_dice={dice}.pth")
 
             highest_dice = dice
-            
+
             if iou > highest_iou:
                 highest_iou = iou
-            
+
             if avg_loss < lowest_loss:
                 lowest_loss = avg_loss
         elif iou > highest_iou:
             save_path = os.path.join(
                 kwargs['outdir_path'],
-                f"{kwargs['model_savename']}_model_{epoch}_iou={iou}.pth"
-            )
+                f"{kwargs['model_savename']}_model_{epoch}_iou={iou}.pth")
             highest_iou = iou
 
             if avg_loss < lowest_loss:
@@ -287,8 +279,8 @@ def train(
         elif avg_loss < lowest_loss:
             save_path = os.path.join(
                 kwargs['outdir_path'],
-                f"{kwargs['model_savename']}_model_{epoch}_loss={avg_loss}.pth"
-            )
+                f"{kwargs['model_savename']}_model_{epoch}_loss={avg_loss}"
+                '.pth')
             lowest_loss = avg_loss
 
         if save_path:

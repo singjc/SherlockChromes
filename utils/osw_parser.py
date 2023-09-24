@@ -209,14 +209,15 @@ def create_data_from_transition_ids(
     left_width,
     right_width,
     prec_id=None,
+    prec_charge=None,
     isotopes=[],
     library_intensities=[],
     exp_rt=None,
     extra_features=[],
     n_identifying=0,
     csv_only=False,
-    window_size=201,
-    mode='tar'
+    window_size=175,
+    mode='npy'
 ):
     con = sqlite3.connect(os.path.join(sqMass_dir, sqMass_filename))
 
@@ -273,9 +274,12 @@ def create_data_from_transition_ids(
         if 'exp_rt' in extra_features:
             num_expected_extra_features += 1
 
+        if 'prec_charge' in extra_features:
+            num_expected_extra_features += 1
+
         if 'identifying' in extra_features:
             num_expected_features += n_identifying
-            num_expected_extra_features += n_identifying
+            num_expected_extra_features += n_identifying        
 
         chromatogram = np.zeros((num_expected_features, len_times))
         extra = np.zeros((num_expected_extra_features, len_times))
@@ -343,6 +347,11 @@ def create_data_from_transition_ids(
             extra_meta['exp_rt'] = free_idx
             free_idx += 1
 
+        if 'prec_charge' in extra_features:
+            extra[free_idx:free_idx + 1] = prec_charge
+            extra_meta['prec_charge'] = free_idx
+            free_idx += 1
+
         if window_size >= 0:
             subsection_left, subsection_right = get_subsequence_idxs(
                 times, exp_rt, window_size)
@@ -372,7 +381,7 @@ def create_data_from_transition_ids(
                 bb_start, bb_end = None, None
 
         if mode == 'npy':
-            chromatogram = np.concatenate([chromatogram, extra], axis=0)
+            chromatogram = np.concatenate((chromatogram, extra), axis=0)
 
             return row_labels, bb_start, bb_end, chromatogram
         elif mode == 'hdf5':
@@ -411,13 +420,13 @@ def get_cnn_data(
     identifying=False,
     n_identifying=0,
     test_seed=False,
-    extra_features=['ms1', 'lib_int', 'exp_rt', 'identifying'],
+    extra_features=['ms1', 'lib_int', 'exp_rt', 'prec_charge', 'identifying'],
     isotopes=[0],
     csv_only=False,
     window_size=201,
     use_rt=False,
     scored=False,
-    mode='tar'
+    mode='npy'
 ):
     label_matrix, chromatograms_array, chromatograms_csv = [], [], []
 
@@ -480,7 +489,8 @@ def get_cnn_data(
                 if exp_rt and delta_rt:
                     exp_rt = exp_rt - delta_rt
                 else:
-                    print(f'Skipped {chromatogram_filename} due to missing rt')
+                    print(
+                        f'Skipped {chromatograms_filename} due to missing rt')
 
                     continue
             else:
@@ -515,6 +525,7 @@ def get_cnn_data(
                     left_width,
                     right_width,
                     prec_id=prec_id,
+                    prec_charge=prec_charge,
                     isotopes=isotopes,
                     library_intensities=library_intensities,
                     exp_rt=exp_rt,
@@ -553,14 +564,15 @@ def get_cnn_data(
         if mode == 'npy':
             np.save(
                 chromatograms_filename,
-                np.stack(chromatograms_array, axis=0).astype(np.float32)
-            )
-            np.save(labels_filename, np.stack(label_matrix, axis=0).astype(np.int32))
+                np.array(chromatograms_array, dtype=np.float32))
+            np.save(
+                labels_filename,
+                np.array(label_matrix, dtype=np.float32))
         elif mode == 'hdf5':
             out.create_dataset(
-                labels_filename, data=np.stack(label_matrix, axis=0))
+                labels_filename, data=np.array(label_matrix))
         elif mode == 'tar':
-            data = np.stack(label_matrix, axis=0).tobytes()
+            data = np.array(label_matrix).tobytes()
             with io.BytesIO(data) as f:
                 info = tarfile.TarInfo(labels_filename)
                 info.size = len(data)
@@ -610,7 +622,7 @@ if __name__ == '__main__':
         '-extra_features',
         '--extra_features',
         type=str,
-        default='ms1,lib_int,exp_rt')
+        default='ms1,lib_int,exp_rt,prec_charge')
     parser.add_argument('-isotopes', '--isotopes', type=str, default='0')
     parser.add_argument(
         '-csv_only',
@@ -628,7 +640,7 @@ if __name__ == '__main__':
         '--scored',
         action='store_true',
         default=False)
-    parser.add_argument('-mode', '--mode', type=str, default='tar')
+    parser.add_argument('-mode', '--mode', type=str, default='npy')
     args = parser.parse_args()
 
     args.in_folder = args.in_folder.split(',')
@@ -644,7 +656,7 @@ if __name__ == '__main__':
         if args.mode == 'npy':
             out = args.out
         elif args.mode == 'hdf5':
-            out = hfpy.File(args.out + '.hdf5', 'w')
+            out = h5py.File(args.out + '.hdf5', 'w')
         elif args.mode == 'tar':
             out = tarfile.open(args.out + '.tar', 'w|')
 

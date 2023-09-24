@@ -49,7 +49,8 @@ class SelfAttention(nn.Module):
 
         assert dot.size() == (b*h, t, t), f'Matrix has size {dot.size()}, expected {(b*h, t, t)}.'
 
-        dot = F.softmax(dot, dim=2) # dot now has row-wise self-attention probabilities
+        dot = F.softmax(dot, dim=2)
+        # dot now has row-wise self-attention probabilities
 
         # apply the self attention to the values
         out = torch.bmm(dot, values).view(b, h, t, k)
@@ -61,7 +62,7 @@ class SelfAttention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, k, heads, ff_hidden_mult=4, dropout=0.0):
+    def __init__(self, k, heads, ff_hidden_mult=4, dropout=0.1):
         super().__init__()
 
         self.attention = SelfAttention(k, heads=heads)
@@ -72,23 +73,16 @@ class TransformerBlock(nn.Module):
         self.ff = nn.Sequential(
             nn.Linear(k, ff_hidden_mult * k),
             nn.ReLU(),
-            nn.Linear(ff_hidden_mult * k, k)
-        )
+            nn.Linear(ff_hidden_mult * k, k))
 
         self.do = nn.Dropout(dropout)
 
     def forward(self, x):
-
         attended = self.attention(x)
-
         x = self.norm1(attended + x)
-
         x = self.do(x)
-
         fedforward = self.ff(x)
-
         x = self.norm2(fedforward + x)
-
         x = self.do(x)
 
         return x

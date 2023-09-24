@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 
+
 class ECELossBinary(nn.Module):
     """
     Calculates the Expected Calibration Error of a binary model.
@@ -36,7 +37,7 @@ class ECELossBinary(nn.Module):
             inputs = inputs.squeeze()
             targets = targets.reshape(1, -1)
             targets = targets.squeeze()
-            
+
         if self.logits:
             inputs = self.sigmoid(inputs)
 
@@ -47,12 +48,16 @@ class ECELossBinary(nn.Module):
         ece = torch.zeros(1, device=inputs.device)
         for bin_lower, bin_upper in zip(self.bin_lowers, self.bin_uppers):
             # Calculated |confidence - accuracy| in each bin
-            in_bin = confidences.gt(bin_lower.item()) * confidences.le(bin_upper.item())
+            in_bin = (
+                confidences.gt(bin_lower.item())
+                * confidences.le(bin_upper.item()))
             prop_in_bin = in_bin.float().mean()
 
             if prop_in_bin.item() > 0:
                 accuracy_in_bin = accuracies[in_bin].float().mean()
                 avg_confidence_in_bin = confidences[in_bin].mean()
-                ece += torch.abs(avg_confidence_in_bin - accuracy_in_bin) * prop_in_bin
+                ece += (
+                    torch.abs(avg_confidence_in_bin - accuracy_in_bin)
+                    * prop_in_bin)
 
         return ece

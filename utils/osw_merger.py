@@ -21,7 +21,8 @@ def merge_chromatogram_and_decoy_chromatogram_file(
     with open(manually_validated_file, 'r') as manually_validated:
         next(manually_validated)
         for line in manually_validated:
-            idx, filename, _, _ = line.rstrip('\r\n').split(',')
+            idx, filename, bbox_start, bbox_end = line.rstrip(
+                '\r\n').split(',')
             manual_files_to_info[filename] = {
                 'id': int(idx),
                 'start': bbox_start,
@@ -91,7 +92,7 @@ def merge_chromatogram_and_decoy_chromatogram_file(
         writer.writerows(merged_file)
 
     decoy_labels = np.zeros((num_decoys, chromatogram_labels.shape[1]))
-    final_labels = np.vstack((chromatogram_labels, decoy_labels))
+    final_labels = np.concatenate((chromatogram_labels, decoy_labels), axis=0)
 
     assert final_labels.shape == (
         chromatogram_labels.shape[0] + num_decoys,

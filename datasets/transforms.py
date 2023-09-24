@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 
+
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
@@ -9,4 +10,3 @@ class ToTensor(object):
         label = torch.from_numpy(np.asarray(sample[1])).float()
 
         return chromatogram, label
-        

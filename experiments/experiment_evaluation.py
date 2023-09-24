@@ -5,7 +5,7 @@ import sys
 import yaml
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from importlib.util import find_spec, spec_from_file_location, module_from_spec
+from importlib.util import spec_from_file_location, module_from_spec
 
 # logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
 #                     level=logging.DEBUG,
@@ -31,7 +31,7 @@ def create_obj_from_cfg_section(cfg, section_name):
     return None
 
 
-def run_experiment(yaml_filepath):
+def run_experiment_evaluation(yaml_filepath):
     """Example."""
     cfg = load_cfg(yaml_filepath)
 
@@ -40,8 +40,7 @@ def run_experiment(yaml_filepath):
     pp.pprint(cfg)
 
     assert 'dataset' in cfg, 'dataset is required!'
-    assert 'model' in cfg, 'model is required!'
-    assert 'train' in cfg, 'train is required!'
+    assert 'eval' in cfg, 'eval is required!'
 
     if 'general' in cfg:
         device = cfg['general']['device']
@@ -53,34 +52,22 @@ def run_experiment(yaml_filepath):
     dataset = create_obj_from_cfg_section(cfg, 'dataset')
     dataset.transform = transform
 
-    model = create_obj_from_cfg_section(cfg, 'model')
-
-    loss = create_obj_from_cfg_section(cfg, 'loss')
-
-    optimizer_kwargs = cfg['optimizer']['kwargs']
-
-    lr_scheduler_kwargs = cfg['scheduler']['kwargs']
-
     sampling_fn = create_obj_from_cfg_section(cfg, 'sampling_fn')
 
     collate_fn = create_obj_from_cfg_section(cfg, 'collate_fn')
 
-    train_path = cfg['train']['script_path']
-    sys.path.insert(1, os.path.dirname(train_path))
-    train_spec = spec_from_file_location('train', train_path)
-    train_mod = module_from_spec(train_spec)
-    train_spec.loader.exec_module(train_mod)
-    train_kwargs = cfg['train']['kwargs']
+    eval_path = cfg['eval']['script_path']
+    sys.path.insert(1, os.path.dirname(eval_path))
+    eval_spec = spec_from_file_location('eval', eval_path)
+    eval_mod = module_from_spec(eval_spec)
+    eval_spec.loader.exec_module(eval_mod)
+    eval_kwargs = cfg['eval']['kwargs']
 
-    train_mod.main(
+    eval_mod.main(
         dataset,
-        model,
-        loss,
         sampling_fn,
         collate_fn,
-        optimizer_kwargs,
-        lr_scheduler_kwargs,
-        train_kwargs,
+        eval_kwargs,
         device
     )
 
@@ -173,4 +160,4 @@ def get_parser():
 if __name__ == '__main__':
     args = get_parser().parse_args()
     sys.path.insert(0, args.path)
-    run_experiment(args.filename)
+    run_experiment_evaluation(args.filename)

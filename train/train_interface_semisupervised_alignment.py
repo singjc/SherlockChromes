@@ -1,4 +1,3 @@
-import sys
 import torch.optim as optim
 
 from models.semisupervised_learner_1d import SemiSupervisedAlignmentLearner1d
@@ -17,10 +16,14 @@ def main(
         device):
     model_kwargs = {}
     for kw in [
+        'semisupervised',
         'wu',
         'threshold',
         'use_weak_labels',
         'enforce_weak_consistency',
+        'enforce_sparse_loc',
+        'enforce_sparse_attn',
+        'sparsity_modulator',
         'augmentator_p',
         'augmentator_mz_bins',
         'augmentator_augment_precursor',

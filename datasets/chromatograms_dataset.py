@@ -70,7 +70,7 @@ class ChromatogramsDataset(Dataset):
             for i in range(len(self.chromatograms)):
                 npys.append(self.load_chromatogram(i))
 
-            self.chromatogram_npy = np.stack(npys)
+            self.chromatogram_npy = np.array(npys, dtype=np.float32)
 
     def __len__(self):
         return len(self.chromatograms)
@@ -98,7 +98,8 @@ class ChromatogramsDataset(Dataset):
 
         if len(npy_names) > 1:
             for i in range(1, len(npy_names)):
-                npy = np.vstack((npy, np.load(npy_names[i]).astype(float)))
+                npy = np.concatenate(
+                    (npy, np.load(npy_names[i]).astype(float)), axis=0)
 
         return npy
 
@@ -169,7 +170,7 @@ class HDF5ChromatogramsDataset(Dataset):
             for i in range(len(self.chromatograms)):
                 npys.append(self.load_chromatogram(i))
 
-            self.chromatogram_npy = np.stack(npys)
+            self.chromatogram_npy = np.array(npys, dtype=np.float32)
 
     def __len__(self):
         return len(self.chromatograms)
@@ -193,7 +194,7 @@ class HDF5ChromatogramsDataset(Dataset):
         return chromatogram, label
 
     def load_dataset(self, name, extra=False):
-        dataset = self.hdf5[first_level][name][:]
+        dataset = self.hdf5['first_level'][name][:]
 
         return dataset
 
@@ -455,7 +456,7 @@ class TarChromatogramsDataset(Dataset):
                     ).astype(float)[self.external_extra_features[i]]
                 )
 
-        dataset = np.vstack(dataset)
+        dataset = np.concatenate(dataset, axis=0)
 
         return dataset
 

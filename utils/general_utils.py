@@ -8,6 +8,13 @@ import pandas as pd
 import random
 import sqlite3
 
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    jaccard_score)
 from sklearn.model_selection import KFold
 
 
@@ -68,16 +75,19 @@ def overlaps(
     pred_max,
     target_min,
     target_max,
-    threshold=0.7
+    iou_threshold=0.5
 ):
     if not pred_min or not pred_max or not target_min or not target_max:
         return False
 
-    overlap = min(pred_max, target_max) - max(pred_min, target_min)
-    percent_overlap = overlap / (target_max - target_min)
+    intersection = min(pred_max, target_max) - max(pred_min, target_min)
+    intersection = max(intersection, 0)
+    union = (pred_max - pred_min) + (target_max - target_min) - intersection
+    iou = intersection / union
 
-    if percent_overlap >= threshold:
+    if iou >= iou_threshold:
         return True
+
     return False
 
 
@@ -158,48 +168,49 @@ def get_feature_data_table(osw_filename, decoy=0, spectral_info=True):
 
     if spectral_info:
         query = \
-        """SELECT r.FILENAME, p2.MODIFIED_SEQUENCE, p1.CHARGE, f.LEFT_WIDTH,
-        f.RIGHT_WIDTH, ms1.VAR_MASSDEV_SCORE,
-        ms1.VAR_ISOTOPE_CORRELATION_SCORE, ms1.VAR_ISOTOPE_OVERLAP_SCORE,
-        ms1.VAR_XCORR_COELUTION, ms1.VAR_XCORR_SHAPE,
-        ms2.VAR_BSERIES_SCORE, ms2.VAR_DOTPROD_SCORE, ms2.VAR_INTENSITY_SCORE,
-        ms2.VAR_ISOTOPE_CORRELATION_SCORE, ms2.VAR_ISOTOPE_OVERLAP_SCORE,
-        ms2.VAR_LIBRARY_CORR, ms2.VAR_LIBRARY_DOTPROD,
-        ms2.VAR_LIBRARY_MANHATTAN, ms2.VAR_LIBRARY_RMSD,
-        ms2.VAR_LIBRARY_ROOTMEANSQUARE, ms2.VAR_LIBRARY_SANGLE,
-        ms2.VAR_LOG_SN_SCORE, ms2.VAR_MANHATTAN_SCORE, ms2.VAR_MASSDEV_SCORE,
-        ms2.VAR_MASSDEV_SCORE_WEIGHTED, ms2.VAR_NORM_RT_SCORE,
-        ms2.VAR_XCORR_COELUTION, ms2.VAR_XCORR_COELUTION_WEIGHTED,
-        ms2.VAR_XCORR_SHAPE, ms2.VAR_XCORR_SHAPE_WEIGHTED,
-        ms2.VAR_YSERIES_SCORE, ms2.VAR_ELUTION_MODEL_FIT_SCORE
-        FROM PRECURSOR p1
-        LEFT JOIN PRECURSOR_PEPTIDE_MAPPING ppm ON p1.ID = ppm.PRECURSOR_ID
-        LEFT JOIN PEPTIDE p2 ON p2.ID = ppm.PEPTIDE_ID
-        LEFT JOIN FEATURE f ON p1.ID = f.PRECURSOR_ID
-        LEFT JOIN RUN r on f.RUN_ID = r.ID
-        LEFT JOIN FEATURE_MS1 ms1 ON f.ID = ms1.FEATURE_ID
-        LEFT JOIN FEATURE_MS2 ms2 on f.ID = ms2.FEATURE_ID
-        WHERE p1.DECOY = {0}""".format(decoy)
+            """SELECT r.FILENAME, p2.MODIFIED_SEQUENCE,
+            f.LEFT_WIDTH, f.RIGHT_WIDTH, p1.CHARGE, ms1.VAR_MASSDEV_SCORE,
+            ms1.VAR_ISOTOPE_CORRELATION_SCORE, ms1.VAR_ISOTOPE_OVERLAP_SCORE,
+            ms1.VAR_XCORR_COELUTION, ms1.VAR_XCORR_SHAPE,
+            ms2.VAR_BSERIES_SCORE, ms2.VAR_DOTPROD_SCORE,
+            ms2.VAR_INTENSITY_SCORE, ms2.VAR_ISOTOPE_CORRELATION_SCORE,
+            ms2.VAR_ISOTOPE_OVERLAP_SCORE, ms2.VAR_LIBRARY_CORR,
+            ms2.VAR_LIBRARY_DOTPROD, ms2.VAR_LIBRARY_MANHATTAN,
+            ms2.VAR_LIBRARY_RMSD, ms2.VAR_LIBRARY_ROOTMEANSQUARE,
+            ms2.VAR_LIBRARY_SANGLE, ms2.VAR_LOG_SN_SCORE,
+            ms2.VAR_MANHATTAN_SCORE, ms2.VAR_MASSDEV_SCORE,
+            ms2.VAR_MASSDEV_SCORE_WEIGHTED, ms2.VAR_NORM_RT_SCORE,
+            ms2.VAR_XCORR_COELUTION, ms2.VAR_XCORR_COELUTION_WEIGHTED,
+            ms2.VAR_XCORR_SHAPE, ms2.VAR_XCORR_SHAPE_WEIGHTED,
+            ms2.VAR_YSERIES_SCORE
+            FROM PRECURSOR p1
+            LEFT JOIN PRECURSOR_PEPTIDE_MAPPING ppm ON p1.ID = ppm.PRECURSOR_ID
+            LEFT JOIN PEPTIDE p2 ON p2.ID = ppm.PEPTIDE_ID
+            LEFT JOIN FEATURE f ON p1.ID = f.PRECURSOR_ID
+            LEFT JOIN RUN r on f.RUN_ID = r.ID
+            LEFT JOIN FEATURE_MS1 ms1 ON f.ID = ms1.FEATURE_ID
+            LEFT JOIN FEATURE_MS2 ms2 on f.ID = ms2.FEATURE_ID
+            WHERE p1.DECOY = {0}""".format(decoy)
     else:
         query = \
-        """SELECT r.FILENAME, p2.MODIFIED_SEQUENCE, p1.CHARGE, f.LEFT_WIDTH,
-        f.RIGHT_WIDTH, ms1.VAR_XCORR_COELUTION, ms1.VAR_XCORR_SHAPE,
-        ms2.VAR_DOTPROD_SCORE, ms2.VAR_INTENSITY_SCORE,
-        ms2.VAR_LIBRARY_CORR, ms2.VAR_LIBRARY_DOTPROD,
-        ms2.VAR_LIBRARY_MANHATTAN, ms2.VAR_LIBRARY_RMSD,
-        ms2.VAR_LIBRARY_ROOTMEANSQUARE, ms2.VAR_LIBRARY_SANGLE,
-        ms2.VAR_LOG_SN_SCORE, ms2.VAR_MANHATTAN_SCORE, ms2.VAR_NORM_RT_SCORE,
-        ms2.VAR_XCORR_COELUTION, ms2.VAR_XCORR_COELUTION_WEIGHTED,
-        ms2.VAR_XCORR_SHAPE, ms2.VAR_XCORR_SHAPE_WEIGHTED,
-        ms2.VAR_ELUTION_MODEL_FIT_SCORE
-        FROM PRECURSOR p1
-        LEFT JOIN PRECURSOR_PEPTIDE_MAPPING ppm ON p1.ID = ppm.PRECURSOR_ID
-        LEFT JOIN PEPTIDE p2 ON p2.ID = ppm.PEPTIDE_ID
-        LEFT JOIN FEATURE f ON p1.ID = f.PRECURSOR_ID
-        LEFT JOIN RUN r on f.RUN_ID = r.ID
-        LEFT JOIN FEATURE_MS1 ms1 ON f.ID = ms1.FEATURE_ID
-        LEFT JOIN FEATURE_MS2 ms2 on f.ID = ms2.FEATURE_ID
-        WHERE p1.DECOY = {0}""".format(decoy)
+            """SELECT r.FILENAME, p2.MODIFIED_SEQUENCE,
+            f.LEFT_WIDTH, f.RIGHT_WIDTH, p1.CHARGE, ms1.VAR_XCORR_COELUTION,
+            ms1.VAR_XCORR_SHAPE, ms2.VAR_DOTPROD_SCORE,
+            ms2.VAR_INTENSITY_SCORE, ms2.VAR_LIBRARY_CORR,
+            ms2.VAR_LIBRARY_DOTPROD, ms2.VAR_LIBRARY_MANHATTAN,
+            ms2.VAR_LIBRARY_RMSD, ms2.VAR_LIBRARY_ROOTMEANSQUARE,
+            ms2.VAR_LIBRARY_SANGLE, ms2.VAR_LOG_SN_SCORE,
+            ms2.VAR_MANHATTAN_SCORE, ms2.VAR_NORM_RT_SCORE,
+            ms2.VAR_XCORR_COELUTION, ms2.VAR_XCORR_COELUTION_WEIGHTED,
+            ms2.VAR_XCORR_SHAPE, ms2.VAR_XCORR_SHAPE_WEIGHTED
+            FROM PRECURSOR p1
+            LEFT JOIN PRECURSOR_PEPTIDE_MAPPING ppm ON p1.ID = ppm.PRECURSOR_ID
+            LEFT JOIN PEPTIDE p2 ON p2.ID = ppm.PEPTIDE_ID
+            LEFT JOIN FEATURE f ON p1.ID = f.PRECURSOR_ID
+            LEFT JOIN RUN r on f.RUN_ID = r.ID
+            LEFT JOIN FEATURE_MS1 ms1 ON f.ID = ms1.FEATURE_ID
+            LEFT JOIN FEATURE_MS2 ms2 on f.ID = ms2.FEATURE_ID
+            WHERE p1.DECOY = {0}""".format(decoy)
 
     res = cursor.execute(query)
     tmp = res.fetchall()
@@ -239,7 +250,7 @@ def create_feature_data(
         if None in feature_data_table[i]:
             continue
 
-        filename, mod_seq, charge, left, right = feature_data_table[i][0:5]
+        filename, mod_seq, left, right, charge = feature_data_table[i][0:5]
         filename = '_'.join(
             [filename.split('/')[-1].split('.')[0], mod_seq, str(charge)])
         label = 0
@@ -248,9 +259,9 @@ def create_feature_data(
             continue
         elif overlaps(
             left,
-            right,
+            right + 1,
             filename_to_annotation[filename]['start_time'],
-            filename_to_annotation[filename]['end_time'],
+            filename_to_annotation[filename]['end_time'] + 1,
             threshold
         ):
             label = 1
@@ -276,7 +287,7 @@ def create_feature_data(
 
         feature_idx += 1
 
-        feature_data_array.append(feature_data_table[i][5:])
+        feature_data_array.append(feature_data_table[i][4:])
 
     if decoys:
         decoy_feature_data_table = get_feature_data_table(
@@ -288,7 +299,7 @@ def create_feature_data(
             if None in decoy_feature_data_table[i]:
                 continue
 
-            filename, mod_seq, charge, left, right = (
+            filename, mod_seq, left, right, charge = (
                 decoy_feature_data_table[i][0:5])
             filename = '_'.join(
                 [filename.split('/')[-1].split('.')[0], mod_seq, str(charge)])
@@ -309,7 +320,7 @@ def create_feature_data(
                     None,
                     None])
             feature_idx += 1
-            feature_data_array.append(decoy_feature_data_table[i][5:])
+            feature_data_array.append(decoy_feature_data_table[i][4:])
 
     feature_data_array = np.array(feature_data_array, dtype=np.float32)
     labels = np.array(labels, dtype=np.float32)
@@ -779,3 +790,36 @@ def create_kfold_train_and_validation_and_holdout_test_by_sequence(
                 for seq in seq_splits[split][split_part]:
                     for idx in seq_to_idx[seq]:
                         f.write(idx + '\n')
+
+
+def compare_label_npys_pointwise(
+    file_dir,
+    idx_filename,
+    target_labels_npy,
+    source_labels_npy
+):
+    target_labels = np.load(os.path.join(file_dir, target_labels_npy))
+    source_labels = np.load(os.path.join(file_dir, source_labels_npy))
+    target, source = [], []
+
+    idxs = np.loadtxt(os.path.join(file_dir, idx_filename), dtype='int')
+    for idx in idxs:
+        target.append(target_labels[idx])
+        source.append(source_labels[idx])
+
+    target = np.concatenate(target, axis=0).reshape(-1, 1)
+    source = np.concatenate(source, axis=0).reshape(-1, 1)
+    acc = accuracy_score(target, source)
+    bacc = balanced_accuracy_score(target, source)
+    prec = precision_score(target, source)
+    recall = recall_score(target, source)
+    dice = f1_score(target, source)
+    iou = jaccard_score(target, source)
+
+    print(
+        f'Pixel Accuracy: {acc:.4f} '
+        f'Pixel Balanced accuracy: {bacc:.4f} '
+        f'Pixel Precision: {prec:.4f} '
+        f'Pixel Recall: {recall:.4f} '
+        f'Pixel Dice/F1: {dice:.4f} '
+        f'Pixel IoU/Jaccard: {iou:.4f}')

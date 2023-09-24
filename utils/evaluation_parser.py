@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import sys
 import time
 
@@ -8,6 +9,7 @@ sys.path.insert(0, '..')
 
 from datasets.visualizer import plot_binary_precision_recall_curve
 from eda.analysis import create_histo
+
 
 def get_filenames_from_idx(chromatograms_filename, idx_filenames=[]):
     idxs = {}
@@ -23,11 +25,12 @@ def get_filenames_from_idx(chromatograms_filename, idx_filenames=[]):
         next(chromatograms_file)
         for line in chromatograms_file:
             line = line.split(',')
-            
+
             if line[0] in idxs:
                 filenames[line[1]] = True
 
     return filenames
+
 
 def parse_model_evaluation_file(
     filenames,
@@ -35,7 +38,8 @@ def parse_model_evaluation_file(
     mod_threshold=0.5,
     mod_min_pts=1,
     train_chromatogram_filenames=[],
-    exclusion_idx_filenames=[]):
+    exclusion_idx_filenames=[]
+):
     excluded_filenames = {}
 
     for i in range(len(train_chromatogram_filenames)):
@@ -56,7 +60,7 @@ def parse_model_evaluation_file(
             next(infile)
             for line in infile:
                 line = line.rstrip('\r\n').split(',')
-                
+
                 (
                     chrom_id,
                     chromatogram_filename,
@@ -101,7 +105,7 @@ def parse_model_evaluation_file(
                     mod_start, mod_end = None, None
 
                 if not osw_start and mod_start:
-                    mod_stats['fp']+= 1
+                    mod_stats['fp'] += 1
                     mod_fp.append(
                         (
                                 chrom_id,
@@ -110,7 +114,7 @@ def parse_model_evaluation_file(
                                 mod_start,
                                 mod_end))
                 elif osw_start and not mod_start:
-                    mod_stats['fn']+= 1
+                    mod_stats['fn'] += 1
                     mod_fn.append(
                         (
                                 chrom_id,
@@ -119,7 +123,7 @@ def parse_model_evaluation_file(
                                 mod_start,
                                 mod_end))
                 elif not osw_start and not mod_start:
-                    mod_stats['tn']+= 1
+                    mod_stats['tn'] += 1
                     mod_tn.append(
                         (
                                 chrom_id,
@@ -128,8 +132,10 @@ def parse_model_evaluation_file(
                                 mod_start,
                                 mod_end))
                 else:
-                    if overlaps(osw_start, osw_end, mod_start, mod_end):
-                        mod_stats['tp']+= 1
+                    if overlaps(
+                        osw_start, osw_end + 1, mod_start, mod_end + 1
+                    ):
+                        mod_stats['tp'] += 1
                         mod_tp.append(
                             (
                                 chrom_id,
@@ -138,7 +144,7 @@ def parse_model_evaluation_file(
                                 mod_start,
                                 mod_end))
                     else:
-                        mod_stats['fp']+= 1
+                        mod_stats['fp'] += 1
                         mod_fp.append(
                             (
                                 chrom_id,
@@ -151,6 +157,7 @@ def parse_model_evaluation_file(
 
     return mod_tp, mod_fp, mod_tn, mod_fn
 
+
 def parse_amended_model_evaluation_file(
     filenames=[],
     osw_threshold=2.1,
@@ -158,7 +165,8 @@ def parse_amended_model_evaluation_file(
     mod_min_pts=1,
     train_chromatogram_filename=None,
     inclusion_idx_filenames=[],
-    plot_things=False):
+    plot_things=False
+):
     included_filenames = get_filenames_from_idx(
         train_chromatogram_filename, inclusion_idx_filenames)
 
@@ -175,7 +183,7 @@ def parse_amended_model_evaluation_file(
             next(infile)
             for line in infile:
                 line = line.rstrip('\r\n').split(',')
-                
+
                 (
                     chrom_id,
                     chromatogram_filename,
@@ -232,9 +240,9 @@ def parse_amended_model_evaluation_file(
                     manual_end = int(manual_end)
                 else:
                     manual_start, manual_end = None, None
-                
-                if manual_start == None and osw_start != None:
-                    osw_stats['fp']+= 1
+
+                if not manual_start and osw_start:
+                    osw_stats['fp'] += 1
                     osw_fp.append(
                         (
                             chrom_id,
@@ -243,8 +251,8 @@ def parse_amended_model_evaluation_file(
                             osw_start,
                             osw_end))
                     osw_target.append(0)
-                elif manual_start != None and osw_start == None:
-                    osw_stats['fn']+= 1
+                elif manual_start and not osw_start:
+                    osw_stats['fn'] += 1
                     osw_fn.append(
                         (
                             chrom_id,
@@ -253,8 +261,8 @@ def parse_amended_model_evaluation_file(
                             osw_start,
                             osw_end))
                     osw_target.append(1)
-                elif manual_start == None and osw_start == None:
-                    osw_stats['tn']+= 1
+                elif not manual_start and not osw_start:
+                    osw_stats['tn'] += 1
                     osw_tn.append(
                         (
                             chrom_id,
@@ -264,29 +272,31 @@ def parse_amended_model_evaluation_file(
                             osw_end))
                     osw_target.append(0)
                 else:
-                    if overlaps(manual_start, manual_end, osw_start, osw_end):
-                        osw_stats['tp']+= 1
+                    if overlaps(
+                        manual_start, manual_end + 1, osw_start, osw_end + 1
+                    ):
+                        osw_stats['tp'] += 1
                         osw_tp.append(
                             (
-                            chrom_id,
-                            manual_start,
-                            manual_end,
-                            osw_start,
-                            osw_end))
+                                chrom_id,
+                                manual_start,
+                                manual_end,
+                                osw_start,
+                                osw_end))
                         osw_target.append(1)
                     else:
-                        osw_stats['fp']+= 1
+                        osw_stats['fp'] += 1
                         osw_fp.append(
                             (
-                            chrom_id,
-                            manual_start,
-                            manual_end,
-                            osw_start,
-                            osw_end))
+                                chrom_id,
+                                manual_start,
+                                manual_end,
+                                osw_start,
+                                osw_end))
                         osw_target.append(0)
 
-                if manual_start == None and mod_start != None:
-                    mod_stats['fp']+= 1
+                if not manual_start and mod_start:
+                    mod_stats['fp'] += 1
                     mod_fp.append(
                         (
                             chrom_id,
@@ -295,8 +305,8 @@ def parse_amended_model_evaluation_file(
                             mod_start,
                             mod_end))
                     mod_target.append(0)
-                elif manual_start != None and mod_start == None:
-                    mod_stats['fn']+= 1
+                elif manual_start and not mod_start:
+                    mod_stats['fn'] += 1
                     mod_fn.append(
                         (
                             chrom_id,
@@ -305,8 +315,8 @@ def parse_amended_model_evaluation_file(
                             mod_start,
                             mod_end))
                     mod_target.append(1)
-                elif manual_start == None and mod_start == None:
-                    mod_stats['tn']+= 1
+                elif not manual_start and not mod_start:
+                    mod_stats['tn'] += 1
                     mod_tn.append(
                         (
                             chrom_id,
@@ -316,25 +326,27 @@ def parse_amended_model_evaluation_file(
                             mod_end))
                     mod_target.append(0)
                 else:
-                    if overlaps(manual_start, manual_end, mod_start, mod_end):
-                        mod_stats['tp']+= 1
+                    if overlaps(
+                        manual_start, manual_end + 1, mod_start, mod_end + 1
+                    ):
+                        mod_stats['tp'] += 1
                         mod_tp.append(
                             (
-                            chrom_id,
-                            manual_start,
-                            manual_end,
-                            mod_start,
-                            mod_end))
+                                chrom_id,
+                                manual_start,
+                                manual_end,
+                                mod_start,
+                                mod_end))
                         mod_target.append(1)
                     else:
-                        mod_stats['fp']+= 1
+                        mod_stats['fp'] += 1
                         mod_fp.append(
                             (
-                            chrom_id,
-                            manual_start,
-                            manual_end,
-                            mod_start,
-                            mod_end))
+                                chrom_id,
+                                manual_start,
+                                manual_end,
+                                mod_start,
+                                mod_end))
                         mod_target.append(0)
 
     print(osw_stats, mod_stats)
@@ -347,11 +359,13 @@ def parse_amended_model_evaluation_file(
 
     return mod_tp, mod_fp, mod_tn, mod_fn, osw_tp, osw_fp, osw_tn, osw_fn
 
+
 def decoys_per_target_metric(
     target_filename,
     train_chromatogram_filename=None,
     exclusion_idx_filenames=[],
-    logits=False):
+    logits=False
+):
     excluded_filenames = get_filenames_from_idx(
         train_chromatogram_filename, exclusion_idx_filenames)
 
@@ -371,7 +385,7 @@ def decoys_per_target_metric(
             else:
                 osw_targets.append(float(line[6]))
                 mod_targets.append(float(line[7]))
-                    
+
     osw_targets = np.array(osw_targets)
     osw_decoys = np.array(osw_decoys)
     mod_targets = np.array(mod_targets)
@@ -412,8 +426,9 @@ def decoys_per_target_metric(
     plt.grid()
     plt.legend(title='Inputs: ')
     plt.title('Pseudo 1 - Precision / Recall Curve')
-    
+
     plt.show()
+
 
 if __name__ == '__main__':
     """

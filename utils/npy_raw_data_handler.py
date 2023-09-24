@@ -185,7 +185,19 @@ def create_chromatogram(
             lib_intensities,
             ms1_rt_array.shape[-1]).reshape(num_traces, -1))
     chromatogram.append(np.expand_dims(abs(ms1_rt_array - lib_rt), axis=0))
+    chromatogram.append(
+        np.expand_dims(np.repeat(prec_charge, ms1_rt_array.shape[-1]), axis=0))
     chromatogram = np.concatenate(chromatogram, axis=0)
+
+    # M = number of MZ buckets per strip
+    # T = number of retention time steps
+    # final shape = (7 * M + 8, T)
+    # first 6 * M are the MS2 strips
+    # following M are the MS1 strips
+    # followed by the 6 MS2 library intensities
+    # followed by the retention time diff
+    # followed by the precursor charge
+
     osw_label_left_idx, osw_label_right_idx = None, None
     ss_left_idx, ss_right_idx = None, None
     ss_left_idx, ss_right_idx = get_subsequence_idxs(
@@ -348,7 +360,7 @@ def create_repl_chromatograms_array(
         ])
         idx += 1
 
-    chromatograms_array = np.stack(chromatograms_array, axis=0)
+    chromatograms_array = np.array(chromatograms_array, dtype=np.float32)
 
     print(
         f'Saving chromatograms array for {repl} of shape '
@@ -357,11 +369,12 @@ def create_repl_chromatograms_array(
 
     np.save(
         os.path.join(work_dir, f'{repl}_chromatograms_array'),
-        chromatograms_array.astype(np.float32)
+        chromatograms_array
     )
 
     if create_label_arrays:
-        segmentation_labels_array = np.stack(segmentation_labels_array, axis=0)
+        segmentation_labels_array = np.array(
+            segmentation_labels_array, dtype=np.int32)
 
         print(
             f'Saving segmentation labels array for {repl} of shape '
@@ -370,10 +383,10 @@ def create_repl_chromatograms_array(
 
         np.save(
             os.path.join(work_dir, f'{repl}_segmentation_labels_array'),
-            segmentation_labels_array.astype(np.int32)
+            segmentation_labels_array
         )
 
-        classificaton_labels_array = np.array(
+        classification_labels_array = np.array(
             classification_labels_array, dtype=np.int32).reshape((-1, 1))
 
         # Change labels from decoy to non-decoy as positive class
@@ -381,7 +394,7 @@ def create_repl_chromatograms_array(
 
         print(
             f'Saving classification labels array for {repl} of shape '
-            f'{classificaton_labels_array.shape}'
+            f'{classification_labels_array.shape}'
         )
 
         np.save(

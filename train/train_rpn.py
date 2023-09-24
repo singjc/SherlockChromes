@@ -2,7 +2,6 @@ import importlib
 import numpy as np
 import os
 import random
-import sys
 import torch
 
 from ignite.engine import Engine, Events
@@ -11,13 +10,15 @@ from ignite.metrics import Accuracy, Loss, Precision, Recall
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch.utils.data import DataLoader, Subset
 
+
 def get_data_loaders(
     data,
     test_batch_proportion=0.1,
     batch_size=1,
     sampling_fn=None,
     collate_fn=None,
-    outdir_path=None):
+    outdir_path=None
+):
 
     if sampling_fn:
         train_idx, val_idx, test_idx = sampling_fn(
@@ -75,6 +76,7 @@ def get_data_loaders(
 
     return train_loader, val_loader, test_loader
 
+
 def train(
     data,
     model,
@@ -83,7 +85,8 @@ def train(
     sampling_fn=None,
     collate_fn=None,
     device='cpu',
-    **kwargs):
+    **kwargs
+):
     train_loader, val_loader, test_loader = get_data_loaders(
         data, kwargs['test_batch_proportion'],
         kwargs['batch_size'],
@@ -149,7 +152,7 @@ def train(
 
     scheduler = CosineAnnealingWarmRestarts(
         optimizer, kwargs['T_0'], T_mult=kwargs['T_mult'])
-    
+
     def step_scheduler(engine, scheduler):
         scheduler.step()
 
@@ -214,7 +217,7 @@ def train(
     def log_test_results(trainer):
         if kwargs['test_batch_proportion'] == 0.0:
             return
-            
+   
         evaluator.run(test_loader)
         metrics = evaluator.state.metrics
         print("Test Results - Epoch: {} Avg loss: {:.8f}"

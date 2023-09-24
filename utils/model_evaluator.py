@@ -114,17 +114,12 @@ def create_output_array(
         else:
             output = model(chromatograms)
 
-        if hasattr(model, 'output_mode') and model.output_mode = 'both':
-            b, _, _ = chromatograms.size()
-            output = (
-                output['strong']
-                / torch.max(output['strong'], dim=1).values.view(b, 1)
-                * output['weak']
-            )
+        if hasattr(model, 'output_mode') and model.output_mode == 'all':
+            output = output['loc'] * output['cla']
 
         output_array.append(output.detach().to('cpu').numpy())
 
-    output_array = np.vstack(output_array)
+    output_array = np.concatenate(output_array, axis=0)
 
     if len(output_array.shape) > 2:
         output_array = output_array.reshape(output_array.shape[0], -1)
@@ -278,9 +273,9 @@ def create_results_file(
             scipy.ndimage.label(binarized_output)[0])
 
         if regions_of_interest:
-            scores = [np.max(output[r])
-                      for r
-                      in regions_of_interest]
+            scores = [
+                np.sum(output[r])
+                for r in regions_of_interest]
             best_region_idx = np.argmax(scores)
             best_region = regions_of_interest[best_region_idx][0]
 
@@ -298,7 +293,7 @@ def create_results_file(
             roi_length = end_idx - start_idx
 
             if (
-                2 < roi_length < 60
+                3 <= roi_length <= 30
                 and start_idx < max_idx < end_idx
                 and 'DECOY_' not in row['Filename']
             ):
@@ -354,7 +349,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '-model_pth', '--model_pth', type=str, default='model.pth')
     parser.add_argument(
-        '-output_mode', '--output_mode', type=str, default='strong')
+        '-output_mode', '--output_mode', type=str, default='loc')
     parser.add_argument(
         '-out_dir', '--out_dir', type=str, default='results')
     parser.add_argument(
@@ -512,6 +507,9 @@ if __name__ == "__main__":
     else:
         if args.mode == 'alignment':
             if args.calibrate:
+                if hasattr(model, 'set_output_probs'):
+                    model.set_output_probs(False)
+
                 model = calibrate(
                     calibration_dataset,
                     model,
@@ -522,7 +520,8 @@ if __name__ == "__main__":
                     template_dataset=template_dataset,
                     template_batch_size=args.template_batch_size)
             else:
-                model.probs = True
+                if hasattr(model, 'set_output_probs'):
+                    model.set_output_probs(True)
 
             output_array = create_output_array(
                 dataset,
